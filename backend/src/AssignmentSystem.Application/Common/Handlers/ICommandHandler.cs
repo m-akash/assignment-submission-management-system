@@ -12,4 +12,13 @@ public interface ICommandHandler<in TCommand, TResult> where TCommand : ICommand
     Task<Result<TResult>> HandleAsync(TCommand command, CancellationToken ct = default);
 }
 
-public interface ICommand<out TResult> { }
+/// <summary>Command handler for commands that return no value (just success/failure).</summary>
+public interface ICommandHandler<in TCommand> where TCommand : ICommand
+{
+    Task<Result> HandleAsync(TCommand command, CancellationToken ct = default);
+}
+
+public interface ICommand<out TResult> : ICommand { }
+
+/// <summary>Marker for commands that produce no result value.</summary>
+public interface ICommand { }

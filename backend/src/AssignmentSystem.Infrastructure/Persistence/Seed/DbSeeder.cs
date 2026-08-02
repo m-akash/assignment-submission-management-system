@@ -39,6 +39,30 @@ public sealed class DbSeeder
 
     public async Task SeedAsync(CancellationToken ct = default)
     {
+        // Self-healing: align SubmissionCount cache values for any existing assignments
+        var assignmentsToFix = await _context.Assignments
+            .Where(a => a.SubmissionCount == 0)
+            .ToListAsync(ct);
+
+        bool needsSave = false;
+        foreach (var assignmentToFix in assignmentsToFix)
+        {
+            var actualCount = await _context.Submissions.CountAsync(s => s.AssignmentId == assignmentToFix.Id, ct);
+            if (actualCount > 0)
+            {
+                for (int i = 0; i < actualCount; i++)
+                {
+                    assignmentToFix.IncrementSubmissionCount();
+                }
+                needsSave = true;
+            }
+        }
+        if (needsSave)
+        {
+            await _context.SaveChangesAsync(ct);
+            _logger.LogInformation("Database self-healed: updated SubmissionCount on existing assignments.");
+        }
+
         if (await _context.Users.AnyAsync(u => u.Email.Value == AdminEmail, ct))
         {
             _logger.LogInformation("Seed already applied — skipping.");
@@ -88,17 +112,7 @@ public sealed class DbSeeder
         _context.Assignments.Add(assignment);
         await _context.SaveChangesAsync(ct);
 
-        // ── A pending submission for the demo student ──────────────────────────
-        var submission = Submission.Create(
-            assignmentId: assignment.Id,
-            studentId: student.Id,
-            content: "My draft answer — will update before the deadline.",
-            hasFile: false,
-            assignment: assignment,
-            clock: new SeederClock());
-        _context.Submissions.Add(submission);
 
-        await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation("Seed complete: admin={Admin}, teacher={Teacher}, student={Student}",
             AdminEmail, TeacherEmail, StudentEmail);
