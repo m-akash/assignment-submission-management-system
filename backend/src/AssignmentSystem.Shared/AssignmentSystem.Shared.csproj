@@ -6,4 +6,14 @@
 
   <!-- Shared depends on NOTHING internal. Pure cross-cutting contracts (Result, Error, Clock). -->
 
+  <!--
+    CA1716 (namespace/type names matching keywords): the names 'Shared' and 'Error' are
+    conventional and intentional here.
+    CA1000 (static members on generic types): the Result<T>/PageResult<T> factory pattern
+    is the standard idiom for this design and is used deliberately.
+  -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);CA1716;CA1000</NoWarn>
+  </PropertyGroup>
+
 </Project>

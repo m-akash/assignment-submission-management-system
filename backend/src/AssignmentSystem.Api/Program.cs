@@ -1,6 +1,17 @@
+using System.Text;
 using System.Text.Json.Serialization;
+using AssignmentSystem.Api.Authentication;
 using AssignmentSystem.Api.Middleware;
 using AssignmentSystem.Api.Swagger;
+using AssignmentSystem.Application;
+using AssignmentSystem.Application.Abstractions;
+using AssignmentSystem.Infrastructure;
+using AssignmentSystem.Infrastructure.Persistence;
+using AssignmentSystem.Infrastructure.Persistence.Seed;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 // ── Serilog bootstrap (early, before host build) ─────────────────────────────
@@ -19,6 +30,45 @@ try
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services));
 
+    // ── Layer services ────────────────────────────────────────────────────────
+    builder.Services.AddApplication();
+    builder.Services.AddInfrastructure(builder.Configuration);
+
+    // ── Current user (per-request, from HttpContext claims) ───────────────────
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+
+    // ── Authentication (JWT bearer) ───────────────────────────────────────────
+    var jwtKey = builder.Configuration["Jwt:Key"]!;
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                ValidAudience = builder.Configuration["Jwt:Audience"],
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+                ClockSkew = TimeSpan.FromSeconds(30),
+            };
+        });
+
+    builder.Services.AddAuthorization();
+
+    // ── CORS (frontend origin allowlist) ──────────────────────────────────────
+    var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
+    builder.Services.AddCors(options =>
+    {
+        options.AddDefaultPolicy(policy =>
+            policy.WithOrigins(corsOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials());
+    });
+
     // ── MVC / JSON ────────────────────────────────────────────────────────────
     builder.Services.AddControllers()
         .AddJsonOptions(o =>
@@ -36,10 +86,26 @@ try
     });
 
     // ── Cross-cutting ─────────────────────────────────────────────────────────
-    builder.Services.AddCorrelationIdMiddleware();
-    builder.Services.AddHealthChecks();
+    builder.Services.AddHealthChecks()
+        .AddDbContextCheck<AppDbContext>();
 
     var app = builder.Build();
+
+    // ── Auto-migrate + seed on startup (configurable) ─────────────────────────
+    if (builder.Configuration.GetValue("Database:AutoMigrate", true))
+    {
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Database.MigrateAsync();
+
+            if (builder.Configuration.GetValue("Database:SeedOnStartup", true))
+            {
+                var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
+                await seeder.SeedAsync();
+            }
+        }
+    }
 
     if (app.Environment.IsDevelopment())
     {
@@ -47,8 +113,12 @@ try
         app.UseSwaggerUI();
     }
 
+    app.UseCors();
     app.UseMiddleware<CorrelationIdMiddleware>();
     app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     app.MapControllers();
     app.MapHealthChecks("/health");
