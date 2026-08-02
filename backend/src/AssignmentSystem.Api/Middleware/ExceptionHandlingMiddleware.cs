@@ -1,15 +1,21 @@
 using System.Net;
 using System.Text.Json;
 using AssignmentSystem.Api.Common;
+using AssignmentSystem.Api.Middleware;
+using AssignmentSystem.Domain.Common;
+using AssignmentSystem.Shared.Common;
+using FluentValidation;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Serilog;
 
 namespace AssignmentSystem.Api.Middleware;
 
 /// <summary>
-/// Global exception→ProblemDetails (RFC 7807) mapping. Expanded fully in Phase 2
-/// with mappings for ValidationException, UnauthorizedAccessException,
-/// DbUpdateConcurrencyException, DomainException, etc. For now it guarantees no
-/// raw stack trace ever escapes to the client and that every failure is logged.
+/// Global exception→ProblemDetails (RFC 7807) mapping. Guarantees no raw stack trace
+/// escapes to the client, every failure is correlated + logged, and each exception kind
+/// maps to the correct HTTP status. Expected domain failures use the Result pattern; this
+/// catches everything that slipped through.
 /// </summary>
 public sealed class ExceptionHandlingMiddleware
 {
@@ -42,18 +48,20 @@ public sealed class ExceptionHandlingMiddleware
             ? cid?.ToString()
             : null;
 
-        Log.Error(ex, "Unhandled exception on {Method} {Path}; CorrelationId={CorrelationId}",
-            context.Request.Method, context.Request.Path, correlationId);
+        var (status, title, message) = Map(ex);
 
-        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+        Log.Error(ex, "Unhandled exception on {Method} {Path}; Status={Status}; CorrelationId={CorrelationId}",
+            context.Request.Method, context.Request.Path, (int)status, correlationId);
+
+        context.Response.StatusCode = (int)status;
         context.Response.ContentType = "application/problem+json";
 
-        var problem = new ProblemDetails
+        var problem = new ProblemDetailsPayload
         {
-            Status = StatusCodes.Status500InternalServerError,
-            Title = "An unexpected error occurred.",
-            Type = "https://httpstatuses.io/500",
-            Detail = _env.IsDevelopment() ? ex.ToString() : "An internal server error occurred. Please try again later.",
+            Status = (int)status,
+            Title = title,
+            Type = $"https://httpstatuses.io/{(int)status}",
+            Detail = _env.IsDevelopment() ? ex.Message : message,
             Instance = context.Request.Path,
         };
         if (correlationId is not null)
@@ -61,14 +69,33 @@ public sealed class ExceptionHandlingMiddleware
             problem.Extensions["traceId"] = correlationId;
         }
 
+        // Surface validation error details.
+        if (ex is ValidationException validation)
+        {
+            var errors = validation.Errors
+                .GroupBy(e => e.PropertyName, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray());
+            problem.Extensions["errors"] = errors;
+        }
+
         await JsonSerializer.SerializeAsync(context.Response.Body, problem, JsonOptions);
     }
+
+    private static (HttpStatusCode Status, string Title, string Message) Map(Exception ex) => ex switch
+    {
+        ValidationException => (HttpStatusCode.UnprocessableEntity, "Validation failed.", "One or more validation errors occurred."),
+        DomainException => (HttpStatusCode.BadRequest, "Domain rule violated.", ex.Message),
+        UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "Authentication required.", "Authentication is required."),
+        DbUpdateConcurrencyException => (HttpStatusCode.Conflict, "Conflict.", "The record was modified by another user. Please refresh and retry."),
+        DbUpdateException => (HttpStatusCode.Conflict, "Conflict.", "A data conflict occurred."),
+        OperationCanceledException => (HttpStatusCode.BadRequest, "Request cancelled.", "The request was cancelled."),
+        _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred.", "An internal server error occurred. Please try again later."),
+    };
 }
 
-// Lightweight ProblemDetails carrier (avoids pulling in extra refs at this stage).
-internal sealed class ProblemDetails
+internal sealed class ProblemDetailsPayload
 {
-    public int? Status { get; init; }
+    public int Status { get; init; }
     public string? Title { get; init; }
     public string? Type { get; init; }
     public string? Detail { get; init; }

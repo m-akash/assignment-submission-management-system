@@ -8,15 +8,15 @@ A production-grade, role-based **Assignment & Submission Management System** for
 
 ## 📌 Project Status
 
-🚧 **Under active development.** See the [Software Architecture Document](.claude/plans/merry-wondering-marble.md) for the full design.
+✅ **Completed.** All API controllers, business requirements (B1-B7), unit/integration tests, Next.js frontend app, and Docker Compose configurations are fully implemented.
 
 ## 🧱 Tech Stack
 
 **Backend** — ASP.NET Core 10 · C# · Clean Architecture · EF Core · PostgreSQL · JWT (access + refresh) · FluentValidation · Serilog · Swashbuckle · Mapperly · xUnit + FluentAssertions + Moq
 
-**Frontend** — Next.js 15 (App Router) · TypeScript · Tailwind CSS · shadcn/ui · React Hook Form · Zod · TanStack Query · Axios
+**Frontend** — Next.js 15 (App Router) · TypeScript · Tailwind CSS · Lucide React · Axios
 
-**Database** — PostgreSQL (UUID keys, Fluent API, soft delete where it pays, optimistic concurrency)
+**Database** — PostgreSQL (UUID keys, Fluent API, soft delete, optimistic concurrency)
 
 ## 📂 Repository Structure
 
@@ -29,27 +29,29 @@ assignment-submission-management-system/
 
 ## ▶️ Quick Start
 
+### Running the application with Docker Compose:
 ```bash
-# Copy environment template (no real secrets are committed)
-cp .env.example .env
-
-# Run the full backend stack
+# Run the entire stack (PostgreSQL database, ASP.NET Core API, Next.js frontend)
 docker compose up --build
-
-# API + Swagger:  http://localhost:5080/swagger
 ```
+- **Frontend App**: [http://localhost:3000](http://localhost:3000)
+- **API Swagger Document**: [http://localhost:5080/swagger](http://localhost:5080/swagger)
 
-_Setup, demo credentials, migrations, and test instructions will be documented here in the final README (Phase 6)._
+### Running tests:
+```bash
+cd backend
+dotnet test
+```
 
 ## 🔐 Demo Accounts
 
-_Provided in the final README once seeding is in place._
+The database is automatically migrated and seeded with the following demo accounts on startup:
 
-| Role    | Email | Password |
-|---------|-------|----------|
-| Admin   | —     | —        |
-| Teacher | —     | —        |
-| Student | —     | —        |
+| Role    | Email | Password | Details |
+|---------|-------|----------|---------|
+| Admin   | `admin@assignment.test` | `Password123!` | Can manage all Users, Classes, Subjects, and mappings |
+| Teacher | `teacher@assignment.test` | `Password123!` | Assigned to Class 10-A, teaching Mathematics |
+| Student | `student@assignment.test` | `Password123!` | Enrolled in Class 10-A |
 
 ## 📄 License
 

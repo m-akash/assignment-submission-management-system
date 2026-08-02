@@ -19,8 +19,7 @@ RUN dotnet publish src/AssignmentSystem.Api/AssignmentSystem.Api.csproj -c Relea
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Non-root user for security
-RUN addgroup --system app && adduser --system --ingroup app app
+# Non-root user for security (the user 'app' is pre-created in .NET 8+ base images)
 RUN mkdir -p /data/submissions && chown -R app:app /data/submissions
 VOLUME ["/data/submissions"]
 

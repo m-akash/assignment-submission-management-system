@@ -18,18 +18,23 @@ public static class DependencyInjection
         // FluentValidation — register every AbstractValidator<> in this assembly.
         services.AddValidatorsFromAssembly(assembly);
 
-        // CQRS handlers — wire ICommandHandler<,> / IQueryHandler<,> implementations.
+        // CQRS handlers — wire all ICommandHandler<,>, ICommandHandler<> and IQueryHandler<,>
+        // implementations to their interfaces.
         services.Scan(scan => scan
             .FromAssemblies(assembly)
-            .AddClasses(classes => classes
-                .AssignableTo(typeof(ICommandHandler<,>)))
+            .AddClasses(classes => classes.AssignableTo(typeof(ICommandHandler<,>)))
             .AsImplementedInterfaces()
             .WithScopedLifetime());
 
         services.Scan(scan => scan
             .FromAssemblies(assembly)
-            .AddClasses(classes => classes
-                .AssignableTo(typeof(IQueryHandler<,>)))
+            .AddClasses(classes => classes.AssignableTo(typeof(ICommandHandler<>)))
+            .AsImplementedInterfaces()
+            .WithScopedLifetime());
+
+        services.Scan(scan => scan
+            .FromAssemblies(assembly)
+            .AddClasses(classes => classes.AssignableTo(typeof(IQueryHandler<,>)))
             .AsImplementedInterfaces()
             .WithScopedLifetime());
 

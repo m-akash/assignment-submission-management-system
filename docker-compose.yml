@@ -43,17 +43,18 @@ services:
       - submission-files:/data/submissions
     restart: unless-stopped
 
-  # Frontend is built/run locally during dev; uncomment once the web Dockerfile exists.
-  # web:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   container_name: asm-web
-  #   depends_on: [api]
-  #   environment:
-  #     NEXT_PUBLIC_API_BASE_URL: "http://localhost:5080/api/v1"
-  #   ports:
-  #     - "3000:3000"
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:5080
+    container_name: asm-web
+    depends_on: [api]
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:5080"
+    ports:
+      - "3000:3000"
 
 volumes:
   pgdata:
