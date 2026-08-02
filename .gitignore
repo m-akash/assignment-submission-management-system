@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────
+# .NET / ASP.NET Core
+# ─────────────────────────────────────────────────────────────
+**/bin/
+**/obj/
+**/artifacts/
+**/TestResults/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+project.lock.json
+*.nuget.props
+*.nuget.targets
+
+# EF Core
+**/Migrations/*.Snapshot.cs.bak
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+
+# ─────────────────────────────────────────────────────────────
+# Secrets / environment — NEVER commit real secrets
+# ─────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+**/appsettings.Local.json
+*.pfx
+*.key
+secrets.json
+
+# ─────────────────────────────────────────────────────────────
+# Local runtime data (uploaded submission files, logs, postgres data)
+# ─────────────────────────────────────────────────────────────
+_logs/
+_uploads/
+pgdata/
+**/Logs/*.log
+*.db
+*.db-shm
+*.db-wal
+
+# ─────────────────────────────────────────────────────────────
+# Node / Next.js
+# ─────────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+build/
+dist/
+.vercel
+next-env.d.ts
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp.*
+.pnp.js
+
+# ─────────────────────────────────────────────────────────────
+# OS
+# ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

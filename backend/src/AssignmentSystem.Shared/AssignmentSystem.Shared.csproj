@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <!-- Shared depends on NOTHING internal. Pure cross-cutting contracts (Result, Error, Clock). -->
+
+</Project>

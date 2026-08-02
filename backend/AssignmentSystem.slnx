@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AssignmentSystem.Api/AssignmentSystem.Api.csproj" />
+    <Project Path="src/AssignmentSystem.Application/AssignmentSystem.Application.csproj" />
+    <Project Path="src/AssignmentSystem.Domain/AssignmentSystem.Domain.csproj" />
+    <Project Path="src/AssignmentSystem.Infrastructure/AssignmentSystem.Infrastructure.csproj" />
+    <Project Path="src/AssignmentSystem.Shared/AssignmentSystem.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AssignmentSystem.Api.Tests/AssignmentSystem.Api.Tests.csproj" />
+    <Project Path="tests/AssignmentSystem.Application.Tests/AssignmentSystem.Application.Tests.csproj" />
+  </Folder>
+</Solution>

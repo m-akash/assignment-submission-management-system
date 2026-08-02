@@ -1,0 +1,60 @@
+# Full local stack: PostgreSQL + API + (optional) Web.
+# `docker compose up` → seeded database, running API, and (when built) frontend.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: asm-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-assignment_system}
+      POSTGRES_USER: ${POSTGRES_USER:-assignments}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-assignments}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-assignments} -d ${POSTGRES_DB:-assignment_system}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: src/AssignmentSystem.Api/Dockerfile
+    container_name: asm-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-assignment_system};Username=${POSTGRES_USER:-assignments};Password=${POSTGRES_PASSWORD:-assignments};Include Error Detail=true"
+      Jwt__Key: "${Jwt__Key:-CHANGE_ME_GENERATE_WITH_openssl_rand_base64_48_AT_LEAST_32_CHARS}"
+      Jwt__Issuer: "${Jwt__Issuer:-AssignmentSystem.Api}"
+      Jwt__Audience: "${Jwt__Audience:-AssignmentSystem.Web}"
+      Jwt__AccessTokenMinutes: "${Jwt__AccessTokenMinutes:-5}"
+      Jwt__RefreshTokenDays: "${Jwt__RefreshTokenDays:-7}"
+      FileStorage__Root: "/data/submissions"
+      Database__AutoMigrate: "true"
+      Database__SeedOnStartup: "true"
+      ASPNETCORE_ENVIRONMENT: "Development"
+    ports:
+      - "5080:8080"
+    volumes:
+      - submission-files:/data/submissions
+    restart: unless-stopped
+
+  # Frontend is built/run locally during dev; uncomment once the web Dockerfile exists.
+  # web:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: asm-web
+  #   depends_on: [api]
+  #   environment:
+  #     NEXT_PUBLIC_API_BASE_URL: "http://localhost:5080/api/v1"
+  #   ports:
+  #     - "3000:3000"
+
+volumes:
+  pgdata:
+  submission-files:
