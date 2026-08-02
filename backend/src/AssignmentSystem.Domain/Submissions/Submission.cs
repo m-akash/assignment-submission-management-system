@@ -54,7 +54,8 @@ public sealed class Submission : BaseEntity
         string? content,
         bool hasFile,
         Assignment assignment,
-        IClock clock)
+        IClock clock,
+        bool finalize = false)
     {
         if (assignment.Status != AssignmentStatus.Published)
         {
@@ -74,7 +75,7 @@ public sealed class Submission : BaseEntity
             AssignmentId = assignmentId,
             StudentId = studentId,
             Content = NormalizeContent(content),
-            Status = pastDeadline ? SubmissionStatus.Late : SubmissionStatus.Pending,
+            Status = pastDeadline ? SubmissionStatus.Late : (finalize ? SubmissionStatus.Submitted : SubmissionStatus.Pending),
             SubmittedAtUtc = now,
             MarksOutOf = assignment.MaxMarks,
         };
@@ -107,6 +108,10 @@ public sealed class Submission : BaseEntity
             }
 
             Status = SubmissionStatus.Late;
+        }
+        else
+        {
+            Status = SubmissionStatus.Submitted;
         }
 
         if (!HasContent(content, hasFile))

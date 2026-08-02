@@ -98,8 +98,11 @@ public sealed class Assignment : BaseEntity, ISoftDeletable
         if (Status == AssignmentStatus.Published && hasSubmissions)
         {
             // X6: only description may change once there are submissions against a published assignment.
+            // Allow up to 1-minute tolerance for deadlineUtc to handle client-side datetime-local precision loss.
+            var isDeadlineChanged = Math.Abs((DeadlineUtc - deadlineUtc).TotalMinutes) >= 1;
+
             if (!string.Equals(Title.Trim(), title.Trim(), StringComparison.Ordinal)
-                || DeadlineUtc != deadlineUtc
+                || isDeadlineChanged
                 || Math.Round(maxMarks, 2) != MaxMarks
                 || AllowResubmission != allowResubmission)
             {
@@ -138,7 +141,7 @@ public sealed class Assignment : BaseEntity, ISoftDeletable
     public bool IsOwnedBy(Guid teacherId) => TeacherId == teacherId;
 
     /// <summary>Incremented by the handler when a submission is created (for X6 checks).</summary>
-    internal void IncrementSubmissionCount() => SubmissionCount++;
+    public void IncrementSubmissionCount() => SubmissionCount++;
 
     private static void ValidateCommon(string title, string description, DateTime deadlineUtc, decimal maxMarks, IClock clock)
     {
