@@ -1,0 +1,116 @@
+'use client';
+
+import { useState } from 'react';
+import { LogOut, Menu, MoonStar, Sun } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { RoleBadge } from '@/components/shared/status-badge';
+import { useAuth } from '@/context/AuthContext';
+import { initials } from '@/lib/format';
+import { SidebarNav } from './sidebar-nav';
+import type { AuthUser } from '@/types/api';
+
+export function AppShell({ user, children }: { user: AuthUser; children: React.ReactNode }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  return (
+    <div className="flex min-h-dvh">
+      {/* Persistent sidebar from lg up; a sheet below that. */}
+      <aside className="hidden w-64 shrink-0 border-r bg-sidebar lg:block">
+        <div className="sticky top-0 h-dvh">
+          <SidebarNav role={user.role} />
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-sm">
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open navigation">
+                <Menu className="size-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64 p-0">
+              <SheetTitle className="sr-only">Navigation</SheetTitle>
+              <SidebarNav role={user.role} onNavigate={() => setMobileOpen(false)} />
+            </SheetContent>
+          </Sheet>
+
+          <div className="min-w-0 flex-1">
+            {user.className && (
+              <p className="truncate text-sm text-muted-foreground">
+                <span className="text-foreground">{user.className}</span>
+              </p>
+            )}
+          </div>
+
+          <ThemeToggle />
+          <UserMenu user={user} />
+        </header>
+
+        <main className="mx-auto w-full max-w-[1400px] flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+      </div>
+    </div>
+  );
+}
+
+function UserMenu({ user }: { user: AuthUser }) {
+  const { logout } = useAuth();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="h-9 gap-2 px-2">
+          <Avatar className="size-7">
+            <AvatarFallback className="text-xs">{initials(user.fullName)}</AvatarFallback>
+          </Avatar>
+          <span className="hidden max-w-[140px] truncate text-sm font-medium sm:inline">
+            {user.fullName}
+          </span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuLabel className="space-y-1.5">
+          <p className="truncate font-medium">{user.fullName}</p>
+          <p className="truncate text-xs font-normal text-muted-foreground">{user.email}</p>
+          <RoleBadge role={user.role} />
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => void logout()}>
+          <LogOut className="size-4" />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
+ * Toggles the `dark` class the Tailwind theme keys off. Deliberately not persisted:
+ * a stored preference would need to be applied before first paint to avoid a flash,
+ * which is more machinery than this adds value for.
+ */
+function ThemeToggle() {
+  const [dark, setDark] = useState(true);
+
+  function toggle() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle('dark', next);
+  }
+
+  return (
+    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle colour theme">
+      {dark ? <Sun className="size-4" /> : <MoonStar className="size-4" />}
+    </Button>
+  );
+}
