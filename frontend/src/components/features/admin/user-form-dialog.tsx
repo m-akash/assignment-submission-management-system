@@ -33,10 +33,14 @@ export function UserFormDialog({
   open,
   onOpenChange,
   user,
+  defaultRole = 'Student',
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user?: User | null;
+  /** Preselected role for a new account — the Teachers and Students screens open this
+   *  dialog already scoped to the role the admin is looking at. */
+  defaultRole?: Role;
 }) {
   const isEdit = !!user;
   const classes = useClassOptions();
@@ -47,7 +51,7 @@ export function UserFormDialog({
     defaultValues: {
       fullName: '',
       email: '',
-      role: 'Student',
+      role: defaultRole,
       classId: '',
       password: '',
       isEdit: false,
@@ -66,9 +70,9 @@ export function UserFormDialog({
             password: '',
             isEdit: true,
           }
-        : { fullName: '', email: '', role: 'Student', classId: '', password: '', isEdit: false },
+        : { fullName: '', email: '', role: defaultRole, classId: '', password: '', isEdit: false },
     );
-  }, [open, user, form]);
+  }, [open, user, defaultRole, form]);
 
   const role = form.watch('role');
 

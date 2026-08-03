@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -30,17 +31,61 @@ const ROLE_OPTIONS = [
   { value: 'Student', label: 'Student' },
 ];
 
+/**
+ * This page doubles as the Teachers and Students screens, so it names itself after the
+ * role in the URL instead of always saying "Users".
+ */
+const HEADINGS: Record<Role | '', { title: string; description: string; action: string }> = {
+  '': {
+    title: 'Users',
+    description:
+      'Admins, teachers and students. Accounts are created here — self-registration is disabled.',
+    action: 'Create user',
+  },
+  Admin: {
+    title: 'Admins',
+    description: 'Accounts that can manage every part of the school.',
+    action: 'Create admin',
+  },
+  Teacher: {
+    title: 'Teachers',
+    description: 'Assign a teacher to a class and subject before they can set any work.',
+    action: 'Create teacher',
+  },
+  Student: {
+    title: 'Students',
+    description: 'Every student belongs to one class and is given a student ID from it.',
+    action: 'Create student',
+  },
+};
+
 export default function UsersPage() {
   return (
     <RoleGuard allow={['Admin']}>
-      <UsersView />
+      {/* useSearchParams opts this subtree out of prerendering, so give it a boundary. */}
+      <Suspense fallback={<TableSkeleton columns={6} />}>
+        <UsersView />
+      </Suspense>
     </RoleGuard>
   );
 }
 
 function UsersView() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // The role filter lives in the URL, not component state: the sidebar's Teachers and
+  // Students links and the dashboard tiles deep-link straight into a filtered view, and
+  // it keeps a filtered list shareable and survivable across a reload. Anything the URL
+  // offers that is not a real role falls back to showing everyone — a hand-typed
+  // ?role=Foo must not be able to break the page.
+  const roleParam = searchParams.get('role') ?? '';
+  const role: Role | '' = ROLE_OPTIONS.some((option) => option.value === roleParam)
+    ? (roleParam as Role)
+    : '';
+
   const [search, setSearch] = useState('');
-  const [role, setRole] = useState<Role | ''>('');
   const [classId, setClassId] = useState('');
   const [page, setPage] = useState(1);
 
@@ -53,7 +98,9 @@ function UsersView() {
   const query = useUsers({ search, role, classId, page, pageSize: 10 });
 
   const items = query.data?.items ?? [];
-  const isFiltered = !!search || !!role || !!classId;
+  const heading = HEADINGS[role];
+  // The role is a heading here, not a filter the user needs telling about.
+  const isFiltered = !!search || !!classId;
   const classOptions = (classes.data ?? []).map((c) => ({ value: c.id, label: c.name }));
 
   function withPageReset<T>(setter: (value: T) => void) {
@@ -63,6 +110,25 @@ function UsersView() {
     };
   }
 
+  // `replace`, not `push`: switching a dropdown should not stack a history entry the way
+  // arriving from the sidebar does.
+  function setRole(next: string) {
+    const params = new URLSearchParams(searchParams);
+    if (next) {
+      params.set('role', next);
+    } else {
+      params.delete('role');
+    }
+    const queryString = params.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname);
+  }
+
+  // A role change can arrive from the sidebar too, so paging resets on the value itself
+  // rather than inside the dropdown's handler.
+  useEffect(() => {
+    setPage(1);
+  }, [role]);
+
   function openCreate() {
     setEditing(null);
     setFormOpen(true);
@@ -71,12 +137,12 @@ function UsersView() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Users"
-        description="Admins, teachers and students. Accounts are created here — self-registration is disabled."
+        title={heading.title}
+        description={heading.description}
         actions={
           <Button onClick={openCreate}>
             <Plus className="size-4" />
-            Create user
+            {heading.action}
           </Button>
         }
       />
@@ -91,7 +157,7 @@ function UsersView() {
           />
           <FilterSelect
             value={role}
-            onChange={withPageReset((value: string) => setRole(value as Role | ''))}
+            onChange={setRole}
             options={ROLE_OPTIONS}
             allLabel="All roles"
           />
@@ -127,7 +193,11 @@ function UsersView() {
                       <TableCell colSpan={6} className="p-0">
                         <EmptyState
                           icon={Users}
-                          title={isFiltered ? 'Nothing matches those filters' : 'No users yet'}
+                          title={
+                            isFiltered
+                              ? 'Nothing matches those filters'
+                              : `No ${heading.title.toLowerCase()} yet`
+                          }
                           description={
                             isFiltered ? 'Try a different search term.' : 'Create the first account.'
                           }
@@ -135,7 +205,7 @@ function UsersView() {
                             !isFiltered && (
                               <Button size="sm" onClick={openCreate}>
                                 <Plus className="size-4" />
-                                Create user
+                                {heading.action}
                               </Button>
                             )
                           }
@@ -203,7 +273,12 @@ function UsersView() {
         )}
       </div>
 
-      <UserFormDialog open={formOpen} onOpenChange={setFormOpen} user={editing} />
+      <UserFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        user={editing}
+        defaultRole={role || undefined}
+      />
 
       <ConfirmDialog
         open={!!deleting}
