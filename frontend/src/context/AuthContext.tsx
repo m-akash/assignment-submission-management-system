@@ -1,82 +1,87 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '@/lib/api';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { api, LOGIN_URL, LOGOUT_URL, refreshAccessToken } from '@/lib/api';
+import { setAccessToken } from '@/lib/auth-token';
+import type { ApiEnvelope, AuthUser, LoginResponse } from '@/types/api';
 
-interface User {
-  id: string;
-  fullName: string;
-  email: string;
-  role: 'Admin' | 'Teacher' | 'Student';
-  classId?: string;
-  className?: string;
-}
-
-interface AuthContextType {
-  user: User | null;
-  token: string | null;
+interface AuthContextValue {
+  user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<User>;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<AuthUser>;
+  logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const ME_URL = '/api/v1/auth/me';
+
+/** `GET /auth/me` — the only source of the signed-in identity. */
+async function fetchProfile(): Promise<AuthUser> {
+  const envelope = (await api.get(ME_URL)) as unknown as ApiEnvelope<AuthUser>;
+  return envelope.data;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Restore the session on mount. The access token is deliberately not persisted,
+  // so we trade the httpOnly refresh cookie for a fresh one and re-fetch the profile.
+  // A failure here just means "not signed in" — it is the expected path for a visitor.
   useEffect(() => {
-    // Read from localStorage on mount
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await refreshAccessToken();
+        const profile = await fetchProfile();
+        if (!cancelled) setUser(profile);
+      } catch {
+        if (!cancelled) {
+          setAccessToken(null);
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const login = async (email: string, password: string): Promise<User> => {
+  const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
+    const envelope = (await api.post(LOGIN_URL, { email, password })) as unknown as ApiEnvelope<LoginResponse>;
+    setAccessToken(envelope.data.accessToken);
+
+    const profile = await fetchProfile();
+    setUser(profile);
+    return profile;
+  }, []);
+
+  const logout = useCallback(async (): Promise<void> => {
+    // Best effort: revoke the refresh token server-side, but always clear locally.
     try {
-      const res: any = await api.post('/api/v1/auth/login', { email, password });
-      // res unpacked by axios interceptor will contain the { accessToken, id, email, fullName, role, classId, className }
-      const data = res.data;
-      const loggedUser: User = {
-        id: data.id,
-        fullName: data.fullName,
-        email: data.email,
-        role: data.role,
-        classId: data.classId || undefined,
-        className: data.className || undefined,
-      };
-
-      localStorage.setItem('token', data.accessToken);
-      localStorage.setItem('user', JSON.stringify(loggedUser));
-      setToken(data.accessToken);
-      setUser(loggedUser);
-      return loggedUser;
-    } catch (err) {
-      throw err;
+      await api.post(LOGOUT_URL);
+    } catch {
+      // An already-expired session is still a successful logout from here.
     }
-  };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
+    setAccessToken(null);
     setUser(null);
-  };
+  }, []);
 
-  return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextValue>(
+    () => ({ user, loading, login, logout }),
+    [user, loading, login, logout],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
+export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');

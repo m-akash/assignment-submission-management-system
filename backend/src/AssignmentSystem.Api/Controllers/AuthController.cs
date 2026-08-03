@@ -2,6 +2,7 @@ using AssignmentSystem.Api.Authentication;
 using AssignmentSystem.Api.Common;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Features.Auth;
+using AssignmentSystem.Application.Features.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,15 +19,18 @@ public sealed class AuthController : ControllerBase
     private readonly ICommandHandler<LoginCommand, AuthResult> _loginHandler;
     private readonly ICommandHandler<RefreshTokenCommand, AuthResult> _refreshHandler;
     private readonly ICommandHandler<RevokeTokenCommand> _revokeHandler;
+    private readonly IQueryHandler<GetCurrentUserQuery, UserDto> _currentUserHandler;
 
     public AuthController(
         ICommandHandler<LoginCommand, AuthResult> loginHandler,
         ICommandHandler<RefreshTokenCommand, AuthResult> refreshHandler,
-        ICommandHandler<RevokeTokenCommand> revokeHandler)
+        ICommandHandler<RevokeTokenCommand> revokeHandler,
+        IQueryHandler<GetCurrentUserQuery, UserDto> currentUserHandler)
     {
         _loginHandler = loginHandler;
         _refreshHandler = refreshHandler;
         _revokeHandler = revokeHandler;
+        _currentUserHandler = currentUserHandler;
     }
 
     [HttpPost("login")]
@@ -69,8 +73,28 @@ public sealed class AuthController : ControllerBase
             a.UserId, a.Email, a.FullName, a.Role, a.AccessToken, a.AccessTokenExpiresAtUtc));
     }
 
-    [HttpPost("logout")]
+    /// <summary>
+    /// The caller's own profile, including class membership. The frontend calls this
+    /// after login/refresh to rehydrate its session — the login body deliberately
+    /// carries only what is needed to authenticate.
+    /// </summary>
+    [HttpGet("me")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<UserDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Me(CancellationToken ct)
+    {
+        var result = await _currentUserHandler.HandleAsync(new GetCurrentUserQuery(), ct);
+        return result.ToActionResult(this);
+    }
+
+    /// <summary>
+    /// Revokes the refresh token and clears its cookie. Deliberately anonymous: the
+    /// access token lives five minutes, so requiring one would leave a client unable
+    /// to log out of an idle session. Possession of the cookie is the authorisation.
+    /// </summary>
+    [HttpPost("logout")]
+    [AllowAnonymous]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
         var cookieToken = Request.Cookies[AuthConstants.RefreshTokenCookie];
@@ -79,7 +103,10 @@ public sealed class AuthController : ControllerBase
             await _revokeHandler.HandleAsync(new RevokeTokenCommand(cookieToken), ct);
         }
 
-        Response.Cookies.Delete(AuthConstants.RefreshTokenCookie);
+        Response.Cookies.Delete(
+            AuthConstants.RefreshTokenCookie,
+            AuthConstants.BuildRefreshCookieDeleteOptions(Request.IsHttps));
+
         return NoContent();
     }
 

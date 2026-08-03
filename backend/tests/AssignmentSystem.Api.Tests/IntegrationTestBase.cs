@@ -73,6 +73,36 @@ public class IntegrationTestBase : IAsyncLifetime
         await _dbContainer.StopAsync();
     }
 
+    /// <summary>
+    /// A client that does NOT persist cookies, so a test can drive the refresh-token
+    /// cookie by hand (e.g. replaying a rotated token to exercise reuse detection).
+    /// </summary>
+    protected HttpClient CreateCookielessClient() =>
+        _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+
+    /// <summary>Reads the refresh-token cookie value out of a response's Set-Cookie headers.</summary>
+    protected static string? ReadRefreshCookie(HttpResponseMessage response)
+    {
+        if (!response.Headers.TryGetValues("Set-Cookie", out var cookies))
+        {
+            return null;
+        }
+
+        const string prefix = AuthCookieName + "=";
+        var header = cookies.FirstOrDefault(c => c.StartsWith(prefix, StringComparison.Ordinal));
+        if (header is null)
+        {
+            return null;
+        }
+
+        // Return the value exactly as sent so it round-trips through the same encoding.
+        var value = header[prefix.Length..];
+        var end = value.IndexOf(';');
+        return end < 0 ? value : value[..end];
+    }
+
+    protected const string AuthCookieName = "asm_refresh";
+
     protected async Task AuthenticateAsync(string email, string password)
     {
         var response = await _client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(email, password));

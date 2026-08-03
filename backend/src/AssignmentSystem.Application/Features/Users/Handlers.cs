@@ -191,6 +191,44 @@ public sealed class GetUserByIdHandler : IQueryHandler<GetUserByIdQuery, UserDto
     }
 }
 
+/// <summary>
+/// Returns the caller's own profile. Backs <c>GET /api/v1/auth/me</c>, which the
+/// frontend uses to rehydrate a session after a page reload — the access token lives
+/// only in memory, so identity is re-fetched rather than read from browser storage.
+/// </summary>
+public sealed class GetCurrentUserHandler : IQueryHandler<GetCurrentUserQuery, UserDto>
+{
+    private readonly IRepository<ApplicationUser> _userRepository;
+    private readonly ICurrentUser _currentUser;
+    private static readonly UserMapper Mapper = new();
+
+    public GetCurrentUserHandler(IRepository<ApplicationUser> userRepository, ICurrentUser currentUser)
+    {
+        _userRepository = userRepository;
+        _currentUser = currentUser;
+    }
+
+    public async Task<Result<UserDto>> HandleAsync(GetCurrentUserQuery query, CancellationToken ct = default)
+    {
+        if (_currentUser.UserId is not { } userId)
+        {
+            return Result<UserDto>.Failure(Error.Unauthorized("Auth.NotAuthenticated", "Authentication is required."));
+        }
+
+        var spec = new UserWithClassByIdSpecification(userId);
+        var user = await _userRepository.FirstOrDefaultAsync(spec, ct);
+
+        // The token is valid but the account is gone or deactivated — treat as unauthenticated
+        // so the client clears its session rather than showing a stale profile.
+        if (user is null || !user.IsActive)
+        {
+            return Result<UserDto>.Failure(Error.Unauthorized("Auth.NotAuthenticated", "Authentication is required."));
+        }
+
+        return Mapper.MapToDto(user);
+    }
+}
+
 public sealed class GetUsersHandler : IQueryHandler<GetUsersQuery, PageResult<UserDto>>
 {
     private readonly IRepository<ApplicationUser> _userRepository;

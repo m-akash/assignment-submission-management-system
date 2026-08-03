@@ -33,6 +33,13 @@ public sealed record DeleteUserCommand(Guid Id) : ICommand;
 
 public sealed record GetUserByIdQuery(Guid Id) : IQuery<UserDto>;
 
+/// <summary>
+/// Resolves the caller's own profile from the authenticated principal — the identity
+/// the frontend renders (including <c>ClassId</c>/<c>ClassName</c>, which the login
+/// response deliberately omits). Takes no parameters: the id comes from the token.
+/// </summary>
+public sealed record GetCurrentUserQuery : IQuery<UserDto>;
+
 public sealed record GetUsersQuery(
     Domain.Enums.Role? Role = null,
     Guid? ClassId = null,
