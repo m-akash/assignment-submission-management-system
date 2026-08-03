@@ -38,7 +38,7 @@ public sealed class AssignmentsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAssignments(
         [FromQuery] Guid? classId,
-        [FromQuery] Guid? subjectId,
+        [FromQuery] Guid? courseId,
         [FromQuery] Guid? teacherId,
         [FromQuery] Domain.Enums.AssignmentStatus? status,
         [FromQuery] string? search,
@@ -46,7 +46,7 @@ public sealed class AssignmentsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetAssignmentsQuery(classId, subjectId, teacherId, status, search, page, pageSize);
+        var query = new GetAssignmentsQuery(classId, courseId, teacherId, status, search, page, pageSize);
         var result = await _getListHandler.HandleAsync(query, ct);
         if (!result.IsSuccess)
         {

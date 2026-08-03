@@ -30,14 +30,14 @@ public sealed class TeacherAssignmentsController : ControllerBase
     [Authorize(Roles = "Admin,Teacher")]
     public async Task<IActionResult> GetTeacherAssignments(
         [FromQuery] Guid? teacherId,
-        [FromQuery] Guid? subjectId,
+        [FromQuery] Guid? courseId,
         [FromQuery] Guid? classId,
         [FromQuery] string? search,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetTeacherAssignmentsQuery(teacherId, subjectId, classId, search, page, pageSize);
+        var query = new GetTeacherAssignmentsQuery(teacherId, courseId, classId, search, page, pageSize);
         var result = await _getQueryHandler.HandleAsync(query, ct);
         if (!result.IsSuccess)
         {
@@ -50,7 +50,7 @@ public sealed class TeacherAssignmentsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateTeacherAssignment([FromBody] CreateTeacherAssignmentRequest request, CancellationToken ct)
     {
-        var command = new CreateTeacherAssignmentCommand(request.TeacherId, request.SubjectId, request.ClassId);
+        var command = new CreateTeacherAssignmentCommand(request.TeacherId, request.CourseId, request.ClassId);
         var result = await _createHandler.HandleAsync(command, ct);
         if (!result.IsSuccess)
         {
@@ -68,7 +68,7 @@ public sealed class TeacherAssignmentsController : ControllerBase
     }
 }
 
-public sealed record CreateTeacherAssignmentRequest(Guid TeacherId, Guid SubjectId, Guid ClassId);
+public sealed record CreateTeacherAssignmentRequest(Guid TeacherId, Guid CourseId, Guid ClassId);
 
 public sealed class CreateTeacherAssignmentRequestValidator : AbstractValidator<CreateTeacherAssignmentRequest>
 {
@@ -77,8 +77,8 @@ public sealed class CreateTeacherAssignmentRequestValidator : AbstractValidator<
         RuleFor(x => x.TeacherId)
             .NotEmpty().WithMessage("Teacher id is required.");
 
-        RuleFor(x => x.SubjectId)
-            .NotEmpty().WithMessage("Subject id is required.");
+        RuleFor(x => x.CourseId)
+            .NotEmpty().WithMessage("Course id is required.");
 
         RuleFor(x => x.ClassId)
             .NotEmpty().WithMessage("Class id is required.");

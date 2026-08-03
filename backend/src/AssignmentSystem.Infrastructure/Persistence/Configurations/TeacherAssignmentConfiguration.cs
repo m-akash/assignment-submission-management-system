@@ -1,5 +1,5 @@
 using AssignmentSystem.Domain.Classes;
-using AssignmentSystem.Domain.Subjects;
+using AssignmentSystem.Domain.Courses;
 using AssignmentSystem.Domain.TeacherAssignments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -16,7 +16,7 @@ internal sealed class TeacherAssignmentConfiguration : IEntityTypeConfiguration<
         builder.Property(t => t.Id).HasDefaultValueSql("gen_random_uuid()");
 
         builder.Property(t => t.TeacherId).IsRequired();
-        builder.Property(t => t.SubjectId).IsRequired();
+        builder.Property(t => t.CourseId).IsRequired();
         builder.Property(t => t.ClassId).IsRequired();
 
         builder.Property(t => t.CreatedAtUtc).IsRequired();
@@ -31,10 +31,10 @@ internal sealed class TeacherAssignmentConfiguration : IEntityTypeConfiguration<
             .HasForeignKey(t => t.TeacherId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(t => t.Subject)
+        builder.HasOne(t => t.Course)
             .WithMany()
-            .HasForeignKey(t => t.SubjectId)
-            .OnDelete(DeleteBehavior.Restrict); // protect subjects that are in use
+            .HasForeignKey(t => t.CourseId)
+            .OnDelete(DeleteBehavior.Restrict); // protect courses that are in use
 
         builder.HasOne(t => t.Class)
             .WithMany()
@@ -42,7 +42,7 @@ internal sealed class TeacherAssignmentConfiguration : IEntityTypeConfiguration<
             .OnDelete(DeleteBehavior.Cascade);
 
         // Authorization backbone uniqueness: a teacher can be linked to a
-        // (subject, class) only once.
-        builder.HasIndex(t => new { t.TeacherId, t.SubjectId, t.ClassId }).IsUnique();
+        // (course, class) only once.
+        builder.HasIndex(t => new { t.TeacherId, t.CourseId, t.ClassId }).IsUnique();
     }
 }

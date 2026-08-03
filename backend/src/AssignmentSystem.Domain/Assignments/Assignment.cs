@@ -1,14 +1,14 @@
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Enums;
-using AssignmentSystem.Domain.Subjects;
+using AssignmentSystem.Domain.Courses;
 using AssignmentSystem.Domain.TeacherAssignments;
 using AssignmentSystem.Domain.Users;
 
 namespace AssignmentSystem.Domain.Assignments;
 
 /// <summary>
-/// An assignment created by a teacher for a specific (subject, class) scope.
+/// An assignment created by a teacher for a specific (course, class) scope.
 /// Carries title, description, deadline, max marks, draft/published status, and
 /// a resubmission flag. Soft-deletable. Enforces:
 ///  - draft → published is one-way (rule B6)
@@ -22,8 +22,8 @@ public sealed class Assignment : BaseEntity, ISoftDeletable
     /// <summary>Denormalized teacher id for fast ownership checks + resilience.</summary>
     public Guid TeacherId { get; private set; }
 
-    public Guid SubjectId { get; private set; }
-    public Subject Subject { get; private set; } = null!;
+    public Guid CourseId { get; private set; }
+    public Course Course { get; private set; } = null!;
 
     public Guid ClassId { get; private set; }
     public Class Class { get; private set; } = null!;
@@ -55,7 +55,7 @@ public sealed class Assignment : BaseEntity, ISoftDeletable
 
     public static Assignment Create(
         Guid teacherId,
-        Guid subjectId,
+        Guid courseId,
         Guid classId,
         Guid teacherAssignmentId,
         string title,
@@ -70,7 +70,7 @@ public sealed class Assignment : BaseEntity, ISoftDeletable
         return new Assignment
         {
             TeacherId = teacherId,
-            SubjectId = subjectId,
+            CourseId = courseId,
             ClassId = classId,
             TeacherAssignmentId = teacherAssignmentId,
             Title = title.Trim(),

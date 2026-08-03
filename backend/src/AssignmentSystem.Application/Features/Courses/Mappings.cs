@@ -1,10 +1,12 @@
 using Riok.Mapperly.Abstractions;
-using AssignmentSystem.Domain.Subjects;
+using AssignmentSystem.Domain.Courses;
 
-namespace AssignmentSystem.Application.Features.Subjects;
+namespace AssignmentSystem.Application.Features.Courses;
 
 [Mapper]
-public partial class SubjectMapper
+public partial class CourseMapper
 {
-    public partial SubjectDto MapToDto(Subject subject);
+    [MapProperty("Department.Name", nameof(CourseDto.DepartmentName))]
+    [MapProperty("Department.Code", nameof(CourseDto.DepartmentCode))]
+    public partial CourseDto MapToDto(Course course);
 }

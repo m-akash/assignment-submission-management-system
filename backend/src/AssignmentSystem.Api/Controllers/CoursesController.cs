@@ -1,6 +1,6 @@
 using AssignmentSystem.Api.Common;
 using AssignmentSystem.Application.Common.Handlers;
-using AssignmentSystem.Application.Features.Subjects;
+using AssignmentSystem.Application.Features.Courses;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,39 +8,40 @@ using Microsoft.AspNetCore.Mvc;
 namespace AssignmentSystem.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/subjects")]
+[Route("api/v1/courses")]
 [Authorize]
-public sealed class SubjectsController : ControllerBase
+public sealed class CoursesController : ControllerBase
 {
-    private readonly ICommandHandler<CreateSubjectCommand, SubjectDto> _createSubjectHandler;
-    private readonly ICommandHandler<UpdateSubjectCommand, SubjectDto> _updateSubjectHandler;
-    private readonly ICommandHandler<DeleteSubjectCommand> _deleteSubjectHandler;
-    private readonly IQueryHandler<GetSubjectByIdQuery, SubjectDto> _getSubjectByIdHandler;
-    private readonly IQueryHandler<GetSubjectsQuery, Shared.Common.PageResult<SubjectDto>> _getSubjectsHandler;
+    private readonly ICommandHandler<CreateCourseCommand, CourseDto> _createCourseHandler;
+    private readonly ICommandHandler<UpdateCourseCommand, CourseDto> _updateCourseHandler;
+    private readonly ICommandHandler<DeleteCourseCommand> _deleteCourseHandler;
+    private readonly IQueryHandler<GetCourseByIdQuery, CourseDto> _getCourseByIdHandler;
+    private readonly IQueryHandler<GetCoursesQuery, Shared.Common.PageResult<CourseDto>> _getCoursesHandler;
 
-    public SubjectsController(
-        ICommandHandler<CreateSubjectCommand, SubjectDto> createSubjectHandler,
-        ICommandHandler<UpdateSubjectCommand, SubjectDto> updateSubjectHandler,
-        ICommandHandler<DeleteSubjectCommand> deleteSubjectHandler,
-        IQueryHandler<GetSubjectByIdQuery, SubjectDto> getSubjectByIdHandler,
-        IQueryHandler<GetSubjectsQuery, Shared.Common.PageResult<SubjectDto>> getSubjectsHandler)
+    public CoursesController(
+        ICommandHandler<CreateCourseCommand, CourseDto> createCourseHandler,
+        ICommandHandler<UpdateCourseCommand, CourseDto> updateCourseHandler,
+        ICommandHandler<DeleteCourseCommand> deleteCourseHandler,
+        IQueryHandler<GetCourseByIdQuery, CourseDto> getCourseByIdHandler,
+        IQueryHandler<GetCoursesQuery, Shared.Common.PageResult<CourseDto>> getCoursesHandler)
     {
-        _createSubjectHandler = createSubjectHandler;
-        _updateSubjectHandler = updateSubjectHandler;
-        _deleteSubjectHandler = deleteSubjectHandler;
-        _getSubjectByIdHandler = getSubjectByIdHandler;
-        _getSubjectsHandler = getSubjectsHandler;
+        _createCourseHandler = createCourseHandler;
+        _updateCourseHandler = updateCourseHandler;
+        _deleteCourseHandler = deleteCourseHandler;
+        _getCourseByIdHandler = getCourseByIdHandler;
+        _getCoursesHandler = getCoursesHandler;
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetSubjects(
+    public async Task<IActionResult> GetCourses(
         [FromQuery] string? search,
+        [FromQuery] Guid? departmentId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetSubjectsQuery(search, page, pageSize);
-        var result = await _getSubjectsHandler.HandleAsync(query, ct);
+        var query = new GetCoursesQuery(search, departmentId, page, pageSize);
+        var result = await _getCoursesHandler.HandleAsync(query, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
@@ -49,70 +50,76 @@ public sealed class SubjectsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetSubjectById(Guid id, CancellationToken ct)
+    public async Task<IActionResult> GetCourseById(Guid id, CancellationToken ct)
     {
-        var result = await _getSubjectByIdHandler.HandleAsync(new GetSubjectByIdQuery(id), ct);
+        var result = await _getCourseByIdHandler.HandleAsync(new GetCourseByIdQuery(id), ct);
         return result.ToActionResult(this);
     }
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> CreateSubject([FromBody] CreateSubjectRequest request, CancellationToken ct)
+    public async Task<IActionResult> CreateCourse([FromBody] CreateCourseRequest request, CancellationToken ct)
     {
-        var command = new CreateSubjectCommand(request.Name, request.Code);
-        var result = await _createSubjectHandler.HandleAsync(command, ct);
+        var command = new CreateCourseCommand(request.Name, request.Code, request.DepartmentId);
+        var result = await _createCourseHandler.HandleAsync(command, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
         }
-        return CreatedAtAction(nameof(GetSubjectById), new { id = result.Value!.Id }, new ApiResponse<SubjectDto> { Success = true, Data = result.Value });
+        return CreatedAtAction(nameof(GetCourseById), new { id = result.Value!.Id }, new ApiResponse<CourseDto> { Success = true, Data = result.Value });
     }
 
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> UpdateSubject(Guid id, [FromBody] UpdateSubjectRequest request, CancellationToken ct)
+    public async Task<IActionResult> UpdateCourse(Guid id, [FromBody] UpdateCourseRequest request, CancellationToken ct)
     {
-        var command = new UpdateSubjectCommand(id, request.Name, request.Code);
-        var result = await _updateSubjectHandler.HandleAsync(command, ct);
+        var command = new UpdateCourseCommand(id, request.Name, request.Code, request.DepartmentId);
+        var result = await _updateCourseHandler.HandleAsync(command, ct);
         return result.ToActionResult(this);
     }
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> DeleteSubject(Guid id, CancellationToken ct)
+    public async Task<IActionResult> DeleteCourse(Guid id, CancellationToken ct)
     {
-        var result = await _deleteSubjectHandler.HandleAsync(new DeleteSubjectCommand(id), ct);
+        var result = await _deleteCourseHandler.HandleAsync(new DeleteCourseCommand(id), ct);
         return result.ToActionResult(this);
     }
 }
 
-public sealed record CreateSubjectRequest(string Name, string Code);
-public sealed record UpdateSubjectRequest(string Name, string Code);
+public sealed record CreateCourseRequest(string Name, string Code, Guid DepartmentId);
+public sealed record UpdateCourseRequest(string Name, string Code, Guid DepartmentId);
 
-public sealed class CreateSubjectRequestValidator : AbstractValidator<CreateSubjectRequest>
+public sealed class CreateCourseRequestValidator : AbstractValidator<CreateCourseRequest>
 {
-    public CreateSubjectRequestValidator()
+    public CreateCourseRequestValidator()
     {
         RuleFor(x => x.Name)
-            .NotEmpty().WithMessage("Subject name is required.")
-            .MaximumLength(150).WithMessage("Subject name cannot exceed 150 characters.");
+            .NotEmpty().WithMessage("Course name is required.")
+            .MaximumLength(150).WithMessage("Course name cannot exceed 150 characters.");
 
         RuleFor(x => x.Code)
-            .NotEmpty().WithMessage("Subject code is required.")
-            .MaximumLength(30).WithMessage("Subject code cannot exceed 30 characters.");
+            .NotEmpty().WithMessage("Course code is required.")
+            .MaximumLength(30).WithMessage("Course code cannot exceed 30 characters.");
+
+        RuleFor(x => x.DepartmentId)
+            .NotEmpty().WithMessage("A course must belong to a department.");
     }
 }
 
-public sealed class UpdateSubjectRequestValidator : AbstractValidator<UpdateSubjectRequest>
+public sealed class UpdateCourseRequestValidator : AbstractValidator<UpdateCourseRequest>
 {
-    public UpdateSubjectRequestValidator()
+    public UpdateCourseRequestValidator()
     {
         RuleFor(x => x.Name)
-            .NotEmpty().WithMessage("Subject name is required.")
-            .MaximumLength(150).WithMessage("Subject name cannot exceed 150 characters.");
+            .NotEmpty().WithMessage("Course name is required.")
+            .MaximumLength(150).WithMessage("Course name cannot exceed 150 characters.");
 
         RuleFor(x => x.Code)
-            .NotEmpty().WithMessage("Subject code is required.")
-            .MaximumLength(30).WithMessage("Subject code cannot exceed 30 characters.");
+            .NotEmpty().WithMessage("Course code is required.")
+            .MaximumLength(30).WithMessage("Course code cannot exceed 30 characters.");
+
+        RuleFor(x => x.DepartmentId)
+            .NotEmpty().WithMessage("A course must belong to a department.");
     }
 }

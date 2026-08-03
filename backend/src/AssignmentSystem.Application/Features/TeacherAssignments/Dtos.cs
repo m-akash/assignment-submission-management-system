@@ -8,16 +8,16 @@ public sealed record TeacherAssignmentDto(
     Guid TeacherId,
     string TeacherName,
     string TeacherEmail,
-    Guid SubjectId,
-    string SubjectName,
-    string SubjectCode,
+    Guid CourseId,
+    string CourseName,
+    string CourseCode,
     Guid ClassId,
     string ClassName
 );
 
 public sealed record CreateTeacherAssignmentCommand(
     Guid TeacherId,
-    Guid SubjectId,
+    Guid CourseId,
     Guid ClassId
 ) : ICommand<TeacherAssignmentDto>;
 
@@ -25,7 +25,7 @@ public sealed record DeleteTeacherAssignmentCommand(Guid Id) : ICommand;
 
 public sealed record GetTeacherAssignmentsQuery(
     Guid? TeacherId = null,
-    Guid? SubjectId = null,
+    Guid? CourseId = null,
     Guid? ClassId = null,
     string? Search = null,
     int Page = 1,

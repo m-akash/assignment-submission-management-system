@@ -16,7 +16,7 @@ internal sealed class AssignmentConfiguration : IEntityTypeConfiguration<Assignm
 
         builder.Property(a => a.TeacherAssignmentId).IsRequired();
         builder.Property(a => a.TeacherId).IsRequired();
-        builder.Property(a => a.SubjectId).IsRequired();
+        builder.Property(a => a.CourseId).IsRequired();
         builder.Property(a => a.ClassId).IsRequired();
 
         builder.Property(a => a.Title).HasMaxLength(200).IsRequired();
@@ -50,9 +50,9 @@ internal sealed class AssignmentConfiguration : IEntityTypeConfiguration<Assignm
             .HasForeignKey(a => a.TeacherAssignmentId)
             .OnDelete(DeleteBehavior.Restrict); // don't lose the scope chain
 
-        builder.HasOne(a => a.Subject)
+        builder.HasOne(a => a.Course)
             .WithMany()
-            .HasForeignKey(a => a.SubjectId)
+            .HasForeignKey(a => a.CourseId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(a => a.Class)
@@ -60,8 +60,8 @@ internal sealed class AssignmentConfiguration : IEntityTypeConfiguration<Assignm
             .HasForeignKey(a => a.ClassId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Composite index for the common "assignments for my class/subject" query.
-        builder.HasIndex(a => new { a.ClassId, a.SubjectId, a.Status });
+        // Composite index for the common "assignments for my class/course" query.
+        builder.HasIndex(a => new { a.ClassId, a.CourseId, a.Status });
         builder.HasIndex(a => a.TeacherId);
 
         builder.HasQueryFilter(a => !a.IsDeleted);

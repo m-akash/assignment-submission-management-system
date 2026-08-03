@@ -7,8 +7,8 @@ namespace AssignmentSystem.Application.Features.Assignments;
 public partial class AssignmentMapper
 {
     [MapProperty("TeacherAssignment.Teacher.FullName", nameof(AssignmentDto.TeacherName))]
-    [MapProperty("Subject.Name", nameof(AssignmentDto.SubjectName))]
-    [MapProperty("Subject.Code", nameof(AssignmentDto.SubjectCode))]
+    [MapProperty("Course.Name", nameof(AssignmentDto.CourseName))]
+    [MapProperty("Course.Code", nameof(AssignmentDto.CourseCode))]
     [MapProperty("Class.Name", nameof(AssignmentDto.ClassName))]
     public partial AssignmentDto MapToDto(Assignment assignment);
 }

@@ -9,8 +9,8 @@ public sealed class CreateTeacherAssignmentCommandValidator : AbstractValidator<
         RuleFor(x => x.TeacherId)
             .NotEmpty().WithMessage("Teacher id is required.");
 
-        RuleFor(x => x.SubjectId)
-            .NotEmpty().WithMessage("Subject id is required.");
+        RuleFor(x => x.CourseId)
+            .NotEmpty().WithMessage("Course id is required.");
 
         RuleFor(x => x.ClassId)
             .NotEmpty().WithMessage("Class id is required.");

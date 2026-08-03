@@ -9,9 +9,9 @@ public sealed record AssignmentDto(
     Guid TeacherAssignmentId,
     Guid TeacherId,
     string TeacherName,
-    Guid SubjectId,
-    string SubjectName,
-    string SubjectCode,
+    Guid CourseId,
+    string CourseName,
+    string CourseCode,
     Guid ClassId,
     string ClassName,
     string Title,
@@ -50,7 +50,7 @@ public sealed record GetAssignmentByIdQuery(Guid Id) : IQuery<AssignmentDto>;
 
 public sealed record GetAssignmentsQuery(
     Guid? ClassId = null,
-    Guid? SubjectId = null,
+    Guid? CourseId = null,
     Guid? TeacherId = null,
     AssignmentStatus? Status = null,
     string? Search = null,

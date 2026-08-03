@@ -9,7 +9,7 @@ internal sealed class AssignmentWithDetailsSpecification : Specification<Assignm
     public AssignmentWithDetailsSpecification(Guid id)
     {
         Criteria = a => a.Id == id;
-        AddInclude(a => a.Subject);
+        AddInclude(a => a.Course);
         AddInclude(a => a.Class);
         AddInclude("TeacherAssignment.Teacher");
     }
@@ -19,7 +19,7 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
 {
     public AssignmentsPagedSpecification(
         Guid? classId,
-        Guid? subjectId,
+        Guid? courseId,
         Guid? teacherId,
         AssignmentStatus? status,
         string? search,
@@ -27,7 +27,7 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
         int pageSize)
     {
         ApplyNoTracking();
-        AddInclude(a => a.Subject);
+        AddInclude(a => a.Course);
         AddInclude(a => a.Class);
         AddInclude("TeacherAssignment.Teacher");
         ApplyOrderByDescending(a => a.CreatedAtUtc);
@@ -41,7 +41,7 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
 #pragma warning disable CA1304, CA1311
         Criteria = a =>
             (!classId.HasValue || a.ClassId == classId.Value) &&
-            (!subjectId.HasValue || a.SubjectId == subjectId.Value) &&
+            (!courseId.HasValue || a.CourseId == courseId.Value) &&
             (!teacherId.HasValue || a.TeacherId == teacherId.Value) &&
             (!status.HasValue || a.Status == status.Value) &&
             (string.IsNullOrWhiteSpace(searchLower) ||

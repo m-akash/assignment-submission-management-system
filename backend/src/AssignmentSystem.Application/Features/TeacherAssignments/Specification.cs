@@ -9,27 +9,27 @@ internal sealed class TeacherAssignmentWithDetailsSpecification : Specification<
     {
         Criteria = ta => ta.Id == id;
         AddInclude(ta => ta.Teacher);
-        AddInclude(ta => ta.Subject);
+        AddInclude(ta => ta.Course);
         AddInclude(ta => ta.Class);
     }
 }
 
 internal sealed class TeacherAssignmentDuplicateSpecification : Specification<TeacherAssignment>
 {
-    public TeacherAssignmentDuplicateSpecification(Guid teacherId, Guid subjectId, Guid classId)
+    public TeacherAssignmentDuplicateSpecification(Guid teacherId, Guid courseId, Guid classId)
     {
-        Criteria = ta => ta.TeacherId == teacherId && ta.SubjectId == subjectId && ta.ClassId == classId;
+        Criteria = ta => ta.TeacherId == teacherId && ta.CourseId == courseId && ta.ClassId == classId;
     }
 }
 
 internal sealed class TeacherAssignmentsPagedSpecification : Specification<TeacherAssignment>
 {
     public TeacherAssignmentsPagedSpecification(
-        Guid? teacherId, Guid? subjectId, Guid? classId, string? search, int page, int pageSize)
+        Guid? teacherId, Guid? courseId, Guid? classId, string? search, int page, int pageSize)
     {
         ApplyNoTracking();
         AddInclude(ta => ta.Teacher);
-        AddInclude(ta => ta.Subject);
+        AddInclude(ta => ta.Course);
         AddInclude(ta => ta.Class);
         ApplyOrderBy(ta => ta.Teacher.FullName);
         ApplyPaging(page, pageSize);
@@ -42,11 +42,11 @@ internal sealed class TeacherAssignmentsPagedSpecification : Specification<Teach
 #pragma warning disable CA1304, CA1311
         Criteria = ta =>
             (!teacherId.HasValue || ta.TeacherId == teacherId.Value) &&
-            (!subjectId.HasValue || ta.SubjectId == subjectId.Value) &&
+            (!courseId.HasValue || ta.CourseId == courseId.Value) &&
             (!classId.HasValue || ta.ClassId == classId.Value) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              ta.Teacher.FullName.ToLower().Contains(searchLower) ||
-             ta.Subject.Name.ToLower().Contains(searchLower) ||
+             ta.Course.Name.ToLower().Contains(searchLower) ||
              ta.Class.Name.ToLower().Contains(searchLower));
 #pragma warning restore CA1304, CA1311
     }

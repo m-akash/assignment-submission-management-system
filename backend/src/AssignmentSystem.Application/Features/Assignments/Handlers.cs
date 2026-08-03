@@ -48,14 +48,14 @@ public sealed class CreateAssignmentHandler : ICommandHandler<CreateAssignmentCo
 
         if (_currentUser.Role == Role.Teacher && !teacherAssignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
         {
-            return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have permission to create an assignment for this class/subject."));
+            return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have permission to create an assignment for this class/course."));
         }
 
         try
         {
             var assignment = Assignment.Create(
                 teacherAssignment.TeacherId,
-                teacherAssignment.SubjectId,
+                teacherAssignment.CourseId,
                 teacherAssignment.ClassId,
                 teacherAssignment.Id,
                 command.Title,
@@ -306,7 +306,7 @@ public sealed class GetAssignmentsHandler : IQueryHandler<GetAssignmentsQuery, P
             teacherId = _currentUser.UserId.GetValueOrDefault();
         }
 
-        var spec = new AssignmentsPagedSpecification(classId, query.SubjectId, teacherId, status, query.Search, query.Page, query.PageSize);
+        var spec = new AssignmentsPagedSpecification(classId, query.CourseId, teacherId, status, query.Search, query.Page, query.PageSize);
         var pagedAssignments = await _assignmentRepository.ListPagedAsync(spec, ct);
 
         var items = pagedAssignments.Items.Select(Mapper.MapToDto).ToList();

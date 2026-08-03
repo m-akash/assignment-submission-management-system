@@ -1,7 +1,8 @@
 using AssignmentSystem.Domain.Assignments;
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
-using AssignmentSystem.Domain.Subjects;
+using AssignmentSystem.Domain.Departments;
+using AssignmentSystem.Domain.Courses;
 using AssignmentSystem.Domain.Submissions;
 using AssignmentSystem.Domain.TeacherAssignments;
 using AssignmentSystem.Domain.Users;
@@ -28,7 +29,8 @@ public sealed class AppDbContext : DbContext
 
     public DbSet<ApplicationUser> Users => Set<ApplicationUser>();
     public DbSet<Class> Classes => Set<Class>();
-    public DbSet<Subject> Subjects => Set<Subject>();
+    public DbSet<Department> Departments => Set<Department>();
+    public DbSet<Course> Courses => Set<Course>();
     public DbSet<TeacherAssignment> TeacherAssignments => Set<TeacherAssignment>();
     public DbSet<Assignment> Assignments => Set<Assignment>();
     public DbSet<Submission> Submissions => Set<Submission>();

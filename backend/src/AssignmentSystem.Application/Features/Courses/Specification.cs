@@ -1,22 +1,32 @@
 using AssignmentSystem.Application.Common.Interfaces;
-using AssignmentSystem.Domain.Subjects;
+using AssignmentSystem.Domain.Courses;
 
-namespace AssignmentSystem.Application.Features.Subjects;
+namespace AssignmentSystem.Application.Features.Courses;
 
-internal sealed class SubjectByCodeSpecification : Specification<Subject>
+internal sealed class CourseByCodeSpecification : Specification<Course>
 {
-    public SubjectByCodeSpecification(string code)
+    public CourseByCodeSpecification(string code)
     {
         var normalized = code.Trim().ToUpperInvariant();
         Criteria = s => s.Code == normalized;
     }
 }
 
-internal sealed class SubjectsPagedSpecification : Specification<Subject>
+internal sealed class CourseWithDepartmentByIdSpecification : Specification<Course>
 {
-    public SubjectsPagedSpecification(string? search, int page, int pageSize)
+    public CourseWithDepartmentByIdSpecification(Guid id)
+    {
+        Criteria = s => s.Id == id;
+        AddInclude(s => s.Department);
+    }
+}
+
+internal sealed class CoursesPagedSpecification : Specification<Course>
+{
+    public CoursesPagedSpecification(string? search, Guid? departmentId, int page, int pageSize)
     {
         ApplyNoTracking();
+        AddInclude(s => s.Department);
         ApplyOrderBy(s => s.Name);
         ApplyPaging(page, pageSize);
 
@@ -27,9 +37,10 @@ internal sealed class SubjectsPagedSpecification : Specification<Subject>
         // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
 #pragma warning disable CA1304, CA1311
         Criteria = s =>
-            string.IsNullOrWhiteSpace(searchLower) ||
-            s.Name.ToLower().Contains(searchLower) ||
-            s.Code.ToLower().Contains(searchLower);
+            (!departmentId.HasValue || s.DepartmentId == departmentId.Value) &&
+            (string.IsNullOrWhiteSpace(searchLower) ||
+             s.Name.ToLower().Contains(searchLower) ||
+             s.Code.ToLower().Contains(searchLower));
 #pragma warning restore CA1304, CA1311
     }
 }

@@ -1,34 +1,40 @@
 using FluentValidation;
 
-namespace AssignmentSystem.Application.Features.Subjects;
+namespace AssignmentSystem.Application.Features.Courses;
 
-public sealed class CreateSubjectCommandValidator : AbstractValidator<CreateSubjectCommand>
+public sealed class CreateCourseCommandValidator : AbstractValidator<CreateCourseCommand>
 {
-    public CreateSubjectCommandValidator()
+    public CreateCourseCommandValidator()
     {
         RuleFor(x => x.Name)
-            .NotEmpty().WithMessage("Subject name is required.")
-            .MaximumLength(150).WithMessage("Subject name cannot exceed 150 characters.");
+            .NotEmpty().WithMessage("Course name is required.")
+            .MaximumLength(150).WithMessage("Course name cannot exceed 150 characters.");
 
         RuleFor(x => x.Code)
-            .NotEmpty().WithMessage("Subject code is required.")
-            .MaximumLength(30).WithMessage("Subject code cannot exceed 30 characters.");
+            .NotEmpty().WithMessage("Course code is required.")
+            .MaximumLength(30).WithMessage("Course code cannot exceed 30 characters.");
+
+        RuleFor(x => x.DepartmentId)
+            .NotEmpty().WithMessage("A course must belong to a department.");
     }
 }
 
-public sealed class UpdateSubjectCommandValidator : AbstractValidator<UpdateSubjectCommand>
+public sealed class UpdateCourseCommandValidator : AbstractValidator<UpdateCourseCommand>
 {
-    public UpdateSubjectCommandValidator()
+    public UpdateCourseCommandValidator()
     {
         RuleFor(x => x.Id)
-            .NotEmpty().WithMessage("Subject id is required.");
+            .NotEmpty().WithMessage("Course id is required.");
 
         RuleFor(x => x.Name)
-            .NotEmpty().WithMessage("Subject name is required.")
-            .MaximumLength(150).WithMessage("Subject name cannot exceed 150 characters.");
+            .NotEmpty().WithMessage("Course name is required.")
+            .MaximumLength(150).WithMessage("Course name cannot exceed 150 characters.");
 
         RuleFor(x => x.Code)
-            .NotEmpty().WithMessage("Subject code is required.")
-            .MaximumLength(30).WithMessage("Subject code cannot exceed 30 characters.");
+            .NotEmpty().WithMessage("Course code is required.")
+            .MaximumLength(30).WithMessage("Course code cannot exceed 30 characters.");
+
+        RuleFor(x => x.DepartmentId)
+            .NotEmpty().WithMessage("A course must belong to a department.");
     }
 }
