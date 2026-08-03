@@ -55,6 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['Admin', 'Teacher'],
     section: 'Coursework',
   },
+  { href: '/users', label: 'All users', icon: Users, roles: ['Admin'], section: 'Administration' },
   {
     href: '/users?role=Teacher',
     label: 'Teachers',
@@ -71,7 +72,6 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['Admin'],
     section: 'Administration',
   },
-  { href: '/users', label: 'All users', icon: Users, roles: ['Admin'], section: 'Administration' },
   {
     href: '/classes',
     label: 'Classes',
