@@ -51,8 +51,9 @@ public static class DependencyInjection
         services.Configure<FileStorageOptions>(configuration.GetSection("FileStorage"));
         services.AddScoped<IJwtTokenService, JwtTokenService>();
 
-        // ── File storage (local disk / Docker volume) ──────────────────────────
+        // ── File storage (local disk / Docker volume) + upload rules ───────────
         services.AddSingleton<IFileStorage, LocalFileStorage>();
+        services.AddSingleton<IFileUploadPolicy, FileUploadPolicy>();
 
         // No-op domain event dispatcher until concrete handlers are added.
         services.AddScoped<IDomainEventDispatcher, NullDomainEventDispatcher>();

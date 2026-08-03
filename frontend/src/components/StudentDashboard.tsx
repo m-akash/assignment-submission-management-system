@@ -60,7 +60,9 @@ export default function StudentDashboard() {
     setError(null);
   };
 
-  const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt'];
+  // Mirrors FileStorage:AllowedExtensions on the server, which re-checks every upload
+  // against the file's actual signature. This list is UX only.
+  const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -69,7 +71,7 @@ export default function StudentDashboard() {
     const file = files[0];
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
     if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      setError(`Invalid file type "${ext}". Only PDF, DOC, DOCX, and TXT files are allowed.`);
+      setError(`Invalid file type "${ext}". Allowed: ${ALLOWED_EXTENSIONS.join(', ')}.`);
       e.target.value = '';
       return;
     }
@@ -94,7 +96,7 @@ export default function StudentDashboard() {
       // Add uploaded file DTO to UI list
       setAttachedFiles((prev) => [...prev, res.data]);
     } catch (err: any) {
-      setError(err.message || 'File upload failed (limit: 10MB, allowed: PDF, DOC, DOCX, TXT).');
+      setError(err.message || 'File upload failed (limit: 10 MB, max 3 files per submission).');
     } finally {
       setUploading(false);
       // Reset input value
@@ -121,8 +123,9 @@ export default function StudentDashboard() {
     setSubmitting(true);
     setError(null);
 
-    const fileIds = attachedFiles.map((f) => f.id);
-    const payload = { content: submissionContent, fileIds };
+    // Attachments are already associated with the submission by the upload call, so the
+    // body only carries the text answer.
+    const payload = { content: submissionContent };
 
     try {
       if (submission) {

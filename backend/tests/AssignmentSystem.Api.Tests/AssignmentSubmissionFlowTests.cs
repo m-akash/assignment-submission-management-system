@@ -43,7 +43,7 @@ public class AssignmentSubmissionFlowTests : IntegrationTestBase
 
         var submitResponse = await student.PostAsJsonAsync(
             $"/api/v1/assignments/{assignment.Id}/submissions",
-            new SubmitAssignmentRequest("Here is my text response.", null));
+            new SubmitAssignmentRequest("Here is my text response."));
         submitResponse.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var submission = await ReadAsync<SubmissionDto>(submitResponse);

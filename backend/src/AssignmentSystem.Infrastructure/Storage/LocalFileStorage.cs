@@ -32,15 +32,63 @@ internal sealed class LocalFileStorage : IFileStorage
 
         var fullPath = SafeCombine(_options.Root, relativePath);
 
-        // Stream to disk and count bytes in one pass (do not trust Content-Length).
+        // Stream to disk and count bytes in one pass (do not trust Content-Length), aborting
+        // the moment the configured ceiling is crossed so an oversized upload cannot fill the
+        // volume even if an earlier check was bypassed.
         long size;
-        await using (var fs = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        try
         {
-            await content.CopyToAsync(fs, ct);
-            size = fs.Length;
+            await using var destination = new FileStream(
+                fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+
+            size = await CopyWithLimitAsync(content, destination, _options.MaxBytes, ct);
+        }
+        catch
+        {
+            TryDelete(fullPath);
+            throw;
         }
 
         return new SavedFile(relativePath, storedFileName, size);
+    }
+
+    /// <summary>
+    /// Copies at most <paramref name="maxBytes"/>, throwing as soon as one byte more arrives.
+    /// Returns the number of bytes written.
+    /// </summary>
+    private static async Task<long> CopyWithLimitAsync(Stream source, Stream destination, long maxBytes, CancellationToken ct)
+    {
+        var buffer = new byte[81920];
+        long total = 0;
+
+        int read;
+        while ((read = await source.ReadAsync(buffer, ct)) > 0)
+        {
+            total += read;
+            if (total > maxBytes)
+            {
+                throw new FileTooLargeException(maxBytes);
+            }
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), ct);
+        }
+
+        return total;
+    }
+
+    private static void TryDelete(string fullPath)
+    {
+        try
+        {
+            if (File.Exists(fullPath))
+            {
+                File.Delete(fullPath);
+            }
+        }
+        catch (IOException)
+        {
+            // Cleanup is best effort — never mask the original failure.
+        }
     }
 
     public Stream OpenRead(string relativePath)
@@ -58,14 +106,25 @@ internal sealed class LocalFileStorage : IFileStorage
         }
     }
 
+    /// <summary>
+    /// Windows paths are case-insensitive; Linux paths are not. Comparing with the wrong
+    /// rule either lets a traversal through or rejects a legitimate path.
+    /// </summary>
+    private static readonly StringComparison PathComparison =
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
     private string ResolveWithinRoot(string relativePath)
     {
         var root = Path.GetFullPath(_options.Root);
-        var fullPath = SafeCombine(_options.Root, relativePath);
-        var full = Path.GetFullPath(fullPath);
+        var full = Path.GetFullPath(SafeCombine(root, relativePath));
 
-        // Path-traversal guard: the resolved path must start with the storage root.
-        if (!full.StartsWith(root, StringComparison.Ordinal))
+        // Compare against the root *plus its separator*. A bare prefix check would accept
+        // "/data/submissions-evil/secret" as being inside "/data/submissions".
+        var rootBoundary = root.EndsWith(Path.DirectorySeparatorChar)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+
+        if (!full.StartsWith(rootBoundary, PathComparison))
         {
             throw new UnauthorizedAccessException("Access to the requested file path is denied.");
         }

@@ -31,16 +31,17 @@ public sealed record SubmissionDto(
     List<SubmissionFileDto> Files
 );
 
+// Note: neither command takes file ids. Attachments are created by the upload endpoint
+// and belong to the submission already; trusting a client-supplied id list would let a
+// caller satisfy the "text or file" rule with ids it does not own — or with none at all.
 public sealed record SubmitAssignmentCommand(
     Guid AssignmentId,
-    string? Content,
-    List<Guid>? FileIds = null
+    string? Content
 ) : ICommand<SubmissionDto>;
 
 public sealed record UpdateSubmissionCommand(
     Guid Id,
-    string? Content,
-    List<Guid>? FileIds = null
+    string? Content
 ) : ICommand<SubmissionDto>;
 
 public sealed record ReviewSubmissionCommand(
@@ -62,10 +63,15 @@ public sealed record GetSubmissionsQuery(
     int PageSize = 20
 ) : IQuery<PageResult<SubmissionDto>>;
 
+/// <summary>
+/// An uploaded file as the client presented it. Only <see cref="Content"/> is
+/// authoritative — the name is sanitised, the size re-checked while streaming, and the
+/// content type re-derived server-side.
+/// </summary>
 public sealed record UploadSubmissionFileCommand(
     Guid AssignmentId,
     string FileName,
-    string ContentType,
+    long SizeBytes,
     Stream Content
 ) : ICommand<SubmissionFileDto>;
 

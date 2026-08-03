@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Common.Interfaces;
 
@@ -19,10 +20,16 @@ public abstract class Specification<T> : ISpecification<T> where T : class
 
     protected void AddInclude(Expression<Func<T, object>> include) => Includes.Add(include);
     protected void AddInclude(string includeString) => IncludeStrings.Add(includeString);
+    /// <summary>
+    /// Sets paging, normalising both values (see <see cref="PageDefaults"/>). This is the
+    /// single choke point where a page size becomes Skip/Take, so clamping here means no
+    /// query object can leak an unbounded request through — and the page size reported
+    /// back in <c>PageResult</c> is the one actually used.
+    /// </summary>
     protected void ApplyPaging(int page, int pageSize)
     {
-        Page = page;
-        PageSize = pageSize;
+        Page = PageDefaults.NormalizePage(page);
+        PageSize = PageDefaults.NormalizePageSize(pageSize);
     }
     protected void ApplyOrderBy(Expression<Func<T, object>> orderBy) => OrderBy = orderBy;
     protected void ApplyOrderByDescending(Expression<Func<T, object>> orderByDescending) => OrderByDescending = orderByDescending;

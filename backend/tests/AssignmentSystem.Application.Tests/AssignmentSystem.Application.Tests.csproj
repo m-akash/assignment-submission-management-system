@@ -12,6 +12,10 @@
     <ProjectReference Include="..\..\src\AssignmentSystem.Application\AssignmentSystem.Application.csproj" />
     <ProjectReference Include="..\..\src\AssignmentSystem.Domain\AssignmentSystem.Domain.csproj" />
     <ProjectReference Include="..\..\src\AssignmentSystem.Shared\AssignmentSystem.Shared.csproj" />
+    <!-- Upload validation rules (allow-list, signatures, size) are business rules whose
+         implementation lives in Infrastructure; they are unit-tested here, with no
+         database or HTTP involved. -->
+    <ProjectReference Include="..\..\src\AssignmentSystem.Infrastructure\AssignmentSystem.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

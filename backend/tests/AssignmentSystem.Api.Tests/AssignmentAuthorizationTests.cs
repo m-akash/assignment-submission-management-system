@@ -68,7 +68,7 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
 
         var response = await outsiderStudent.PostAsJsonAsync(
             $"/api/v1/assignments/{assignment.Id}/submissions",
-            new SubmitAssignmentRequest("Not my class.", null));
+            new SubmitAssignmentRequest("Not my class."));
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -102,7 +102,7 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
 
         var response = await student.PostAsJsonAsync(
             $"/api/v1/assignments/{draft.Id}/submissions",
-            new SubmitAssignmentRequest("Too early.", null));
+            new SubmitAssignmentRequest("Too early."));
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -252,7 +252,7 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
 
         var response = await classmate.PutAsJsonAsync(
             $"/api/v1/submissions/{submission.Id}",
-            new UpdateSubmissionRequest("Tampered.", null));
+            new UpdateSubmissionRequest("Tampered."));
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }

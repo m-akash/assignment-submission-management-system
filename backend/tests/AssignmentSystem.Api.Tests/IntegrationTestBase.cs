@@ -81,10 +81,29 @@ public abstract class IntegrationTestBase
         return envelope.Data!;
     }
 
+    /// <summary>Reads a paged response including its pagination metadata.</summary>
+    protected static async Task<(List<T> Items, PaginationMeta Pagination)> ReadPageAsync<T>(HttpResponseMessage response)
+    {
+        var envelope = await response.Content.ReadFromJsonAsync<ApiResponseEnvelope<List<T>>>(JsonOptions);
+        envelope.Should().NotBeNull();
+        envelope!.Data.Should().NotBeNull();
+        envelope.Pagination.Should().NotBeNull();
+        return (envelope.Data!, envelope.Pagination!);
+    }
+
     protected sealed class ApiResponseEnvelope<T>
     {
         public bool Success { get; set; }
         public T? Data { get; set; }
+        public PaginationMeta? Pagination { get; set; }
+    }
+
+    protected sealed class PaginationMeta
+    {
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int Total { get; set; }
+        public int TotalPages { get; set; }
     }
 
     // ── Provisioning (via the Admin API, so the endpoints are exercised too) ──
@@ -171,7 +190,7 @@ public abstract class IntegrationTestBase
     {
         var response = await studentClient.PostAsJsonAsync(
             $"/api/v1/assignments/{assignmentId}/submissions",
-            new SubmitAssignmentRequest(content, null));
+            new SubmitAssignmentRequest(content));
 
         response.EnsureSuccessStatusCode();
         return await ReadAsync<SubmissionDto>(response);

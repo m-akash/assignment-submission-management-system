@@ -83,7 +83,7 @@ public sealed class SubmissionsController : ControllerBase
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> SubmitAssignment(Guid assignmentId, [FromBody] SubmitAssignmentRequest request, CancellationToken ct)
     {
-        var command = new SubmitAssignmentCommand(assignmentId, request.Content, request.FileIds);
+        var command = new SubmitAssignmentCommand(assignmentId, request.Content);
         var result = await _submitHandler.HandleAsync(command, ct);
         if (!result.IsSuccess)
         {
@@ -96,7 +96,7 @@ public sealed class SubmissionsController : ControllerBase
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> UpdateSubmission(Guid id, [FromBody] UpdateSubmissionRequest request, CancellationToken ct)
     {
-        var command = new UpdateSubmissionCommand(id, request.Content, request.FileIds);
+        var command = new UpdateSubmissionCommand(id, request.Content);
         var result = await _updateHandler.HandleAsync(command, ct);
         return result.ToActionResult(this);
     }
@@ -112,9 +112,10 @@ public sealed class SubmissionsController : ControllerBase
 
     // ── File upload / download / delete ───────────────────────────────────────
 
+    // The request body limit comes from FileStorage:MaxBytes (wired to FormOptions in
+    // Program.cs) rather than a hard-coded attribute, so one setting governs the cap.
     [HttpPost("assignments/{assignmentId:guid}/submissions/upload")]
     [Authorize(Roles = "Student")]
-    [RequestSizeLimit(10485760)] // 10MB limit
     public async Task<IActionResult> UploadFile(Guid assignmentId, [FromForm] IFormFile file, CancellationToken ct)
     {
         if (file is null || file.Length == 0)
@@ -123,7 +124,7 @@ public sealed class SubmissionsController : ControllerBase
         }
 
         await using var stream = file.OpenReadStream();
-        var command = new UploadSubmissionFileCommand(assignmentId, file.FileName, file.ContentType, stream);
+        var command = new UploadSubmissionFileCommand(assignmentId, file.FileName, file.Length, stream);
         var result = await _uploadFileHandler.HandleAsync(command, ct);
         return result.ToActionResult(this);
     }
@@ -151,29 +152,14 @@ public sealed class SubmissionsController : ControllerBase
     }
 }
 
-public sealed record SubmitAssignmentRequest(string? Content, List<Guid>? FileIds);
-public sealed record UpdateSubmissionRequest(string? Content, List<Guid>? FileIds);
+/// <summary>
+/// Attachments are referenced implicitly: whatever the student has already uploaded for
+/// this assignment is part of the submission. The request carries no file ids, so it
+/// cannot claim files it does not own.
+/// </summary>
+public sealed record SubmitAssignmentRequest(string? Content);
+public sealed record UpdateSubmissionRequest(string? Content);
 public sealed record ReviewSubmissionRequest(decimal Marks, string? Feedback, SubmissionStatus Status);
-
-public sealed class SubmitAssignmentRequestValidator : AbstractValidator<SubmitAssignmentRequest>
-{
-    public SubmitAssignmentRequestValidator()
-    {
-        RuleFor(x => x)
-            .Must(x => !string.IsNullOrWhiteSpace(x.Content) || (x.FileIds != null && x.FileIds.Count > 0))
-            .WithMessage("A submission must include a text answer or at least one file attachment.");
-    }
-}
-
-public sealed class UpdateSubmissionRequestValidator : AbstractValidator<UpdateSubmissionRequest>
-{
-    public UpdateSubmissionRequestValidator()
-    {
-        RuleFor(x => x)
-            .Must(x => !string.IsNullOrWhiteSpace(x.Content) || (x.FileIds != null && x.FileIds.Count > 0))
-            .WithMessage("A submission must include a text answer or at least one file attachment.");
-    }
-}
 
 public sealed class ReviewSubmissionRequestValidator : AbstractValidator<ReviewSubmissionRequest>
 {

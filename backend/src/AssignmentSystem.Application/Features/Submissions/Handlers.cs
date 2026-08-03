@@ -66,15 +66,16 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
         {
             if (submission is not null)
             {
-                // Submission already exists (perhaps files were uploaded). Update it.
-                var hasFiles = submission.Files.Count > 0 || (command.FileIds != null && command.FileIds.Count > 0);
+                // Submission already exists (files were uploaded first). Update it.
+                // "Has files" comes from what is stored, not from what the client claims.
+                var hasFiles = submission.Files.Count > 0;
                 submission.UpdateContent(command.Content, hasFiles, assignment.AllowResubmission, assignment.DeadlineUtc, _clock);
                 _submissionRepository.Update(submission);
             }
             else
             {
-                // Create a new submission
-                var hasFiles = command.FileIds != null && command.FileIds.Count > 0;
+                // No prior upload created a submission row, so text is the only possible content.
+                const bool hasFiles = false;
                 submission = Submission.Create(
                     command.AssignmentId,
                     _currentUser.UserId.GetValueOrDefault(),
@@ -151,7 +152,7 @@ public sealed class UpdateSubmissionHandler : ICommandHandler<UpdateSubmissionCo
 
         try
         {
-            var hasFiles = submission.Files.Count > 0 || (command.FileIds != null && command.FileIds.Count > 0);
+            var hasFiles = submission.Files.Count > 0;
             submission.UpdateContent(command.Content, hasFiles, assignment.AllowResubmission, assignment.DeadlineUtc, _clock);
 
             _submissionRepository.Update(submission);
@@ -388,10 +389,10 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
     private readonly IRepository<SubmissionFile> _fileRepository;
     private readonly IRepository<Assignment> _assignmentRepository;
     private readonly IFileStorage _fileStorage;
+    private readonly IFileUploadPolicy _uploadPolicy;
     private readonly ICurrentUser _currentUser;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IReadOnlyList<string> _allowedExtensions = [".pdf", ".docx", ".doc", ".txt"];
     private static readonly SubmissionMapper Mapper = new();
 
     public UploadSubmissionFileHandler(
@@ -399,6 +400,7 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
         IRepository<SubmissionFile> fileRepository,
         IRepository<Assignment> assignmentRepository,
         IFileStorage fileStorage,
+        IFileUploadPolicy uploadPolicy,
         ICurrentUser currentUser,
         IClock clock,
         IUnitOfWork unitOfWork)
@@ -407,6 +409,7 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
         _fileRepository = fileRepository;
         _assignmentRepository = assignmentRepository;
         _fileStorage = fileStorage;
+        _uploadPolicy = uploadPolicy;
         _currentUser = currentUser;
         _clock = clock;
         _unitOfWork = unitOfWork;
@@ -487,21 +490,34 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
             }
         }
 
-        // Validate file extension
-        var extension = Path.GetExtension(command.FileName).ToLowerInvariant();
-        if (!_allowedExtensions.Contains(extension))
+        // Cap attachments per submission (rule from FileStorage:MaxFilesPerSubmission).
+        if (submission.Files.Count >= _uploadPolicy.MaxFilesPerSubmission)
         {
-            return Result<SubmissionFileDto>.Failure(Error.Validation("SubmissionFile.InvalidExtension", $"File extension '{extension}' is not allowed."));
+            return Result<SubmissionFileDto>.Failure(Error.Validation(
+                "SubmissionFile.TooMany",
+                $"A submission may have at most {_uploadPolicy.MaxFilesPerSubmission} attachments."));
         }
 
-        // Validate magic bytes
-        if (!ValidateMagicBytes(extension, command.Content))
+        // Size, extension allow-list, and file signature — all server-side. The returned
+        // content type is derived from the validated extension, never taken from the client.
+        var validation = _uploadPolicy.Validate(command.FileName, command.SizeBytes, command.Content);
+        if (!validation.IsSuccess)
         {
-            return Result<SubmissionFileDto>.Failure(Error.Validation("SubmissionFile.InvalidContent", "The file content does not match its extension signature."));
+            return Result<SubmissionFileDto>.Failure(validation.Error);
         }
 
-        // Save file bytes via storage port
-        var savedFile = await _fileStorage.SaveAsync(command.Content, extension, ct);
+        var validated = validation.Value!;
+
+        SavedFile savedFile;
+        try
+        {
+            savedFile = await _fileStorage.SaveAsync(command.Content, validated.Extension, ct);
+        }
+        catch (FileTooLargeException ex)
+        {
+            // Backstop for a stream that under-reported its length.
+            return Result<SubmissionFileDto>.Failure(Error.Validation("SubmissionFile.TooLarge", ex.Message));
+        }
 
         try
         {
@@ -510,7 +526,7 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
                 _currentUser.UserId.GetValueOrDefault(),
                 savedFile.StoredFileName,
                 command.FileName,
-                command.ContentType,
+                validated.ContentType,
                 savedFile.SizeBytes,
                 savedFile.RelativePath,
                 _clock.UtcNow);
@@ -528,39 +544,6 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
             // Cleanup written file if DB write fails
             _fileStorage.Delete(savedFile.RelativePath);
             return Result<SubmissionFileDto>.Failure(Error.Validation("SubmissionFile.Invalid", ex.Message));
-        }
-    }
-
-    private static bool ValidateMagicBytes(string extension, Stream stream)
-    {
-        if (!stream.CanSeek) return true;
-
-        var originalPosition = stream.Position;
-        try
-        {
-            byte[] buffer = new byte[4];
-            int read = stream.Read(buffer, 0, buffer.Length);
-            stream.Position = originalPosition;
-
-            if (read < 2) return false;
-
-            // PK magic bytes → must be .docx
-            if (buffer[0] == 0x50 && buffer[1] == 0x4B)
-                return extension == ".docx";
-
-            // PDF: %PDF
-            if (read >= 4 && buffer[0] == 0x25 && buffer[1] == 0x50 && buffer[2] == 0x44 && buffer[3] == 0x46)
-                return extension == ".pdf";
-
-            // TXT / legacy DOC: no strict magic — allow through
-            if (extension == ".txt" || extension == ".doc")
-                return true;
-
-            return false;
-        }
-        catch
-        {
-            return false;
         }
     }
 }

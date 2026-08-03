@@ -220,10 +220,10 @@ public class SubmissionFileAuthorizationTests : IntegrationTestBase
         var scenario = await ScenarioAsync("del-last");
         var file = await UploadFileAsync(scenario, "answer.pdf");
 
-        // Finalise the submission with the file as its only content.
+        // Finalise the submission with the uploaded file as its only content — no text.
         var submit = await scenario.Student.PostAsJsonAsync(
             $"/api/v1/assignments/{scenario.Assignment.Id}/submissions",
-            new Api.Controllers.SubmitAssignmentRequest(null, [file.Id]));
+            new Api.Controllers.SubmitAssignmentRequest(null));
         submit.EnsureSuccessStatusCode();
 
         var delete = await scenario.Student.DeleteAsync($"/api/v1/submissions/files/{file.Id}");
