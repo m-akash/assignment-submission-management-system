@@ -9,10 +9,14 @@ internal static class AuthConstants
     public const string RefreshTokenCookie = "asm_refresh";
 
     /// <summary>
-    /// Scopes the cookie to the auth endpoints, so it is not sent with every API call.
-    /// Deleting the cookie requires the same path, hence the shared constant.
+    /// The cookie rides on the root path so the Next.js proxy can see it on document
+    /// requests and decide whether to gate the dashboard. Scoping it to
+    /// <c>/api/v1/auth</c> would keep it off other API calls — but it would also stop
+    /// the proxy from ever reading it, since document paths do not start with that
+    /// prefix and the proxy gate would redirect signed-in users back to the login.
+    /// The cookie is HttpOnly, so the only thing that can read it is server-side code.
     /// </summary>
-    private const string RefreshCookiePath = "/api/v1/auth";
+    private const string RefreshCookiePath = "/";
 
     /// <summary>Builds fresh cookie options (CookieOptions is mutable, so no shared instance).</summary>
     public static CookieOptions BuildRefreshCookieOptions(bool isHttps)
