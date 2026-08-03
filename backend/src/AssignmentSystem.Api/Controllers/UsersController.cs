@@ -61,7 +61,7 @@ public sealed class UsersController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request, CancellationToken ct)
     {
-        var command = new CreateUserCommand(request.Email, request.FullName, request.Password, request.Role, request.ClassId);
+        var command = new CreateUserCommand(request.Email, request.FullName, request.Password, request.Role, request.ClassId, request.DepartmentId);
         var result = await _createUserHandler.HandleAsync(command, ct);
         if (!result.IsSuccess)
         {
@@ -73,7 +73,7 @@ public sealed class UsersController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequest request, CancellationToken ct)
     {
-        var command = new UpdateUserCommand(id, request.FullName, request.Password, request.ClassId);
+        var command = new UpdateUserCommand(id, request.FullName, request.Password, request.ClassId, request.DepartmentId);
         var result = await _updateUserHandler.HandleAsync(command, ct);
         return result.ToActionResult(this);
     }
@@ -86,8 +86,8 @@ public sealed class UsersController : ControllerBase
     }
 }
 
-public sealed record CreateUserRequest(string Email, string FullName, string Password, Role Role, Guid? ClassId);
-public sealed record UpdateUserRequest(string FullName, string? Password, Guid? ClassId);
+public sealed record CreateUserRequest(string Email, string FullName, string Password, Role Role, Guid? ClassId, Guid? DepartmentId);
+public sealed record UpdateUserRequest(string FullName, string? Password, Guid? ClassId, Guid? DepartmentId);
 
 public sealed class CreateUserRequestValidator : AbstractValidator<CreateUserRequest>
 {
@@ -116,6 +116,14 @@ public sealed class CreateUserRequestValidator : AbstractValidator<CreateUserReq
         RuleFor(x => x.ClassId)
             .Empty().WithMessage("Only students may be assigned to a class.")
             .When(x => x.Role != Role.Student);
+
+        RuleFor(x => x.DepartmentId)
+            .NotEmpty().WithMessage("A teacher must be assigned to a department.")
+            .When(x => x.Role == Role.Teacher);
+
+        RuleFor(x => x.DepartmentId)
+            .Empty().WithMessage("Only teachers may be assigned to a department.")
+            .When(x => x.Role != Role.Teacher);
     }
 }
 
