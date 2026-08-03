@@ -124,7 +124,7 @@ export function TeacherAssignmentsView() {
                     <TableHead className="text-right">Submissions</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Publish</TableHead>
-                    <TableHead className="w-10" />
+                    <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

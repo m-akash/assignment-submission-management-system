@@ -84,7 +84,7 @@ function ClassesView() {
                     <TableHead>Grade</TableHead>
                     <TableHead>Section</TableHead>
                     <TableHead>Students</TableHead>
-                    <TableHead className="w-10" />
+                    <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

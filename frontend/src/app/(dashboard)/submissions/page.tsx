@@ -94,7 +94,7 @@ function SubmissionsView() {
                     <TableHead>Submitted</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Marks</TableHead>
-                    <TableHead className="w-24" />
+                    <TableHead className="w-24">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

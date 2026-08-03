@@ -98,7 +98,7 @@ function MappingsView() {
                     <TableHead>Teacher</TableHead>
                     <TableHead>Course</TableHead>
                     <TableHead>Class</TableHead>
-                    <TableHead className="w-10" />
+                    <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

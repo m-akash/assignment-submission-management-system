@@ -195,7 +195,7 @@ function UsersView() {
                         <TableHead>Teacher ID</TableHead>
                       </>
                     )}
-                    <TableHead className="w-10" />
+                    <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
