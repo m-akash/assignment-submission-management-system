@@ -17,8 +17,9 @@ export const ME_URL = '/api/v1/auth/me';
 /** Endpoints that must never trigger a refresh-and-retry — doing so would recurse. */
 const AUTH_ENDPOINTS = [REFRESH_URL, LOGIN_URL, LOGOUT_URL];
 
-// `withCredentials` lets the httpOnly refresh cookie ride along. The cookie is
-// scoped to /api/v1/auth on the server, so it is only actually sent to auth routes.
+// `withCredentials` lets the httpOnly refresh cookie ride along. The cookie is scoped
+// to the root path server-side (see AuthConstants.cs) so the Next.js proxy can also
+// read its presence on document requests, not just on calls to this client.
 const client = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
