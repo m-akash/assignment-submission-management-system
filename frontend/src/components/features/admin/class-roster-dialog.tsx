@@ -59,11 +59,16 @@ export function ClassRosterDialog({
                     <p className="truncate font-medium">{student.fullName}</p>
                     <p className="truncate text-sm text-muted-foreground">{student.email}</p>
                   </div>
-                  {!student.isActive && (
-                    <span className="shrink-0 rounded-full border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                      Inactive
-                    </span>
-                  )}
+                  <div className="flex shrink-0 items-center gap-2">
+                    {student.studentId && (
+                      <span className="font-mono text-xs text-muted-foreground">{student.studentId}</span>
+                    )}
+                    {!student.isActive && (
+                      <span className="rounded-full border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                        Inactive
+                      </span>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

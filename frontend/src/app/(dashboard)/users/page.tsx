@@ -115,15 +115,16 @@ function UsersView() {
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Class</TableHead>
+                    <TableHead>Student ID</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={5} />
+                    <TableSkeleton columns={6} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="p-0">
+                      <TableCell colSpan={6} className="p-0">
                         <EmptyState
                           icon={Users}
                           title={isFiltered ? 'Nothing matches those filters' : 'No users yet'}
@@ -160,6 +161,9 @@ function UsersView() {
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {user.className ?? '—'}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">
+                          {user.studentId ?? '—'}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>

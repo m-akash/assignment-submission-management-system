@@ -45,6 +45,7 @@ export interface AuthUser {
   role: Role;
   classId: string | null;
   className: string | null;
+  studentId: string | null;
   isActive: boolean;
   createdAtUtc: string;
 }
