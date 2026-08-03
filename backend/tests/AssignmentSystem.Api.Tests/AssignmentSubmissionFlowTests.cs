@@ -26,8 +26,10 @@ public class AssignmentSubmissionFlowTests : IntegrationTestBase
         using var teacher = await SignInAsync(DbSeeder.TeacherEmail, DbSeeder.DefaultPassword);
         using var student = await SignInAsync(DbSeeder.StudentEmail, DbSeeder.DefaultPassword);
 
-        // The seeded teacher's own class/subject mapping.
-        var teacherAssignmentId = await SeededTeacherAssignmentIdAsync(teacher);
+        // The seeded teacher's mapping for the seeded student's own class — the teacher
+        // has several, and an assignment for any other class is invisible to this student.
+        var studentClassId = await CurrentUserClassIdAsync(student);
+        var teacherAssignmentId = await SeededTeacherAssignmentIdAsync(teacher, studentClassId);
 
         // 1. Create a draft, then publish it.
         var assignment = await CreateAssignmentAsync(teacher, teacherAssignmentId, "Integration Test Assignment");

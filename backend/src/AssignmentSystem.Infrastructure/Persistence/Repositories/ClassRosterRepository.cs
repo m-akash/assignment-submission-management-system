@@ -33,15 +33,18 @@ internal sealed class ClassRosterRepository : IClassRosterRepository
         return counts.ToDictionary(x => x.ClassId, x => x.Count);
     }
 
-    public async Task<int> GetNextStudentSequenceAsync(Guid classId, CancellationToken ct = default)
+    public async Task<int> GetNextStudentSequenceAsync(string studentIdPrefix, CancellationToken ct = default)
     {
-        // Student ids are small per-class strings ("10-A-003"), so pulling just that
-        // column for one class and parsing the suffix in memory is cheaper and far less
-        // fragile than trying to get Postgres to parse it via string functions.
+        // Match on the prefix plus its separator ("IX-A-") so "IX-A" cannot also pick up
+        // a hypothetical "IX-AB-001". Pulling just the id column for one grade+section
+        // and parsing the suffix in memory is cheaper and far less fragile than getting
+        // Postgres to parse it via string functions.
         // IgnoreQueryFilters(): a soft-deleted student's number must never be reissued.
+        var match = $"{studentIdPrefix}-";
+
         var studentIds = await _context.Users
             .IgnoreQueryFilters()
-            .Where(u => u.ClassId == classId && u.StudentId != null)
+            .Where(u => u.StudentId != null && u.StudentId.StartsWith(match))
             .Select(u => u.StudentId!)
             .ToListAsync(ct);
 

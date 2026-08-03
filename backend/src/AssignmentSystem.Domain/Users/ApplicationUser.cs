@@ -1,6 +1,7 @@
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Enums;
+using AssignmentSystem.Domain.Departments;
 
 namespace AssignmentSystem.Domain.Users;
 
@@ -31,6 +32,18 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
     /// </summary>
     public string? StudentId { get; private set; }
 
+    /// <summary>The organisational unit a teacher belongs to. Only meaningful for
+    /// teachers (null for admin/student).</summary>
+    public Guid? DepartmentId { get; private set; }
+    public Department? Department { get; private set; }
+
+    /// <summary>
+    /// Human-readable staff id, e.g. "INS-PHY-01" (Instructor - department code -
+    /// sequence within that department). Only meaningful for teachers. Same shape as
+    /// <see cref="StudentId"/>: the caller computes the value.
+    /// </summary>
+    public string? TeacherId { get; private set; }
+
     public bool IsActive { get; private set; } = true;
 
     // ── Soft delete ───────────────────────────────────────────────────────────
@@ -49,7 +62,9 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
         string passwordHash,
         Role role,
         Guid? classId = null,
-        string? studentId = null)
+        string? studentId = null,
+        Guid? departmentId = null,
+        string? teacherId = null)
     {
         if (string.IsNullOrWhiteSpace(fullName))
         {
@@ -84,6 +99,28 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
             throw new DomainException("Only students may have a student id.");
         }
 
+        // Same shape again: a teacher must have a department and a teacher id, and
+        // only teachers may.
+        if (role == Role.Teacher && departmentId is null)
+        {
+            throw new DomainException("A teacher must be assigned to a department.");
+        }
+
+        if (role != Role.Teacher && departmentId is not null)
+        {
+            throw new DomainException("Only teachers may be assigned to a department.");
+        }
+
+        if (role == Role.Teacher && string.IsNullOrWhiteSpace(teacherId))
+        {
+            throw new DomainException("A teacher must have a teacher id.");
+        }
+
+        if (role != Role.Teacher && teacherId is not null)
+        {
+            throw new DomainException("Only teachers may have a teacher id.");
+        }
+
         return new ApplicationUser
         {
             Email = Email.Create(email),
@@ -92,6 +129,8 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
             Role = role,
             ClassId = classId,
             StudentId = studentId?.Trim(),
+            DepartmentId = departmentId,
+            TeacherId = teacherId?.Trim(),
             IsActive = true,
         };
     }
@@ -129,6 +168,23 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
         }
 
         ClassId = classId;
+    }
+
+    /// <summary>Reassigns a teacher's department. Does not regenerate <see cref="TeacherId"/>
+    /// — same trade-off as <see cref="AssignToClass"/> not regenerating <see cref="StudentId"/>.</summary>
+    public void AssignToDepartment(Guid departmentId)
+    {
+        if (Role != Role.Teacher)
+        {
+            throw new DomainException("Only teachers may be assigned to a department.");
+        }
+
+        if (departmentId == Guid.Empty)
+        {
+            throw new DomainException("A valid department id is required.");
+        }
+
+        DepartmentId = departmentId;
     }
 
     public void Activate() => IsActive = true;

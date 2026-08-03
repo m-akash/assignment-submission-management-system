@@ -16,9 +16,13 @@ public interface IClassRosterRepository
         IReadOnlyCollection<Guid> classIds, CancellationToken ct = default);
 
     /// <summary>
-    /// The next student-id sequence number for a class: one more than the highest
-    /// sequence number ever issued for it (1 if none yet). Looks past soft-deleted
-    /// students too, so a removed student's number is never reissued.
+    /// The next student-id sequence number for an id prefix such as "IX-A": one more than
+    /// the highest ever issued under it (1 if none yet).
+    ///
+    /// Scoped by prefix rather than by class on purpose — the numbers have to be unique
+    /// per grade+section, and nothing stops an admin creating two classes that share one.
+    /// Looks past soft-deleted students too, so a removed student's number is never
+    /// reissued.
     /// </summary>
-    Task<int> GetNextStudentSequenceAsync(Guid classId, CancellationToken ct = default);
+    Task<int> GetNextStudentSequenceAsync(string studentIdPrefix, CancellationToken ct = default);
 }

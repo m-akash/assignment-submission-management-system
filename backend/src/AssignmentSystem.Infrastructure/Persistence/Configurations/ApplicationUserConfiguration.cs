@@ -1,5 +1,6 @@
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Enums;
+using AssignmentSystem.Domain.Departments;
 using AssignmentSystem.Domain.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -63,12 +64,28 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
 
         builder.HasIndex(u => u.ClassId);
 
-        // "10-A-003" (grade-section-sequence). Null for admin/teacher — a unique index
-        // over a nullable column still allows any number of nulls in Postgres.
+        // "G10-A-003" (G, grade, section, sequence). Null for admin/teacher — a unique
+        // index over a nullable column still allows any number of nulls in Postgres.
         builder.Property(u => u.StudentId)
             .HasMaxLength(30);
 
         builder.HasIndex(u => u.StudentId).IsUnique();
+
+        // A teacher's department. SetNull rather than Restrict: removing a department
+        // should not block deleting it outright, it just leaves the teacher unassigned.
+        builder.Property(u => u.DepartmentId);
+        builder.HasOne(u => u.Department)
+            .WithMany()
+            .HasForeignKey(u => u.DepartmentId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(u => u.DepartmentId);
+
+        // "INS-SCI-01" (instructor - department code - sequence). Null for admin/student.
+        builder.Property(u => u.TeacherId)
+            .HasMaxLength(30);
+
+        builder.HasIndex(u => u.TeacherId).IsUnique();
 
         // Refresh tokens relationship
         builder.HasMany(u => u.RefreshTokens)

@@ -1,8 +1,9 @@
 using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Domain.Assignments;
 using AssignmentSystem.Domain.Classes;
+using AssignmentSystem.Domain.Courses;
+using AssignmentSystem.Domain.Departments;
 using AssignmentSystem.Domain.Enums;
-using AssignmentSystem.Domain.Subjects;
 using AssignmentSystem.Domain.Submissions;
 using AssignmentSystem.Domain.TeacherAssignments;
 using AssignmentSystem.Domain.Users;
@@ -14,7 +15,7 @@ namespace AssignmentSystem.Infrastructure.Persistence.Seed;
 /// <summary>
 /// Idempotent database seeder. Creates the demo Admin/Teacher/Student accounts (the
 /// ones documented in the README) plus a wider sample dataset — 10 classes, 12
-/// subjects, 12 teachers, 15 students, 15 teacher-assignments, 15 assignments and 15
+/// courses, 12 teachers, 15 students, 15 teacher-assignments, 15 assignments and 15
 /// submissions spread across every status — so an evaluator sees a populated system
 /// immediately instead of three empty accounts. Skips entirely once the admin account
 /// already exists.
@@ -56,18 +57,20 @@ public sealed class DbSeeder
         var passwordHash = _passwordHasher.Hash(DefaultPassword);
 
         // ── Classes (10) ──────────────────────────────────────────────────────────
+        // Grades are Roman numerals by school convention ("Class IX"), and student ids
+        // are built straight from grade + section — so "IX-A-001".
         var classes = new[]
         {
-            Class.Create("Grade 6 - Section A", "6", "A"),
-            Class.Create("Grade 6 - Section B", "6", "B"),
-            Class.Create("Grade 7 - Section A", "7", "A"),
-            Class.Create("Grade 7 - Section B", "7", "B"),
-            Class.Create("Grade 8 - Section A", "8", "A"),
-            Class.Create("Grade 8 - Section B", "8", "B"),
-            Class.Create("Grade 9 - Section A", "9", "A"),
-            Class.Create("Grade 9 - Section B", "9", "B"),
-            Class.Create("Grade 10 - Section A", "10", "A"),
-            Class.Create("Grade 10 - Section B", "10", "B"),
+            Class.Create("Class VI - Section A", "VI", "A"),
+            Class.Create("Class VI - Section B", "VI", "B"),
+            Class.Create("Class VII - Section A", "VII", "A"),
+            Class.Create("Class VII - Section B", "VII", "B"),
+            Class.Create("Class VIII - Section A", "VIII", "A"),
+            Class.Create("Class VIII - Section B", "VIII", "B"),
+            Class.Create("Class IX - Section A", "IX", "A"),
+            Class.Create("Class IX - Section B", "IX", "B"),
+            Class.Create("Class X - Section A", "X", "A"),
+            Class.Create("Class X - Section B", "X", "B"),
         };
         _context.Classes.AddRange(classes);
         var class6A = classes[0];
@@ -81,51 +84,78 @@ public sealed class DbSeeder
         var class10A = classes[8];
         var class10B = classes[9];
 
-        // ── Subjects (12) ─────────────────────────────────────────────────────────
-        var subjects = new[]
+        // ── Departments (5) ───────────────────────────────────────────────────────
+        // One department owns many courses — Science covers Physics, Chemistry, Biology.
+        var departments = new[]
         {
-            Subject.Create("Mathematics", "MATH101"),
-            Subject.Create("Physics", "PHY101"),
-            Subject.Create("Chemistry", "CHE101"),
-            Subject.Create("Biology", "BIO101"),
-            Subject.Create("English", "ENG101"),
-            Subject.Create("Bangla", "BAN101"),
-            Subject.Create("ICT", "ICT101"),
-            Subject.Create("History", "HIS101"),
-            Subject.Create("Geography", "GEO101"),
-            Subject.Create("Economics", "ECO101"),
-            Subject.Create("Accounting", "ACC101"),
-            Subject.Create("Higher Mathematics", "HMT101"),
+            Department.Create("Science", "SCI"),
+            Department.Create("Mathematics", "MATH"),
+            Department.Create("Languages", "LANG"),
+            Department.Create("Humanities", "HUM"),
+            Department.Create("Business & ICT", "BUS"),
         };
-        _context.Subjects.AddRange(subjects);
-        var math = subjects[0];
-        var physics = subjects[1];
-        var chemistry = subjects[2];
-        var biology = subjects[3];
-        var english = subjects[4];
-        var bangla = subjects[5];
-        var ict = subjects[6];
-        var history = subjects[7];
-        var geography = subjects[8];
-        var economics = subjects[9];
-        var accounting = subjects[10];
-        var higherMath = subjects[11];
+        _context.Departments.AddRange(departments);
+        var scienceDept = departments[0];
+        var mathsDept = departments[1];
+        var languagesDept = departments[2];
+        var humanitiesDept = departments[3];
+        var businessDept = departments[4];
+
+        // ── Courses (12) ─────────────────────────────────────────────────────────
+        var courses = new[]
+        {
+            Course.Create("Mathematics", "MATH101", mathsDept.Id),
+            Course.Create("Physics", "PHY101", scienceDept.Id),
+            Course.Create("Chemistry", "CHE101", scienceDept.Id),
+            Course.Create("Biology", "BIO101", scienceDept.Id),
+            Course.Create("English", "ENG101", languagesDept.Id),
+            Course.Create("Bangla", "BAN101", languagesDept.Id),
+            Course.Create("ICT", "ICT101", businessDept.Id),
+            Course.Create("History", "HIS101", humanitiesDept.Id),
+            Course.Create("Geography", "GEO101", humanitiesDept.Id),
+            Course.Create("Economics", "ECO101", businessDept.Id),
+            Course.Create("Accounting", "ACC101", businessDept.Id),
+            Course.Create("Higher Mathematics", "HMT101", mathsDept.Id),
+        };
+        _context.Courses.AddRange(courses);
+        var math = courses[0];
+        var physics = courses[1];
+        var chemistry = courses[2];
+        var biology = courses[3];
+        var english = courses[4];
+        var bangla = courses[5];
+        var ict = courses[6];
+        var history = courses[7];
+        var geography = courses[8];
+        var economics = courses[9];
+        var accounting = courses[10];
+        var higherMath = courses[11];
 
         // ── Users: teachers (12, including the demo login) ──────────────────────────
+        // Mirrors the production rule in CreateUserHandler: "INS-{department code}-{sequence}",
+        // sequence numbers restarting at 1 per department.
+        var teacherSequence = new Dictionary<Guid, int>();
+        string NextTeacherId(Department department)
+        {
+            var sequence = teacherSequence.GetValueOrDefault(department.Id, 0) + 1;
+            teacherSequence[department.Id] = sequence;
+            return $"INS-{department.Code}-{sequence:D2}";
+        }
+
         var teachers = new[]
         {
-            ApplicationUser.Create(TeacherEmail, "John Teacher", passwordHash, Role.Teacher),
-            ApplicationUser.Create("teacher2@assignment.test", "Sarah Rahman", passwordHash, Role.Teacher),
-            ApplicationUser.Create("teacher3@assignment.test", "Kamal Hossain", passwordHash, Role.Teacher),
-            ApplicationUser.Create("teacher4@assignment.test", "Nusrat Jahan", passwordHash, Role.Teacher),
-            ApplicationUser.Create("teacher5@assignment.test", "Farhan Ahmed", passwordHash, Role.Teacher),
-            ApplicationUser.Create("teacher6@assignment.test", "Rima Chowdhury", passwordHash, Role.Teacher),
-            ApplicationUser.Create("teacher7@assignment.test", "Imran Khan", passwordHash, Role.Teacher),
-            ApplicationUser.Create("teacher8@assignment.test", "Tania Islam", passwordHash, Role.Teacher),
-            ApplicationUser.Create("teacher9@assignment.test", "Shakil Ahmed", passwordHash, Role.Teacher),
-            ApplicationUser.Create("teacher10@assignment.test", "Mou Akter", passwordHash, Role.Teacher),
-            ApplicationUser.Create("teacher11@assignment.test", "Rafiq Uddin", passwordHash, Role.Teacher),
-            ApplicationUser.Create("teacher12@assignment.test", "Sabrina Yasmin", passwordHash, Role.Teacher),
+            ApplicationUser.Create(TeacherEmail, "John Teacher", passwordHash, Role.Teacher, departmentId: mathsDept.Id, teacherId: NextTeacherId(mathsDept)),
+            ApplicationUser.Create("teacher2@assignment.test", "Sarah Rahman", passwordHash, Role.Teacher, departmentId: languagesDept.Id, teacherId: NextTeacherId(languagesDept)),
+            ApplicationUser.Create("teacher3@assignment.test", "Kamal Hossain", passwordHash, Role.Teacher, departmentId: languagesDept.Id, teacherId: NextTeacherId(languagesDept)),
+            ApplicationUser.Create("teacher4@assignment.test", "Nusrat Jahan", passwordHash, Role.Teacher, departmentId: scienceDept.Id, teacherId: NextTeacherId(scienceDept)),
+            ApplicationUser.Create("teacher5@assignment.test", "Farhan Ahmed", passwordHash, Role.Teacher, departmentId: scienceDept.Id, teacherId: NextTeacherId(scienceDept)),
+            ApplicationUser.Create("teacher6@assignment.test", "Rima Chowdhury", passwordHash, Role.Teacher, departmentId: businessDept.Id, teacherId: NextTeacherId(businessDept)),
+            ApplicationUser.Create("teacher7@assignment.test", "Imran Khan", passwordHash, Role.Teacher, departmentId: humanitiesDept.Id, teacherId: NextTeacherId(humanitiesDept)),
+            ApplicationUser.Create("teacher8@assignment.test", "Tania Islam", passwordHash, Role.Teacher, departmentId: humanitiesDept.Id, teacherId: NextTeacherId(humanitiesDept)),
+            ApplicationUser.Create("teacher9@assignment.test", "Shakil Ahmed", passwordHash, Role.Teacher, departmentId: businessDept.Id, teacherId: NextTeacherId(businessDept)),
+            ApplicationUser.Create("teacher10@assignment.test", "Mou Akter", passwordHash, Role.Teacher, departmentId: businessDept.Id, teacherId: NextTeacherId(businessDept)),
+            ApplicationUser.Create("teacher11@assignment.test", "Rafiq Uddin", passwordHash, Role.Teacher, departmentId: mathsDept.Id, teacherId: NextTeacherId(mathsDept)),
+            ApplicationUser.Create("teacher12@assignment.test", "Sabrina Yasmin", passwordHash, Role.Teacher, departmentId: scienceDept.Id, teacherId: NextTeacherId(scienceDept)),
         };
         _context.Users.AddRange(teachers);
         var johnTeacher = teachers[0];
@@ -145,14 +175,15 @@ public sealed class DbSeeder
         var admin = ApplicationUser.Create(AdminEmail, "System Admin", passwordHash, Role.Admin);
         _context.Users.Add(admin);
 
-        // Mirrors the production rule in CreateUserHandler: "{grade}-{section}-{sequence}",
-        // sequence numbers restarting at 1 per class.
-        var studentSequence = new Dictionary<Guid, int>();
+        // Mirrors the production rule in CreateUserHandler: "{grade}-{section}-{sequence}"
+        // with a Roman-numeral grade, sequence numbers restarting at 1 per grade+section.
+        var studentSequence = new Dictionary<string, int>(StringComparer.Ordinal);
         string NextStudentId(Class classRoom)
         {
-            var sequence = studentSequence.GetValueOrDefault(classRoom.Id, 0) + 1;
-            studentSequence[classRoom.Id] = sequence;
-            return $"{classRoom.Grade}-{classRoom.Section}-{sequence:D3}";
+            var prefix = $"{classRoom.Grade}-{classRoom.Section}";
+            var sequence = studentSequence.GetValueOrDefault(prefix, 0) + 1;
+            studentSequence[prefix] = sequence;
+            return $"{prefix}-{sequence:D3}";
         }
 
         var students = new[]
@@ -221,7 +252,7 @@ public sealed class DbSeeder
             var ta = teacherAssignments[taIndex];
             var assignment = Assignment.Create(
                 teacherId: ta.TeacherId,
-                subjectId: ta.SubjectId,
+                courseId: ta.CourseId,
                 classId: ta.ClassId,
                 teacherAssignmentId: ta.Id,
                 title: title,
@@ -298,10 +329,10 @@ public sealed class DbSeeder
         await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Seed complete: {Classes} classes, {Subjects} subjects, {Teachers} teachers, {Students} students, " +
+            "Seed complete: {Classes} classes, {Courses} courses, {Teachers} teachers, {Students} students, " +
             "{TeacherAssignments} teacher-assignments, {Assignments} assignments, {Submissions} submissions. " +
             "Demo logins — admin={Admin}, teacher={Teacher}, student={Student}",
-            classes.Length, subjects.Length, teachers.Length, students.Length,
+            classes.Length, courses.Length, teachers.Length, students.Length,
             teacherAssignments.Length, 15, 15,
             AdminEmail, TeacherEmail, StudentEmail);
     }

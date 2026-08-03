@@ -42,6 +42,7 @@ public static class DependencyInjection
         // Open generic repository registered as concrete generic via factory.
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IClassRosterRepository, ClassRosterRepository>();
+        services.AddScoped<ITeacherRosterRepository, TeacherRosterRepository>();
 
         // ── Clock ──────────────────────────────────────────────────────────────
         services.AddSingleton<IClock, SystemClock>();

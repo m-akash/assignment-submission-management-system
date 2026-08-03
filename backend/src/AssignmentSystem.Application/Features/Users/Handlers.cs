@@ -4,6 +4,7 @@ using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Enums;
+using AssignmentSystem.Domain.Departments;
 using AssignmentSystem.Domain.Users;
 using AssignmentSystem.Shared.Common;
 using AssignmentSystem.Application.Features.Auth;
@@ -14,7 +15,9 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
 {
     private readonly IRepository<ApplicationUser> _userRepository;
     private readonly IRepository<Class> _classRepository;
+    private readonly IRepository<Department> _departmentRepository;
     private readonly IClassRosterRepository _classRosterRepository;
+    private readonly ITeacherRosterRepository _teacherRosterRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly UserMapper Mapper = new();
@@ -22,13 +25,17 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
     public CreateUserHandler(
         IRepository<ApplicationUser> userRepository,
         IRepository<Class> classRepository,
+        IRepository<Department> departmentRepository,
         IClassRosterRepository classRosterRepository,
+        ITeacherRosterRepository teacherRosterRepository,
         IPasswordHasher passwordHasher,
         IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
         _classRepository = classRepository;
+        _departmentRepository = departmentRepository;
         _classRosterRepository = classRosterRepository;
+        _teacherRosterRepository = teacherRosterRepository;
         _passwordHasher = passwordHasher;
         _unitOfWork = unitOfWork;
     }
@@ -53,8 +60,25 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
 
             if (command.Role == Role.Student)
             {
-                var sequence = await _classRosterRepository.GetNextStudentSequenceAsync(command.ClassId.Value, ct);
-                studentId = FormatStudentId(classObj, sequence);
+                var prefix = StudentIdPrefix(classObj);
+                var sequence = await _classRosterRepository.GetNextStudentSequenceAsync(prefix, ct);
+                studentId = $"{prefix}-{sequence:D3}";
+            }
+        }
+
+        string? teacherId = null;
+        if (command.DepartmentId.HasValue)
+        {
+            var department = await _departmentRepository.GetByIdAsync(command.DepartmentId.Value, ct);
+            if (department is null)
+            {
+                return Result<UserDto>.Failure(Error.NotFound("Department.NotFound", "The specified department was not found."));
+            }
+
+            if (command.Role == Role.Teacher)
+            {
+                var sequence = await _teacherRosterRepository.GetNextTeacherSequenceAsync(command.DepartmentId.Value, ct);
+                teacherId = FormatTeacherId(department, sequence);
             }
         }
 
@@ -68,12 +92,14 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
                 passwordHash,
                 command.Role,
                 command.ClassId,
-                studentId);
+                studentId,
+                command.DepartmentId,
+                teacherId);
 
             await _userRepository.AddAsync(user, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
-            // Fetch again with Class included for full DTO mapping
+            // Fetch again with Class/Department included for full DTO mapping
             var fetchSpec = new UserWithClassByIdSpecification(user.Id);
             var savedUser = await _userRepository.FirstOrDefaultAsync(fetchSpec, ct);
 
@@ -85,22 +111,29 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
         }
     }
 
-    /// <summary>"10-A-003" — grade-section-sequence. Falls back to the class name when
-    /// grade/section weren't set, so creation never fails just because of that.</summary>
-    private static string FormatStudentId(Class classObj, int sequence)
-    {
-        var prefix = !string.IsNullOrWhiteSpace(classObj.Grade) && !string.IsNullOrWhiteSpace(classObj.Section)
-            ? $"{classObj.Grade}-{classObj.Section}"
+    /// <summary>
+    /// The "IX-A" part of a student id — grade then section, where the grade is a Roman
+    /// numeral by convention ("Class IX"), so it needs no letter prefix to read as one.
+    /// The sequence that completes it is issued against this prefix, so the numbers are
+    /// unique per grade+section. Falls back to the class name when grade/section weren't
+    /// set, so creating a student never fails just because of that.
+    /// </summary>
+    private static string StudentIdPrefix(Class classObj) =>
+        !string.IsNullOrWhiteSpace(classObj.Grade) && !string.IsNullOrWhiteSpace(classObj.Section)
+            ? $"{classObj.Grade.Trim()}-{classObj.Section.Trim()}"
             : classObj.Name.Trim().Replace(' ', '-');
 
-        return $"{prefix}-{sequence:D3}";
-    }
+    /// <summary>"INS-SCI-01" — Instructor, department code, sequence. The department code
+    /// is already short and bounded (10 chars), so it is used verbatim.</summary>
+    private static string FormatTeacherId(Department department, int sequence) =>
+        $"INS-{department.Code}-{sequence:D2}";
 }
 
 public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand, UserDto>
 {
     private readonly IRepository<ApplicationUser> _userRepository;
     private readonly IRepository<Class> _classRepository;
+    private readonly IRepository<Department> _departmentRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly UserMapper Mapper = new();
@@ -108,11 +141,13 @@ public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand, UserD
     public UpdateUserHandler(
         IRepository<ApplicationUser> userRepository,
         IRepository<Class> classRepository,
+        IRepository<Department> departmentRepository,
         IPasswordHasher passwordHasher,
         IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
         _classRepository = classRepository;
+        _departmentRepository = departmentRepository;
         _passwordHasher = passwordHasher;
         _unitOfWork = unitOfWork;
     }
@@ -138,6 +173,16 @@ public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand, UserD
                     return Result<UserDto>.Failure(Error.NotFound("Class.NotFound", "The specified class was not found."));
                 }
                 user.AssignToClass(command.ClassId.Value);
+            }
+
+            if (command.DepartmentId.HasValue && command.DepartmentId.Value != user.DepartmentId)
+            {
+                var department = await _departmentRepository.GetByIdAsync(command.DepartmentId.Value, ct);
+                if (department is null)
+                {
+                    return Result<UserDto>.Failure(Error.NotFound("Department.NotFound", "The specified department was not found."));
+                }
+                user.AssignToDepartment(command.DepartmentId.Value);
             }
 
             if (!string.IsNullOrWhiteSpace(command.Password))

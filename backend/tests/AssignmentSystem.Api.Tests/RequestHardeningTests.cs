@@ -26,7 +26,7 @@ public class RequestHardeningTests : IntegrationTestBase
     [InlineData("/api/v1/assignments")]
     [InlineData("/api/v1/submissions")]
     [InlineData("/api/v1/classes")]
-    [InlineData("/api/v1/subjects")]
+    [InlineData("/api/v1/courses")]
     [InlineData("/api/v1/users")]
     [InlineData("/api/v1/teacher-assignments")]
     public async Task ListEndpoints_ShouldCapPageSize(string url)

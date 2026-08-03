@@ -148,7 +148,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var response = await admin.PostAsJsonAsync("/api/v1/teacher-assignments",
-            new Api.Controllers.CreateTeacherAssignmentRequest(world.TeacherId, world.SubjectId, world.ClassId));
+            new Api.Controllers.CreateTeacherAssignmentRequest(world.TeacherId, world.CourseId, world.ClassId));
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }

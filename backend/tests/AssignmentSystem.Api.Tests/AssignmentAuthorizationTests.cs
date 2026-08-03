@@ -283,7 +283,7 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
     }
 
     /// <summary>
-    /// A teacher's class/subject mappings are their own business. Without scoping, the
+    /// A teacher's class/course mappings are their own business. Without scoping, the
     /// endpoint hands any teacher the school's entire teaching roster — and the ids needed
     /// to aim other requests at colleagues' classes.
     /// </summary>
