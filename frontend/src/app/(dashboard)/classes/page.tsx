@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { GraduationCap, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+import { GraduationCap, MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ClassFormDialog } from '@/components/features/admin/class-form-dialog';
+import { ClassRosterDialog } from '@/components/features/admin/class-roster-dialog';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { PageHeader } from '@/components/shared/page-header';
 import { PaginationBar } from '@/components/shared/pagination-bar';
@@ -34,6 +35,7 @@ function ClassesView() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ClassRoom | null>(null);
   const [deleting, setDeleting] = useState<ClassRoom | null>(null);
+  const [viewingRoster, setViewingRoster] = useState<ClassRoom | null>(null);
 
   const remove = useDeleteClass();
   const query = useClasses({ search, page, pageSize: 10 });
@@ -81,15 +83,16 @@ function ClassesView() {
                     <TableHead>Name</TableHead>
                     <TableHead>Grade</TableHead>
                     <TableHead>Section</TableHead>
+                    <TableHead>Students</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={4} />
+                    <TableSkeleton columns={5} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="p-0">
+                      <TableCell colSpan={5} className="p-0">
                         <EmptyState
                           icon={GraduationCap}
                           title={search ? 'Nothing matches that search' : 'No classes yet'}
@@ -112,6 +115,16 @@ function ClassesView() {
                         <TableCell className="text-muted-foreground">{classRoom.grade ?? '—'}</TableCell>
                         <TableCell className="text-muted-foreground">{classRoom.section ?? '—'}</TableCell>
                         <TableCell>
+                          <button
+                            type="button"
+                            onClick={() => setViewingRoster(classRoom)}
+                            className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium underline-offset-4 hover:underline"
+                          >
+                            <Users className="size-3.5 text-muted-foreground" />
+                            {classRoom.studentCount}
+                          </button>
+                        </TableCell>
+                        <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" aria-label={`Actions for ${classRoom.name}`}>
@@ -119,6 +132,10 @@ function ClassesView() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setViewingRoster(classRoom)}>
+                                <Users className="size-4" />
+                                View students
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => {
                                   setEditing(classRoom);
@@ -150,6 +167,12 @@ function ClassesView() {
       </div>
 
       <ClassFormDialog open={formOpen} onOpenChange={setFormOpen} classRoom={editing} />
+
+      <ClassRosterDialog
+        open={!!viewingRoster}
+        onOpenChange={(open) => !open && setViewingRoster(null)}
+        classRoom={viewingRoster}
+      />
 
       <ConfirmDialog
         open={!!deleting}

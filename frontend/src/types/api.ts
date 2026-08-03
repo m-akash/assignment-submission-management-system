@@ -66,6 +66,7 @@ export interface ClassRoom {
   name: string;
   grade: string | null;
   section: string | null;
+  studentCount: number;
 }
 
 export interface Subject {

@@ -20,10 +20,11 @@ export interface UserFilters extends ListFilters {
 
 // ── Users ───────────────────────────────────────────────────────────────────
 
-export function useUsers(filters: UserFilters) {
+export function useUsers(filters: UserFilters, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.users.list(filters),
     queryFn: () => apiGetPaged<User>(`/api/v1/users${toQuery({ ...filters })}`),
+    enabled: options?.enabled ?? true,
   });
 }
 
