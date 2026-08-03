@@ -27,6 +27,7 @@ public sealed record GetTeacherAssignmentsQuery(
     Guid? TeacherId = null,
     Guid? SubjectId = null,
     Guid? ClassId = null,
+    string? Search = null,
     int Page = 1,
     int PageSize = 20
 ) : IQuery<PageResult<TeacherAssignmentDto>>;

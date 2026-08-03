@@ -127,7 +127,8 @@ public sealed class GetTeacherAssignmentsHandler : IQueryHandler<GetTeacherAssig
             ? _currentUser.UserId
             : query.TeacherId;
 
-        var spec = new TeacherAssignmentsPagedSpecification(teacherId, query.SubjectId, query.ClassId, query.Page, query.PageSize);
+        var spec = new TeacherAssignmentsPagedSpecification(
+            teacherId, query.SubjectId, query.ClassId, query.Search, query.Page, query.PageSize);
         var pagedAssignments = await _teacherAssignmentRepository.ListPagedAsync(spec, ct);
 
         var items = pagedAssignments.Items.Select(Mapper.MapToDto).ToList();

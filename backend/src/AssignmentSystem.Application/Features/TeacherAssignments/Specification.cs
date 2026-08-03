@@ -24,7 +24,8 @@ internal sealed class TeacherAssignmentDuplicateSpecification : Specification<Te
 
 internal sealed class TeacherAssignmentsPagedSpecification : Specification<TeacherAssignment>
 {
-    public TeacherAssignmentsPagedSpecification(Guid? teacherId, Guid? subjectId, Guid? classId, int page, int pageSize)
+    public TeacherAssignmentsPagedSpecification(
+        Guid? teacherId, Guid? subjectId, Guid? classId, string? search, int page, int pageSize)
     {
         ApplyNoTracking();
         AddInclude(ta => ta.Teacher);
@@ -33,9 +34,20 @@ internal sealed class TeacherAssignmentsPagedSpecification : Specification<Teach
         ApplyOrderBy(ta => ta.Teacher.FullName);
         ApplyPaging(page, pageSize);
 
+        var searchLower = search?.Trim().ToLowerInvariant();
+
+        // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
+        // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
+        // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
+#pragma warning disable CA1304, CA1311
         Criteria = ta =>
             (!teacherId.HasValue || ta.TeacherId == teacherId.Value) &&
             (!subjectId.HasValue || ta.SubjectId == subjectId.Value) &&
-            (!classId.HasValue || ta.ClassId == classId.Value);
+            (!classId.HasValue || ta.ClassId == classId.Value) &&
+            (string.IsNullOrWhiteSpace(searchLower) ||
+             ta.Teacher.FullName.ToLower().Contains(searchLower) ||
+             ta.Subject.Name.ToLower().Contains(searchLower) ||
+             ta.Class.Name.ToLower().Contains(searchLower));
+#pragma warning restore CA1304, CA1311
     }
 }
