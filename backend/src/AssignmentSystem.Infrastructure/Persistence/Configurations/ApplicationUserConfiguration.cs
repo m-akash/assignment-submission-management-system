@@ -63,6 +63,13 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
 
         builder.HasIndex(u => u.ClassId);
 
+        // "10-A-003" (grade-section-sequence). Null for admin/teacher — a unique index
+        // over a nullable column still allows any number of nulls in Postgres.
+        builder.Property(u => u.StudentId)
+            .HasMaxLength(30);
+
+        builder.HasIndex(u => u.StudentId).IsUnique();
+
         // Refresh tokens relationship
         builder.HasMany(u => u.RefreshTokens)
             .WithOne(t => t.User)

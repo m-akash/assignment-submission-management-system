@@ -3,6 +3,7 @@ using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
+using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Domain.Users;
 using AssignmentSystem.Shared.Common;
 using AssignmentSystem.Application.Features.Auth;
@@ -13,6 +14,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
 {
     private readonly IRepository<ApplicationUser> _userRepository;
     private readonly IRepository<Class> _classRepository;
+    private readonly IClassRosterRepository _classRosterRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly UserMapper Mapper = new();
@@ -20,11 +22,13 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
     public CreateUserHandler(
         IRepository<ApplicationUser> userRepository,
         IRepository<Class> classRepository,
+        IClassRosterRepository classRosterRepository,
         IPasswordHasher passwordHasher,
         IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
         _classRepository = classRepository;
+        _classRosterRepository = classRosterRepository;
         _passwordHasher = passwordHasher;
         _unitOfWork = unitOfWork;
     }
@@ -38,12 +42,19 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
             return Result<UserDto>.Failure(Error.Conflict("User.EmailAlreadyTaken", "A user with this email already exists."));
         }
 
+        string? studentId = null;
         if (command.ClassId.HasValue)
         {
             var classObj = await _classRepository.GetByIdAsync(command.ClassId.Value, ct);
             if (classObj is null)
             {
                 return Result<UserDto>.Failure(Error.NotFound("Class.NotFound", "The specified class was not found."));
+            }
+
+            if (command.Role == Role.Student)
+            {
+                var sequence = await _classRosterRepository.GetNextStudentSequenceAsync(command.ClassId.Value, ct);
+                studentId = FormatStudentId(classObj, sequence);
             }
         }
 
@@ -56,7 +67,8 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
                 command.FullName,
                 passwordHash,
                 command.Role,
-                command.ClassId);
+                command.ClassId,
+                studentId);
 
             await _userRepository.AddAsync(user, ct);
             await _unitOfWork.SaveChangesAsync(ct);
@@ -71,6 +83,17 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
         {
             return Result<UserDto>.Failure(Error.Validation("User.Invalid", ex.Message));
         }
+    }
+
+    /// <summary>"10-A-003" — grade-section-sequence. Falls back to the class name when
+    /// grade/section weren't set, so creation never fails just because of that.</summary>
+    private static string FormatStudentId(Class classObj, int sequence)
+    {
+        var prefix = !string.IsNullOrWhiteSpace(classObj.Grade) && !string.IsNullOrWhiteSpace(classObj.Section)
+            ? $"{classObj.Grade}-{classObj.Section}"
+            : classObj.Name.Trim().Replace(' ', '-');
+
+        return $"{prefix}-{sequence:D3}";
     }
 }
 

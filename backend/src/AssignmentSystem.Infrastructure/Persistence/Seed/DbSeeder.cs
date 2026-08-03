@@ -145,23 +145,33 @@ public sealed class DbSeeder
         var admin = ApplicationUser.Create(AdminEmail, "System Admin", passwordHash, Role.Admin);
         _context.Users.Add(admin);
 
+        // Mirrors the production rule in CreateUserHandler: "{grade}-{section}-{sequence}",
+        // sequence numbers restarting at 1 per class.
+        var studentSequence = new Dictionary<Guid, int>();
+        string NextStudentId(Class classRoom)
+        {
+            var sequence = studentSequence.GetValueOrDefault(classRoom.Id, 0) + 1;
+            studentSequence[classRoom.Id] = sequence;
+            return $"{classRoom.Grade}-{classRoom.Section}-{sequence:D3}";
+        }
+
         var students = new[]
         {
-            ApplicationUser.Create(StudentEmail, "Jane Student", passwordHash, Role.Student, class10A.Id),
-            ApplicationUser.Create("student2@assignment.test", "Arif Hasan", passwordHash, Role.Student, class6A.Id),
-            ApplicationUser.Create("student3@assignment.test", "Priya Sultana", passwordHash, Role.Student, class6A.Id),
-            ApplicationUser.Create("student4@assignment.test", "Tanvir Alam", passwordHash, Role.Student, class6B.Id),
-            ApplicationUser.Create("student5@assignment.test", "Nadia Islam", passwordHash, Role.Student, class7A.Id),
-            ApplicationUser.Create("student6@assignment.test", "Omar Faruk", passwordHash, Role.Student, class7A.Id),
-            ApplicationUser.Create("student7@assignment.test", "Lamia Akter", passwordHash, Role.Student, class7B.Id),
-            ApplicationUser.Create("student8@assignment.test", "Zubair Rahman", passwordHash, Role.Student, class8A.Id),
-            ApplicationUser.Create("student9@assignment.test", "Rakib Hossain", passwordHash, Role.Student, class8B.Id),
-            ApplicationUser.Create("student10@assignment.test", "Sadia Islam", passwordHash, Role.Student, class9A.Id),
-            ApplicationUser.Create("student11@assignment.test", "Mahin Khan", passwordHash, Role.Student, class9B.Id),
-            ApplicationUser.Create("student12@assignment.test", "Farzana Rahman", passwordHash, Role.Student, class10A.Id),
-            ApplicationUser.Create("student13@assignment.test", "Hasib Chowdhury", passwordHash, Role.Student, class10B.Id),
-            ApplicationUser.Create("student14@assignment.test", "Ayesha Siddika", passwordHash, Role.Student, class10B.Id),
-            ApplicationUser.Create("student15@assignment.test", "Kamrul Islam", passwordHash, Role.Student, class9A.Id),
+            ApplicationUser.Create(StudentEmail, "Jane Student", passwordHash, Role.Student, class10A.Id, NextStudentId(class10A)),
+            ApplicationUser.Create("student2@assignment.test", "Arif Hasan", passwordHash, Role.Student, class6A.Id, NextStudentId(class6A)),
+            ApplicationUser.Create("student3@assignment.test", "Priya Sultana", passwordHash, Role.Student, class6A.Id, NextStudentId(class6A)),
+            ApplicationUser.Create("student4@assignment.test", "Tanvir Alam", passwordHash, Role.Student, class6B.Id, NextStudentId(class6B)),
+            ApplicationUser.Create("student5@assignment.test", "Nadia Islam", passwordHash, Role.Student, class7A.Id, NextStudentId(class7A)),
+            ApplicationUser.Create("student6@assignment.test", "Omar Faruk", passwordHash, Role.Student, class7A.Id, NextStudentId(class7A)),
+            ApplicationUser.Create("student7@assignment.test", "Lamia Akter", passwordHash, Role.Student, class7B.Id, NextStudentId(class7B)),
+            ApplicationUser.Create("student8@assignment.test", "Zubair Rahman", passwordHash, Role.Student, class8A.Id, NextStudentId(class8A)),
+            ApplicationUser.Create("student9@assignment.test", "Rakib Hossain", passwordHash, Role.Student, class8B.Id, NextStudentId(class8B)),
+            ApplicationUser.Create("student10@assignment.test", "Sadia Islam", passwordHash, Role.Student, class9A.Id, NextStudentId(class9A)),
+            ApplicationUser.Create("student11@assignment.test", "Mahin Khan", passwordHash, Role.Student, class9B.Id, NextStudentId(class9B)),
+            ApplicationUser.Create("student12@assignment.test", "Farzana Rahman", passwordHash, Role.Student, class10A.Id, NextStudentId(class10A)),
+            ApplicationUser.Create("student13@assignment.test", "Hasib Chowdhury", passwordHash, Role.Student, class10B.Id, NextStudentId(class10B)),
+            ApplicationUser.Create("student14@assignment.test", "Ayesha Siddika", passwordHash, Role.Student, class10B.Id, NextStudentId(class10B)),
+            ApplicationUser.Create("student15@assignment.test", "Kamrul Islam", passwordHash, Role.Student, class9A.Id, NextStudentId(class9A)),
         };
         _context.Users.AddRange(students);
         var jane = students[0];

@@ -22,6 +22,15 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
     public Guid? ClassId { get; private set; }
     public Class? Class { get; private set; }
 
+    /// <summary>
+    /// Human-readable school id, e.g. "10-A-003" (class grade - section - sequence).
+    /// Only meaningful for students (null for admin/teacher). The caller computes the
+    /// value (it needs a repository lookup for the next sequence number, which the
+    /// domain can't do) — this entity just enforces that a student has one and nobody
+    /// else does.
+    /// </summary>
+    public string? StudentId { get; private set; }
+
     public bool IsActive { get; private set; } = true;
 
     // ── Soft delete ───────────────────────────────────────────────────────────
@@ -39,7 +48,8 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
         string fullName,
         string passwordHash,
         Role role,
-        Guid? classId = null)
+        Guid? classId = null,
+        string? studentId = null)
     {
         if (string.IsNullOrWhiteSpace(fullName))
         {
@@ -62,6 +72,18 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
             throw new DomainException("Only students may be assigned to a class.");
         }
 
+        // Same shape as the class rule above: students must have a student id, and
+        // only students may.
+        if (role == Role.Student && string.IsNullOrWhiteSpace(studentId))
+        {
+            throw new DomainException("A student must have a student id.");
+        }
+
+        if (role != Role.Student && studentId is not null)
+        {
+            throw new DomainException("Only students may have a student id.");
+        }
+
         return new ApplicationUser
         {
             Email = Email.Create(email),
@@ -69,6 +91,7 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
             PasswordHash = passwordHash,
             Role = role,
             ClassId = classId,
+            StudentId = studentId?.Trim(),
             IsActive = true,
         };
     }

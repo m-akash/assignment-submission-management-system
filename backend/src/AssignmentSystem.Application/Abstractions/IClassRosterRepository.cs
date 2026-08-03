@@ -14,4 +14,11 @@ public interface IClassRosterRepository
     /// </summary>
     Task<IReadOnlyDictionary<Guid, int>> GetStudentCountsAsync(
         IReadOnlyCollection<Guid> classIds, CancellationToken ct = default);
+
+    /// <summary>
+    /// The next student-id sequence number for a class: one more than the highest
+    /// sequence number ever issued for it (1 if none yet). Looks past soft-deleted
+    /// students too, so a removed student's number is never reissued.
+    /// </summary>
+    Task<int> GetNextStudentSequenceAsync(Guid classId, CancellationToken ct = default);
 }

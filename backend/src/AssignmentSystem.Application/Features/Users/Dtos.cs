@@ -10,6 +10,7 @@ public sealed record UserDto(
     Domain.Enums.Role Role,
     Guid? ClassId,
     string? ClassName,
+    string? StudentId,
     bool IsActive,
     DateTime CreatedAtUtc
 );

@@ -5,10 +5,10 @@ using Microsoft.EntityFrameworkCore;
 namespace AssignmentSystem.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Counts students per class with a single grouped SQL query (SELECT class_id,
-/// COUNT(*) ... GROUP BY class_id) instead of loading every student row or querying
-/// once per class. The soft-delete global query filter on <c>ApplicationUser</c>
-/// already excludes deactivated-and-deleted accounts from this count.
+/// Class-scoped queries over <c>ApplicationUser</c> that don't fit the generic
+/// Specification pattern: counting students per class with a single grouped SQL query
+/// (SELECT class_id, COUNT(*) ... GROUP BY class_id) instead of loading every student
+/// row or querying once per class, and issuing the next student-id sequence number.
 /// </summary>
 internal sealed class ClassRosterRepository : IClassRosterRepository
 {
@@ -31,5 +31,27 @@ internal sealed class ClassRosterRepository : IClassRosterRepository
             .ToListAsync(ct);
 
         return counts.ToDictionary(x => x.ClassId, x => x.Count);
+    }
+
+    public async Task<int> GetNextStudentSequenceAsync(Guid classId, CancellationToken ct = default)
+    {
+        // Student ids are small per-class strings ("10-A-003"), so pulling just that
+        // column for one class and parsing the suffix in memory is cheaper and far less
+        // fragile than trying to get Postgres to parse it via string functions.
+        // IgnoreQueryFilters(): a soft-deleted student's number must never be reissued.
+        var studentIds = await _context.Users
+            .IgnoreQueryFilters()
+            .Where(u => u.ClassId == classId && u.StudentId != null)
+            .Select(u => u.StudentId!)
+            .ToListAsync(ct);
+
+        var highestIssued = studentIds.Select(ExtractSequence).DefaultIfEmpty(0).Max();
+        return highestIssued + 1;
+    }
+
+    private static int ExtractSequence(string studentId)
+    {
+        var lastDash = studentId.LastIndexOf('-');
+        return lastDash >= 0 && int.TryParse(studentId[(lastDash + 1)..], out var sequence) ? sequence : 0;
     }
 }
