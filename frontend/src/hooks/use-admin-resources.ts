@@ -1,0 +1,210 @@
+'use client';
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { apiDelete, apiGetPaged, apiPost, apiPut, toQuery } from '@/lib/api';
+import { queryKeys } from '@/lib/query-keys';
+import type { ClassRoom, Paged, Role, Subject, TeacherMapping, User } from '@/types/api';
+
+/** Shared shape of every list screen's server-side filter state. */
+export interface ListFilters {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface UserFilters extends ListFilters {
+  role?: Role | '';
+  classId?: string;
+}
+
+// ── Users ───────────────────────────────────────────────────────────────────
+
+export function useUsers(filters: UserFilters) {
+  return useQuery({
+    queryKey: queryKeys.users.list(filters),
+    queryFn: () => apiGetPaged<User>(`/api/v1/users${toQuery({ ...filters })}`),
+  });
+}
+
+export interface UserInput {
+  email: string;
+  fullName: string;
+  password?: string;
+  role: Role;
+  classId?: string | null;
+}
+
+export function useSaveUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, input }: { id?: string; input: UserInput }) =>
+      id
+        ? apiPut<User>(`/api/v1/users/${id}`, {
+            fullName: input.fullName,
+            password: input.password || null,
+            classId: input.classId || null,
+          })
+        : apiPost<User>('/api/v1/users', { ...input, classId: input.classId || null }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+      toast.success(variables.id ? 'User updated' : 'User created');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useDeleteUser() {
+  return useResourceDelete('/api/v1/users', queryKeys.users.all, 'User deactivated');
+}
+
+// ── Classes ─────────────────────────────────────────────────────────────────
+
+export function useClasses(filters: ListFilters) {
+  return useQuery({
+    queryKey: queryKeys.classes.list(filters),
+    queryFn: () => apiGetPaged<ClassRoom>(`/api/v1/classes${toQuery({ ...filters })}`),
+  });
+}
+
+/** Every class, for populating pickers. Cached longer — reference data changes rarely. */
+export function useClassOptions() {
+  return useQuery({
+    queryKey: queryKeys.classes.options,
+    queryFn: () => apiGetPaged<ClassRoom>('/api/v1/classes?pageSize=100'),
+    staleTime: 5 * 60 * 1000,
+    select: (page: Paged<ClassRoom>) => page.items,
+  });
+}
+
+export interface ClassInput {
+  name: string;
+  grade?: string | null;
+  section?: string | null;
+}
+
+export function useSaveClass() {
+  return useResourceSave<ClassRoom, ClassInput>('/api/v1/classes', queryKeys.classes.all, 'Class');
+}
+
+export function useDeleteClass() {
+  return useResourceDelete('/api/v1/classes', queryKeys.classes.all, 'Class deleted');
+}
+
+// ── Subjects ────────────────────────────────────────────────────────────────
+
+export function useSubjects(filters: ListFilters) {
+  return useQuery({
+    queryKey: queryKeys.subjects.list(filters),
+    queryFn: () => apiGetPaged<Subject>(`/api/v1/subjects${toQuery({ ...filters })}`),
+  });
+}
+
+export function useSubjectOptions() {
+  return useQuery({
+    queryKey: queryKeys.subjects.options,
+    queryFn: () => apiGetPaged<Subject>('/api/v1/subjects?pageSize=100'),
+    staleTime: 5 * 60 * 1000,
+    select: (page: Paged<Subject>) => page.items,
+  });
+}
+
+export interface SubjectInput {
+  name: string;
+  code: string;
+}
+
+export function useSaveSubject() {
+  return useResourceSave<Subject, SubjectInput>('/api/v1/subjects', queryKeys.subjects.all, 'Subject');
+}
+
+export function useDeleteSubject() {
+  return useResourceDelete('/api/v1/subjects', queryKeys.subjects.all, 'Subject deleted');
+}
+
+// ── Teacher mappings ────────────────────────────────────────────────────────
+
+export interface TeacherMappingFilters extends ListFilters {
+  teacherId?: string;
+  subjectId?: string;
+  classId?: string;
+}
+
+export function useTeacherMappings(filters: TeacherMappingFilters) {
+  return useQuery({
+    queryKey: queryKeys.teacherMappings.list(filters),
+    queryFn: () => apiGetPaged<TeacherMapping>(`/api/v1/teacher-assignments${toQuery({ ...filters })}`),
+  });
+}
+
+/**
+ * The signed-in teacher's own class/subject mappings — the server scopes this by role,
+ * so a teacher receives only their own regardless of query parameters.
+ */
+export function useMyTeacherMappings(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.teacherMappings.mine,
+    queryFn: () => apiGetPaged<TeacherMapping>('/api/v1/teacher-assignments?pageSize=100'),
+    select: (page: Paged<TeacherMapping>) => page.items,
+    staleTime: 5 * 60 * 1000,
+    enabled,
+  });
+}
+
+export function useCreateTeacherMapping() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { teacherId: string; subjectId: string; classId: string }) =>
+      apiPost<TeacherMapping>('/api/v1/teacher-assignments', input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.teacherMappings.all });
+      toast.success('Teacher assigned');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useDeleteTeacherMapping() {
+  return useResourceDelete(
+    '/api/v1/teacher-assignments',
+    queryKeys.teacherMappings.all,
+    'Assignment removed',
+  );
+}
+
+// ── Shared mutation factories ───────────────────────────────────────────────
+// Classes and subjects are plain create-or-update resources; sharing the wiring keeps
+// each one to a single line and guarantees identical cache and toast behaviour.
+
+function useResourceSave<TResult, TInput>(
+  baseUrl: string,
+  invalidateKey: readonly unknown[],
+  label: string,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, input }: { id?: string; input: TInput }) =>
+      id ? apiPut<TResult>(`${baseUrl}/${id}`, input) : apiPost<TResult>(baseUrl, input),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: invalidateKey });
+      toast.success(`${label} ${variables.id ? 'updated' : 'created'}`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+function useResourceDelete(baseUrl: string, invalidateKey: readonly unknown[], message: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => apiDelete(`${baseUrl}/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invalidateKey });
+      toast.success(message);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}

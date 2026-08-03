@@ -1,47 +1,35 @@
 import axios, {
   AxiosError,
-  AxiosResponse,
+  AxiosRequestConfig,
   InternalAxiosRequestConfig,
 } from 'axios';
 import { getAccessToken, setAccessToken } from './auth-token';
-import type { ApiEnvelope, LoginResponse, ProblemDetails } from '@/types/api';
+import type { ApiEnvelope, LoginResponse, Paged, PaginationMeta, ProblemDetails } from '@/types/api';
 
-// Resolve base URL dynamically to handle Docker vs Local Dev port mapping automatically
-let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
-
-if (!API_BASE_URL && typeof window !== 'undefined') {
-  const isDockerCompose = window.location.port === '3000';
-  const apiPort = isDockerCompose ? '5080' : '5269';
-  API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:${apiPort}`;
-} else if (!API_BASE_URL) {
-  API_BASE_URL = 'http://localhost:5269'; // Server-side render default
-}
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://localhost:5080';
 
 export const REFRESH_URL = '/api/v1/auth/refresh';
 export const LOGIN_URL = '/api/v1/auth/login';
 export const LOGOUT_URL = '/api/v1/auth/logout';
+export const ME_URL = '/api/v1/auth/me';
 
 /** Endpoints that must never trigger a refresh-and-retry — doing so would recurse. */
 const AUTH_ENDPOINTS = [REFRESH_URL, LOGIN_URL, LOGOUT_URL];
 
 // `withCredentials` lets the httpOnly refresh cookie ride along. The cookie is
 // scoped to /api/v1/auth on the server, so it is only actually sent to auth routes.
-export const api = axios.create({
+const client = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
 /**
  * Bare client for the refresh call: no interceptors, so a failing refresh can never
  * re-enter the refresh logic.
  */
-const refreshClient = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: true,
-});
+const refreshClient = axios.create({ baseURL: API_BASE_URL, withCredentials: true });
 
 let refreshInFlight: Promise<string> | null = null;
 
@@ -71,7 +59,7 @@ export function refreshAccessToken(): Promise<string> {
   return refreshInFlight;
 }
 
-api.interceptors.request.use((config) => {
+client.interceptors.request.use((config) => {
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -79,12 +67,8 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-api.interceptors.response.use(
-  // Unwrap the success envelope so callers get `{ success, data, pagination }`.
-  // Non-enveloped payloads (file downloads) pass through as the raw response.
-  (response: AxiosResponse) =>
-    response.data && response.data.success !== undefined ? response.data : response,
-
+client.interceptors.response.use(
+  (response) => response,
   async (error: AxiosError<ProblemDetails>) => {
     const config = error.config as RetriableRequestConfig | undefined;
 
@@ -92,7 +76,7 @@ api.interceptors.response.use(
       config._isRetry = true;
       try {
         await refreshAccessToken();
-        return await api(config);
+        return await client(config);
       } catch {
         // The refresh cookie is gone or revoked — the session is genuinely over.
         setAccessToken(null);
@@ -118,17 +102,89 @@ function redirectToLogin(): void {
   }
 }
 
+/** Carries the server's error code so callers can branch on it without parsing text. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+    readonly code?: string,
+    readonly fieldErrors?: Record<string, string[]>,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 /**
- * Turns an axios failure into an `Error` carrying the server's message. Errors come
+ * Turns an axios failure into an `ApiError` carrying the server's message. Errors come
  * back as RFC 7807 ProblemDetails, so the useful text is in `detail` (falling back to
  * `title`) — not in the success envelope.
  */
-function toApiError(error: AxiosError<ProblemDetails>): Error {
+function toApiError(error: AxiosError<ProblemDetails>): ApiError {
   const problem = error.response?.data;
   const message =
     (typeof problem === 'object' && (problem?.detail || problem?.title)) ||
     error.message ||
     'The request failed. Please try again.';
 
-  return new Error(message);
+  return new ApiError(message, error.response?.status, problem?.code, problem?.errors);
+}
+
+// ── Typed request helpers ───────────────────────────────────────────────────
+// Every endpoint answers with the same envelope, so callers get `T` directly rather
+// than reaching through `response.data.data` at each call site.
+
+export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  const response = await client.get<ApiEnvelope<T>>(url, config);
+  return response.data.data;
+}
+
+/** For list endpoints: returns the items alongside their pagination metadata. */
+export async function apiGetPaged<T>(url: string, config?: AxiosRequestConfig): Promise<Paged<T>> {
+  const response = await client.get<ApiEnvelope<T[]>>(url, config);
+  return {
+    items: response.data.data ?? [],
+    pagination: response.data.pagination ?? emptyPagination,
+  };
+}
+
+export async function apiPost<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  const response = await client.post<ApiEnvelope<T>>(url, body, config);
+  return response.data?.data;
+}
+
+export async function apiPut<T>(url: string, body?: unknown): Promise<T> {
+  const response = await client.put<ApiEnvelope<T>>(url, body);
+  return response.data?.data;
+}
+
+export async function apiDelete(url: string): Promise<void> {
+  await client.delete(url);
+}
+
+/** Downloads a file as a Blob, bypassing the envelope entirely. */
+export async function apiGetBlob(url: string): Promise<Blob> {
+  const response = await client.get<Blob>(url, { responseType: 'blob' });
+  return response.data;
+}
+
+export async function apiPostForm<T>(url: string, form: FormData): Promise<T> {
+  const response = await client.post<ApiEnvelope<T>>(url, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data?.data;
+}
+
+const emptyPagination: PaginationMeta = { page: 1, pageSize: 0, total: 0, totalPages: 0 };
+
+/** Drops empty filter values so they never reach the query string. */
+export function toQuery(params: Record<string, string | number | boolean | null | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      search.set(key, String(value));
+    }
+  }
+  const query = search.toString();
+  return query ? `?${query}` : '';
 }

@@ -1,9 +1,24 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, LOGIN_URL, LOGOUT_URL, refreshAccessToken } from '@/lib/api';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  apiGet,
+  apiPost,
+  LOGIN_URL,
+  LOGOUT_URL,
+  refreshAccessToken,
+} from '@/lib/api';
 import { setAccessToken } from '@/lib/auth-token';
-import type { ApiEnvelope, AuthUser, LoginResponse } from '@/types/api';
+import type { AuthUser, LoginResponse } from '@/types/api';
+
+const ME_URL = '/api/v1/auth/me';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -13,14 +28,6 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-const ME_URL = '/api/v1/auth/me';
-
-/** `GET /auth/me` — the only source of the signed-in identity. */
-async function fetchProfile(): Promise<AuthUser> {
-  const envelope = (await api.get(ME_URL)) as unknown as ApiEnvelope<AuthUser>;
-  return envelope.data;
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -35,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         await refreshAccessToken();
-        const profile = await fetchProfile();
+        const profile = await apiGet<AuthUser>(ME_URL);
         if (!cancelled) setUser(profile);
       } catch {
         if (!cancelled) {
@@ -53,10 +60,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
-    const envelope = (await api.post(LOGIN_URL, { email, password })) as unknown as ApiEnvelope<LoginResponse>;
-    setAccessToken(envelope.data.accessToken);
+    const auth = await apiPost<LoginResponse>(LOGIN_URL, { email, password });
+    setAccessToken(auth.accessToken);
 
-    const profile = await fetchProfile();
+    const profile = await apiGet<AuthUser>(ME_URL);
     setUser(profile);
     return profile;
   }, []);
@@ -64,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async (): Promise<void> => {
     // Best effort: revoke the refresh token server-side, but always clear locally.
     try {
-      await api.post(LOGOUT_URL);
+      await apiPost<void>(LOGOUT_URL);
     } catch {
       // An already-expired session is still a successful logout from here.
     }
