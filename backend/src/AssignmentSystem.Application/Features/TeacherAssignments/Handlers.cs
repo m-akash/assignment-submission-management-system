@@ -1,3 +1,4 @@
+using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Classes;
@@ -107,16 +108,26 @@ public sealed class DeleteTeacherAssignmentHandler : ICommandHandler<DeleteTeach
 public sealed class GetTeacherAssignmentsHandler : IQueryHandler<GetTeacherAssignmentsQuery, PageResult<TeacherAssignmentDto>>
 {
     private readonly IRepository<TeacherAssignment> _teacherAssignmentRepository;
+    private readonly ICurrentUser _currentUser;
     private static readonly TeacherAssignmentMapper Mapper = new();
 
-    public GetTeacherAssignmentsHandler(IRepository<TeacherAssignment> teacherAssignmentRepository)
+    public GetTeacherAssignmentsHandler(
+        IRepository<TeacherAssignment> teacherAssignmentRepository,
+        ICurrentUser currentUser)
     {
         _teacherAssignmentRepository = teacherAssignmentRepository;
+        _currentUser = currentUser;
     }
 
     public async Task<Result<PageResult<TeacherAssignmentDto>>> HandleAsync(GetTeacherAssignmentsQuery query, CancellationToken ct = default)
     {
-        var spec = new TeacherAssignmentsPagedSpecification(query.TeacherId, query.SubjectId, query.ClassId, query.Page, query.PageSize);
+        // A teacher may only see their own mappings; only an admin may filter by teacher.
+        // Scoped server-side so the client cannot widen it via the query string.
+        var teacherId = _currentUser.Role == Domain.Enums.Role.Teacher
+            ? _currentUser.UserId
+            : query.TeacherId;
+
+        var spec = new TeacherAssignmentsPagedSpecification(teacherId, query.SubjectId, query.ClassId, query.Page, query.PageSize);
         var pagedAssignments = await _teacherAssignmentRepository.ListPagedAsync(spec, ct);
 
         var items = pagedAssignments.Items.Select(Mapper.MapToDto).ToList();

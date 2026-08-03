@@ -18,10 +18,12 @@ namespace AssignmentSystem.Api.Tests;
 /// </summary>
 public class AuthSessionTests : IntegrationTestBase
 {
+    public AuthSessionTests(ApiFactory api) : base(api) { }
+
     [Fact]
     public async Task GetMe_WithoutToken_ShouldReturnUnauthorized()
     {
-        var response = await _client.GetAsync("/api/v1/auth/me");
+        var response = await Client.GetAsync("/api/v1/auth/me");
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -31,7 +33,7 @@ public class AuthSessionTests : IntegrationTestBase
     {
         await AuthenticateAsync(DbSeeder.StudentEmail, DbSeeder.DefaultPassword);
 
-        var response = await _client.GetAsync("/api/v1/auth/me");
+        var response = await Client.GetAsync("/api/v1/auth/me");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var payload = await response.Content.ReadFromJsonAsync<ApiResponseEnvelope<CurrentUser>>(JsonOptions);
@@ -49,7 +51,7 @@ public class AuthSessionTests : IntegrationTestBase
     {
         await AuthenticateAsync(DbSeeder.AdminEmail, DbSeeder.DefaultPassword);
 
-        var response = await _client.GetAsync("/api/v1/auth/me");
+        var response = await Client.GetAsync("/api/v1/auth/me");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var payload = await response.Content.ReadFromJsonAsync<ApiResponseEnvelope<CurrentUser>>(JsonOptions);
@@ -80,12 +82,12 @@ public class AuthSessionTests : IntegrationTestBase
     {
         // The cookie-persisting client mirrors what a browser does: no bearer token
         // is attached, the session is restored purely from the cookie.
-        var login = await _client.PostAsJsonAsync(
+        var login = await Client.PostAsJsonAsync(
             "/api/v1/auth/login",
             new LoginRequest(DbSeeder.StudentEmail, DbSeeder.DefaultPassword));
         login.EnsureSuccessStatusCode();
 
-        var response = await _client.PostAsync("/api/v1/auth/refresh", null);
+        var response = await Client.PostAsync("/api/v1/auth/refresh", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var payload = await response.Content.ReadFromJsonAsync<ApiResponseEnvelope<AuthResponseBody>>(JsonOptions);
@@ -106,16 +108,16 @@ public class AuthSessionTests : IntegrationTestBase
     [Fact]
     public async Task Logout_ShouldRevokeRefreshToken()
     {
-        var login = await _client.PostAsJsonAsync(
+        var login = await Client.PostAsJsonAsync(
             "/api/v1/auth/login",
             new LoginRequest(DbSeeder.TeacherEmail, DbSeeder.DefaultPassword));
         login.EnsureSuccessStatusCode();
 
         // Anonymous on purpose: an expired access token must not block logging out.
-        var logout = await _client.PostAsync("/api/v1/auth/logout", null);
+        var logout = await Client.PostAsync("/api/v1/auth/logout", null);
         logout.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var refresh = await _client.PostAsync("/api/v1/auth/refresh", null);
+        var refresh = await Client.PostAsync("/api/v1/auth/refresh", null);
         refresh.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 

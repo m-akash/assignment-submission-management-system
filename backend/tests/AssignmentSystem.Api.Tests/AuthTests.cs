@@ -10,11 +10,13 @@ namespace AssignmentSystem.Api.Tests;
 
 public class AuthTests : IntegrationTestBase
 {
+    public AuthTests(ApiFactory api) : base(api) { }
+
     [Fact]
     public async Task Login_WithValidCredentials_ShouldReturnOkAndToken()
     {
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(DbSeeder.AdminEmail, DbSeeder.DefaultPassword));
+        var response = await Client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(DbSeeder.AdminEmail, DbSeeder.DefaultPassword));
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -30,7 +32,7 @@ public class AuthTests : IntegrationTestBase
     public async Task Login_WithInvalidCredentials_ShouldReturnUnauthorized()
     {
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(DbSeeder.AdminEmail, "WrongPassword"));
+        var response = await Client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(DbSeeder.AdminEmail, "WrongPassword"));
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);

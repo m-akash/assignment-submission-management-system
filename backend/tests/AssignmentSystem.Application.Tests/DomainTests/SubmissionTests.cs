@@ -119,6 +119,82 @@ public class SubmissionTests
         act.Should().Throw<DomainException>().WithMessage("Marks (105) cannot exceed the maximum (100).");
     }
 
+    /// <summary>
+    /// Rule X1. Not reachable over HTTP — publishing is one-way, so a submission can never
+    /// belong to a draft — which is exactly why the invariant belongs on the entity.
+    /// </summary>
+    [Fact]
+    public void Grade_WhenAssignmentIsNotPublished_ShouldThrowDomainException()
+    {
+        // Arrange: a submission on a published assignment, then graded against a draft.
+        var submission = Submission.Create(
+            _assignment.Id, Guid.NewGuid(), "My work", false, _assignment, _clockMock.Object);
+
+        var draft = Assignment.Create(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            "Draft", "Description", _clockMock.Object.UtcNow.AddDays(7), 100m, true, _clockMock.Object);
+
+        // Act
+        Action act = () => submission.Grade(50m, "Too early", Guid.NewGuid(), draft, _clockMock.Object);
+
+        // Assert
+        act.Should().Throw<DomainException>().WithMessage("Cannot grade an unpublished assignment.");
+    }
+
+    [Fact]
+    public void Grade_WithNegativeMarks_ShouldThrowDomainException()
+    {
+        var submission = Submission.Create(
+            _assignment.Id, Guid.NewGuid(), "My work", false, _assignment, _clockMock.Object);
+
+        Action act = () => submission.Grade(-1m, null, Guid.NewGuid(), _assignment, _clockMock.Object);
+
+        act.Should().Throw<DomainException>();
+    }
+
+    /// <summary>Rule B2 — the deadline closes editing when resubmission is not allowed.</summary>
+    [Fact]
+    public void UpdateContent_AfterDeadline_WhenResubmissionDisallowed_ShouldThrowDomainException()
+    {
+        var submission = Submission.Create(
+            _assignment.Id, Guid.NewGuid(), "First answer", false, _assignment, _clockMock.Object);
+
+        _clockMock.Setup(c => c.UtcNow).Returns(_assignment.DeadlineUtc.AddMinutes(1));
+
+        Action act = () => submission.UpdateContent(
+            "Second answer", hasFile: false, allowResubmission: false, _assignment.DeadlineUtc, _clockMock.Object);
+
+        act.Should().Throw<DomainException>().WithMessage("Cannot update a submission after the deadline.");
+    }
+
+    /// <summary>Rule X2 — a permitted post-deadline edit is recorded as Late.</summary>
+    [Fact]
+    public void UpdateContent_AfterDeadline_WhenResubmissionAllowed_ShouldMarkAsLate()
+    {
+        var submission = Submission.Create(
+            _assignment.Id, Guid.NewGuid(), "First answer", false, _assignment, _clockMock.Object);
+
+        _clockMock.Setup(c => c.UtcNow).Returns(_assignment.DeadlineUtc.AddMinutes(1));
+
+        submission.UpdateContent(
+            "Second answer", hasFile: false, allowResubmission: true, _assignment.DeadlineUtc, _clockMock.Object);
+
+        submission.Status.Should().Be(SubmissionStatus.Late);
+    }
+
+    [Fact]
+    public void UpdateContent_WhenAlreadyGraded_ShouldThrowDomainException()
+    {
+        var submission = Submission.Create(
+            _assignment.Id, Guid.NewGuid(), "My work", false, _assignment, _clockMock.Object);
+        submission.Grade(80m, "Done", Guid.NewGuid(), _assignment, _clockMock.Object);
+
+        Action act = () => submission.UpdateContent(
+            "Sneaky edit", hasFile: false, allowResubmission: true, _assignment.DeadlineUtc, _clockMock.Object);
+
+        act.Should().Throw<DomainException>().WithMessage("Cannot edit a submission that has already been graded.");
+    }
+
     [Fact]
     public void Grade_WithValidMarks_ShouldSetStatusToGraded()
     {
