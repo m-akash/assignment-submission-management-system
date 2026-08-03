@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
 import { StatCard } from '@/components/shared/stat-card';
 import { useAssignments } from '@/hooks/use-assignments';
-import { useClasses, useSubjects, useTeacherMappings, useUsers } from '@/hooks/use-admin-resources';
+import { useClasses, useCourses, useTeacherMappings, useUsers } from '@/hooks/use-admin-resources';
 import { useSubmissions } from '@/hooks/use-submissions';
 
 /**
@@ -19,7 +19,7 @@ export function AdminOverview() {
   const students = useUsers({ ...COUNT_ONLY, role: 'Student' });
   const teachers = useUsers({ ...COUNT_ONLY, role: 'Teacher' });
   const classes = useClasses(COUNT_ONLY);
-  const subjects = useSubjects(COUNT_ONLY);
+  const courses = useCourses(COUNT_ONLY);
   const mappings = useTeacherMappings(COUNT_ONLY);
   const assignments = useAssignments(COUNT_ONLY);
   const submissions = useSubmissions(COUNT_ONLY);
@@ -57,12 +57,12 @@ export function AdminOverview() {
           href="/classes"
         />
         <StatCard
-          label="Subjects"
-          value={subjects.data?.pagination.total ?? 0}
+          label="Courses"
+          value={courses.data?.pagination.total ?? 0}
           icon={BookOpen}
           tone="warning"
-          loading={subjects.isLoading}
-          href="/subjects"
+          loading={courses.isLoading}
+          href="/courses"
         />
       </div>
 
@@ -70,7 +70,7 @@ export function AdminOverview() {
         <StatCard
           label="Teaching assignments"
           value={mappings.data?.pagination.total ?? 0}
-          hint="Teacher · subject · class links"
+          hint="Teacher · course · class links"
           icon={Link2}
           loading={mappings.isLoading}
           href="/teacher-mappings"
@@ -96,13 +96,13 @@ export function AdminOverview() {
       <div className="rounded-xl border bg-card p-5">
         <h2 className="font-medium">Set up a class</h2>
         <p className="mt-1 mb-4 text-sm text-muted-foreground">
-          A teacher can only create assignments for a class and subject they are assigned to, so the
+          A teacher can only create assignments for a class and course they are assigned to, so the
           order matters.
         </p>
         <ol className="grid gap-3 sm:grid-cols-4">
           {[
             { step: 'Create the class', href: '/classes', label: 'Classes' },
-            { step: 'Add the subject', href: '/subjects', label: 'Subjects' },
+            { step: 'Add the course', href: '/courses', label: 'Courses' },
             { step: 'Add teachers and students', href: '/users', label: 'All users' },
             { step: 'Assign a teacher to it', href: '/teacher-mappings', label: 'Teaching assignments' },
           ].map((item, index) => (

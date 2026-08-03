@@ -47,7 +47,7 @@ export function useMySubmissions() {
  * This used to be a request per assignment (fifty assignments meant fifty-one calls,
  * most of them 404s). Two list calls answer the same question.
  */
-export function useStudentAssignments(filters: { search?: string; subjectId?: string }) {
+export function useStudentAssignments(filters: { search?: string; courseId?: string }) {
   const assignments = useQuery({
     queryKey: queryKeys.assignments.list({ ...filters, scope: 'student', pageSize: 100 }),
     queryFn: () => apiGetPaged<Assignment>(`/api/v1/assignments${toQuery({ ...filters, pageSize: 100 })}`),

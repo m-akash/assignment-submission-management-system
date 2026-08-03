@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiDelete, apiGetPaged, apiPost, apiPut, toQuery } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
-import type { ClassRoom, Paged, Role, Subject, TeacherMapping, User } from '@/types/api';
+import type { ClassRoom, Course, Department, Paged, Role, TeacherMapping, User } from '@/types/api';
 
 /** Shared shape of every list screen's server-side filter state. */
 export interface ListFilters {
@@ -34,6 +34,7 @@ export interface UserInput {
   password?: string;
   role: Role;
   classId?: string | null;
+  departmentId?: string | null;
 }
 
 export function useSaveUser() {
@@ -46,8 +47,13 @@ export function useSaveUser() {
             fullName: input.fullName,
             password: input.password || null,
             classId: input.classId || null,
+            departmentId: input.departmentId || null,
           })
-        : apiPost<User>('/api/v1/users', { ...input, classId: input.classId || null }),
+        : apiPost<User>('/api/v1/users', {
+            ...input,
+            classId: input.classId || null,
+            departmentId: input.departmentId || null,
+          }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       toast.success(variables.id ? 'User updated' : 'User created');
@@ -93,42 +99,82 @@ export function useDeleteClass() {
   return useResourceDelete('/api/v1/classes', queryKeys.classes.all, 'Class deleted');
 }
 
-// ── Subjects ────────────────────────────────────────────────────────────────
+// ── Departments ─────────────────────────────────────────────────────────────
 
-export function useSubjects(filters: ListFilters) {
+export function useDepartments(filters: ListFilters) {
   return useQuery({
-    queryKey: queryKeys.subjects.list(filters),
-    queryFn: () => apiGetPaged<Subject>(`/api/v1/subjects${toQuery({ ...filters })}`),
+    queryKey: queryKeys.departments.list(filters),
+    queryFn: () => apiGetPaged<Department>(`/api/v1/departments${toQuery({ ...filters })}`),
   });
 }
 
-export function useSubjectOptions() {
+export function useDepartmentOptions() {
   return useQuery({
-    queryKey: queryKeys.subjects.options,
-    queryFn: () => apiGetPaged<Subject>('/api/v1/subjects?pageSize=100'),
+    queryKey: queryKeys.departments.options,
+    queryFn: () => apiGetPaged<Department>('/api/v1/departments?pageSize=100'),
     staleTime: 5 * 60 * 1000,
-    select: (page: Paged<Subject>) => page.items,
+    select: (page: Paged<Department>) => page.items,
   });
 }
 
-export interface SubjectInput {
+export interface DepartmentInput {
   name: string;
   code: string;
 }
 
-export function useSaveSubject() {
-  return useResourceSave<Subject, SubjectInput>('/api/v1/subjects', queryKeys.subjects.all, 'Subject');
+export function useSaveDepartment() {
+  return useResourceSave<Department, DepartmentInput>(
+    '/api/v1/departments',
+    queryKeys.departments.all,
+    'Department',
+  );
 }
 
-export function useDeleteSubject() {
-  return useResourceDelete('/api/v1/subjects', queryKeys.subjects.all, 'Subject deleted');
+export function useDeleteDepartment() {
+  return useResourceDelete('/api/v1/departments', queryKeys.departments.all, 'Department deleted');
+}
+
+// ── Courses ────────────────────────────────────────────────────────────────
+
+export interface CourseFilters extends ListFilters {
+  departmentId?: string;
+}
+
+export function useCourses(filters: CourseFilters) {
+  return useQuery({
+    queryKey: queryKeys.courses.list(filters),
+    queryFn: () => apiGetPaged<Course>(`/api/v1/courses${toQuery({ ...filters })}`),
+  });
+}
+
+export function useCourseOptions() {
+  return useQuery({
+    queryKey: queryKeys.courses.options,
+    queryFn: () => apiGetPaged<Course>('/api/v1/courses?pageSize=100'),
+    staleTime: 5 * 60 * 1000,
+    select: (page: Paged<Course>) => page.items,
+  });
+}
+
+export interface CourseInput {
+  name: string;
+  code: string;
+  departmentId: string;
+}
+
+export function useSaveCourse() {
+  return useResourceSave<Course, CourseInput>('/api/v1/courses', queryKeys.courses.all, 'Course');
+}
+
+export function useDeleteCourse() {
+  return useResourceDelete('/api/v1/courses', queryKeys.courses.all, 'Course deleted');
 }
 
 // ── Teacher mappings ────────────────────────────────────────────────────────
 
 export interface TeacherMappingFilters extends ListFilters {
   teacherId?: string;
-  subjectId?: string;
+  courseId?: string;
   classId?: string;
 }
 
@@ -140,7 +186,7 @@ export function useTeacherMappings(filters: TeacherMappingFilters) {
 }
 
 /**
- * The signed-in teacher's own class/subject mappings — the server scopes this by role,
+ * The signed-in teacher's own class/course mappings — the server scopes this by role,
  * so a teacher receives only their own regardless of query parameters.
  */
 export function useMyTeacherMappings(enabled = true) {
@@ -157,7 +203,7 @@ export function useCreateTeacherMapping() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { teacherId: string; subjectId: string; classId: string }) =>
+    mutationFn: (input: { teacherId: string; courseId: string; classId: string }) =>
       apiPost<TeacherMapping>('/api/v1/teacher-assignments', input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.teacherMappings.all });
@@ -176,7 +222,7 @@ export function useDeleteTeacherMapping() {
 }
 
 // ── Shared mutation factories ───────────────────────────────────────────────
-// Classes and subjects are plain create-or-update resources; sharing the wiring keeps
+// Classes and courses are plain create-or-update resources; sharing the wiring keeps
 // each one to a single line and guarantees identical cache and toast behaviour.
 
 function useResourceSave<TResult, TInput>(

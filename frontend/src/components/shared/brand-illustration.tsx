@@ -44,7 +44,7 @@ export function BrandIllustration({ className }: { className?: string }) {
       <g filter="url(#brand-shadow)" transform="rotate(-5 260 300)">
         <rect x="118" y="196" width="284" height="214" rx="20" fill="url(#brand-card)" />
 
-        {/* subject chip */}
+        {/* course chip */}
         <circle cx="152" cy="232" r="16" fill="#eef2ff" />
         <path d="M146 232l4 4 8-9" stroke="#4f46e5" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
 

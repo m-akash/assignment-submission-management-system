@@ -9,7 +9,7 @@ import type { Assignment, AssignmentStatus } from '@/types/api';
 export interface AssignmentFilters {
   search?: string;
   classId?: string;
-  subjectId?: string;
+  courseId?: string;
   status?: AssignmentStatus | '';
   page?: number;
   pageSize?: number;

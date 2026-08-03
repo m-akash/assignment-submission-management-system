@@ -125,7 +125,7 @@ export function AssignmentFormDialog({
         {!isEdit && options.length === 0 && !mappings.isLoading && (
           <Alert>
             <AlertDescription>
-              You are not assigned to a class and subject yet. An administrator needs to add a
+              You are not assigned to a class and course yet. An administrator needs to add a
               teaching assignment before you can create work.
             </AlertDescription>
           </Alert>
@@ -133,26 +133,26 @@ export function AssignmentFormDialog({
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="space-y-2">
-            <Label htmlFor="teacherAssignmentId">Class and subject</Label>
+            <Label htmlFor="teacherAssignmentId">Class and course</Label>
             <Select
               value={form.watch('teacherAssignmentId')}
               onValueChange={(value) => form.setValue('teacherAssignmentId', value, { shouldValidate: true })}
               disabled={isEdit || options.length === 0}
             >
               <SelectTrigger id="teacherAssignmentId" className="w-full">
-                <SelectValue placeholder={mappings.isLoading ? 'Loading…' : 'Choose class and subject'} />
+                <SelectValue placeholder={mappings.isLoading ? 'Loading…' : 'Choose class and course'} />
               </SelectTrigger>
               <SelectContent>
                 {options.map((mapping) => (
                   <SelectItem key={mapping.id} value={mapping.id}>
-                    {mapping.className} · {mapping.subjectName}
+                    {mapping.className} · {mapping.courseName}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {isEdit && (
               <p className="text-xs text-muted-foreground">
-                The class and subject cannot be moved after creation.
+                The class and course cannot be moved after creation.
               </p>
             )}
             {errors.teacherAssignmentId && (

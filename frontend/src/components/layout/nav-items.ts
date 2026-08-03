@@ -1,6 +1,7 @@
 import {
   Backpack,
   BookOpen,
+  Building2,
   ClipboardList,
   GraduationCap,
   Inbox,
@@ -79,7 +80,14 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['Admin'],
     section: 'Administration',
   },
-  { href: '/subjects', label: 'Subjects', icon: BookOpen, roles: ['Admin'], section: 'Administration' },
+  {
+    href: '/departments',
+    label: 'Departments',
+    icon: Building2,
+    roles: ['Admin'],
+    section: 'Administration',
+  },
+  { href: '/courses', label: 'Courses', icon: BookOpen, roles: ['Admin'], section: 'Administration' },
   {
     href: '/teacher-mappings',
     label: 'Teaching assignments',

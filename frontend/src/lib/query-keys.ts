@@ -15,10 +15,15 @@ export const queryKeys = {
     list: (filters: unknown) => ['classes', 'list', filters] as const,
     options: ['classes', 'options'] as const,
   },
-  subjects: {
-    all: ['subjects'] as const,
-    list: (filters: unknown) => ['subjects', 'list', filters] as const,
-    options: ['subjects', 'options'] as const,
+  departments: {
+    all: ['departments'] as const,
+    list: (filters: unknown) => ['departments', 'list', filters] as const,
+    options: ['departments', 'options'] as const,
+  },
+  courses: {
+    all: ['courses'] as const,
+    list: (filters: unknown) => ['courses', 'list', filters] as const,
+    options: ['courses', 'options'] as const,
   },
   teacherMappings: {
     all: ['teacher-mappings'] as const,

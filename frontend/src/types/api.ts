@@ -46,6 +46,9 @@ export interface AuthUser {
   classId: string | null;
   className: string | null;
   studentId: string | null;
+  departmentId: string | null;
+  departmentName: string | null;
+  teacherId: string | null;
   isActive: boolean;
   createdAtUtc: string;
 }
@@ -70,10 +73,19 @@ export interface ClassRoom {
   studentCount: number;
 }
 
-export interface Subject {
+export interface Department {
   id: string;
   name: string;
   code: string;
+}
+
+export interface Course {
+  id: string;
+  name: string;
+  code: string;
+  departmentId: string;
+  departmentName: string | null;
+  departmentCode: string | null;
 }
 
 export interface TeacherMapping {
@@ -81,9 +93,9 @@ export interface TeacherMapping {
   teacherId: string;
   teacherName: string;
   teacherEmail: string;
-  subjectId: string;
-  subjectName: string;
-  subjectCode: string;
+  courseId: string;
+  courseName: string;
+  courseCode: string;
   classId: string;
   className: string;
 }
@@ -93,9 +105,9 @@ export interface Assignment {
   teacherAssignmentId: string;
   teacherId: string;
   teacherName: string;
-  subjectId: string;
-  subjectName: string;
-  subjectCode: string;
+  courseId: string;
+  courseName: string;
+  courseCode: string;
   classId: string;
   className: string;
   title: string;

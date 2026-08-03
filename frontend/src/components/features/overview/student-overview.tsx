@@ -125,7 +125,7 @@ export function StudentOverview({ name, className }: { name: string; className: 
                 <Clock className="size-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{item.title}</p>
-                  <p className="truncate text-xs text-muted-foreground">{item.subjectName}</p>
+                  <p className="truncate text-xs text-muted-foreground">{item.courseName}</p>
                 </div>
                 <span className="text-sm font-medium tabular-nums">
                   {formatMarks(item.submission!.marks, item.submission!.marksOutOf)}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { BookOpen, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Building2, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,27 +17,27 @@ import { PaginationBar } from '@/components/shared/pagination-bar';
 import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
-import { CourseFormDialog } from '@/components/features/admin/course-form-dialog';
-import { useDeleteCourse, useCourses } from '@/hooks/use-admin-resources';
-import type { Course } from '@/types/api';
+import { DepartmentFormDialog } from '@/components/features/admin/department-form-dialog';
+import { useDeleteDepartment, useDepartments } from '@/hooks/use-admin-resources';
+import type { Department } from '@/types/api';
 
-export default function CoursesPage() {
+export default function DepartmentsPage() {
   return (
     <RoleGuard allow={['Admin']}>
-      <CoursesView />
+      <DepartmentsView />
     </RoleGuard>
   );
 }
 
-function CoursesView() {
+function DepartmentsView() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Course | null>(null);
-  const [deleting, setDeleting] = useState<Course | null>(null);
+  const [editing, setEditing] = useState<Department | null>(null);
+  const [deleting, setDeleting] = useState<Department | null>(null);
 
-  const remove = useDeleteCourse();
-  const query = useCourses({ search, page, pageSize: 10 });
+  const remove = useDeleteDepartment();
+  const query = useDepartments({ search, page, pageSize: 10 });
   const items = query.data?.items ?? [];
 
   function openCreate() {
@@ -48,12 +48,12 @@ function CoursesView() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Courses"
-        description="Courses are linked to classes through a teaching assignment."
+        title="Departments"
+        description="Departments group courses and staff a teacher belongs to one, and their teacher id is built from its code."
         actions={
           <Button onClick={openCreate}>
             <Plus className="size-4" />
-            Create course
+            Create department
           </Button>
         }
       />
@@ -66,7 +66,7 @@ function CoursesView() {
               setSearch(value);
               setPage(1);
             }}
-            placeholder="Search courses…"
+            placeholder="Search departments…"
             className="sm:max-w-xs"
           />
         </div>
@@ -81,25 +81,28 @@ function CoursesView() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Code</TableHead>
-                    <TableHead>Department</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={4} />
+                    <TableSkeleton columns={3} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="p-0">
+                      <TableCell colSpan={3} className="p-0">
                         <EmptyState
-                          icon={BookOpen}
-                          title={search ? 'Nothing matches that search' : 'No courses yet'}
-                          description={search ? undefined : 'Create the first course to get started.'}
+                          icon={Building2}
+                          title={search ? 'Nothing matches that search' : 'No departments yet'}
+                          description={
+                            search
+                              ? undefined
+                              : 'Create a department before adding the courses and teachers that belong to it.'
+                          }
                           action={
                             !search && (
                               <Button size="sm" onClick={openCreate}>
                                 <Plus className="size-4" />
-                                Create course
+                                Create department
                               </Button>
                             )
                           }
@@ -107,35 +110,39 @@ function CoursesView() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    items.map((course) => (
-                      <TableRow key={course.id}>
-                        <TableCell className="font-medium">{course.name}</TableCell>
+                    items.map((department) => (
+                      <TableRow key={department.id}>
+                        <TableCell className="font-medium">{department.name}</TableCell>
                         <TableCell>
                           <Badge variant="secondary" className="font-mono">
-                            {course.code}
+                            {department.code}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {course.departmentName ?? '—'}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label={`Actions for ${course.name}`}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Actions for ${department.name}`}
+                              >
                                 <MoreHorizontal className="size-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
                                 onClick={() => {
-                                  setEditing(course);
+                                  setEditing(department);
                                   setFormOpen(true);
                                 }}
                               >
                                 <Pencil className="size-4" />
                                 Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem variant="destructive" onClick={() => setDeleting(course)}>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => setDeleting(department)}
+                              >
                                 <Trash2 className="size-4" />
                                 Delete
                               </DropdownMenuItem>
@@ -153,20 +160,20 @@ function CoursesView() {
               <PaginationBar
                 pagination={query.data.pagination}
                 onPageChange={setPage}
-                itemLabel="courses"
+                itemLabel="departments"
               />
             )}
           </>
         )}
       </div>
 
-      <CourseFormDialog open={formOpen} onOpenChange={setFormOpen} course={editing} />
+      <DepartmentFormDialog open={formOpen} onOpenChange={setFormOpen} department={editing} />
 
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(open) => !open && setDeleting(null)}
-        title="Delete this course?"
-        description={`"${deleting?.name}" can only be deleted if no teaching assignments reference it.`}
+        title="Delete this department?"
+        description={`"${deleting?.name}" can only be deleted once no courses belong to it.`}
         pending={remove.isPending}
         onConfirm={() => {
           if (deleting) {

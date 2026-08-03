@@ -118,7 +118,7 @@ export function TeacherAssignmentsView() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Title</TableHead>
-                    <TableHead>Class &amp; subject</TableHead>
+                    <TableHead>Class &amp; course</TableHead>
                     <TableHead>Deadline</TableHead>
                     <TableHead className="text-right">Marks</TableHead>
                     <TableHead className="text-right">Submissions</TableHead>
@@ -164,7 +164,7 @@ export function TeacherAssignmentsView() {
                         <TableCell className="text-sm">
                           <p>{assignment.className}</p>
                           <p className="text-xs text-muted-foreground">
-                            {assignment.subjectName} · {assignment.subjectCode}
+                            {assignment.courseName} · {assignment.courseCode}
                           </p>
                         </TableCell>
                         <TableCell>

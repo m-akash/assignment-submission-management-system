@@ -93,7 +93,7 @@ export function SubmitDialog({
           </div>
           <DialogTitle className="text-left">{assignment.title}</DialogTitle>
           <DialogDescription className="text-left">
-            {assignment.subjectName} · {assignment.teacherName} · {assignment.maxMarks} marks
+            {assignment.courseName} · {assignment.teacherName} · {assignment.maxMarks} marks
           </DialogDescription>
         </DialogHeader>
 

@@ -49,7 +49,7 @@ const HEADINGS: Record<Role | '', { title: string; description: string; action: 
   },
   Teacher: {
     title: 'Teachers',
-    description: 'Assign a teacher to a class and subject before they can set any work.',
+    description: 'Assign a teacher to a class and course before they can set any work.',
     action: 'Create teacher',
   },
   Student: {
@@ -99,6 +99,9 @@ function UsersView() {
 
   const items = query.data?.items ?? [];
   const heading = HEADINGS[role];
+  // Name, email, role, actions — plus the two identity columns that only make sense for
+  // one role. On the unfiltered list a mixed table would leave most of them blank.
+  const columnCount = role === 'Student' || role === 'Teacher' ? 6 : 4;
   // The role is a heading here, not a filter the user needs telling about.
   const isFiltered = !!search || !!classId;
   const classOptions = (classes.data ?? []).map((c) => ({ value: c.id, label: c.name }));
@@ -180,17 +183,27 @@ function UsersView() {
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Class</TableHead>
-                    <TableHead>Student ID</TableHead>
+                    {role === 'Student' && (
+                      <>
+                        <TableHead>Class</TableHead>
+                        <TableHead>Student ID</TableHead>
+                      </>
+                    )}
+                    {role === 'Teacher' && (
+                      <>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Teacher ID</TableHead>
+                      </>
+                    )}
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={6} />
+                    <TableSkeleton columns={columnCount} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="p-0">
+                      <TableCell colSpan={columnCount} className="p-0">
                         <EmptyState
                           icon={Users}
                           title={
@@ -229,12 +242,26 @@ function UsersView() {
                         <TableCell>
                           <RoleBadge role={user.role} />
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {user.className ?? '—'}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm text-muted-foreground">
-                          {user.studentId ?? '—'}
-                        </TableCell>
+                        {role === 'Student' && (
+                          <>
+                            <TableCell className="text-muted-foreground">
+                              {user.className ?? '—'}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm text-muted-foreground">
+                              {user.studentId ?? '—'}
+                            </TableCell>
+                          </>
+                        )}
+                        {role === 'Teacher' && (
+                          <>
+                            <TableCell className="text-muted-foreground">
+                              {user.departmentName ?? '—'}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm text-muted-foreground">
+                              {user.teacherId ?? '—'}
+                            </TableCell>
+                          </>
+                        )}
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

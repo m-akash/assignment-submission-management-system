@@ -14,36 +14,52 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useSaveSubject } from '@/hooks/use-admin-resources';
-import { subjectSchema, type SubjectValues } from '@/schemas';
-import type { Subject } from '@/types/api';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useDepartmentOptions, useSaveCourse } from '@/hooks/use-admin-resources';
+import { courseSchema, type CourseValues } from '@/schemas';
+import type { Course } from '@/types/api';
 
-export function SubjectFormDialog({
+export function CourseFormDialog({
   open,
   onOpenChange,
-  subject,
+  course,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  subject?: Subject | null;
+  course?: Course | null;
 }) {
-  const isEdit = !!subject;
-  const save = useSaveSubject();
+  const isEdit = !!course;
+  const departments = useDepartmentOptions();
+  const save = useSaveCourse();
 
-  const form = useForm<SubjectValues>({
-    resolver: zodResolver(subjectSchema),
-    defaultValues: { name: '', code: '' },
+  const form = useForm<CourseValues>({
+    resolver: zodResolver(courseSchema),
+    defaultValues: { name: '', code: '', departmentId: '' },
   });
 
   useEffect(() => {
     if (!open) return;
-    form.reset(subject ? { name: subject.name, code: subject.code } : { name: '', code: '' });
-  }, [open, subject, form]);
+    form.reset(
+      course
+        ? { name: course.name, code: course.code, departmentId: course.departmentId }
+        : { name: '', code: '', departmentId: '' },
+    );
+  }, [open, course, form]);
 
-  async function onSubmit(values: SubjectValues) {
+  async function onSubmit(values: CourseValues) {
     await save.mutateAsync({
-      id: subject?.id,
-      input: { name: values.name, code: values.code.toUpperCase() },
+      id: course?.id,
+      input: {
+        name: values.name,
+        code: values.code.toUpperCase(),
+        departmentId: values.departmentId,
+      },
     });
     onOpenChange(false);
   }
@@ -54,7 +70,7 @@ export function SubjectFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit subject' : 'Create subject'}</DialogTitle>
+          <DialogTitle>{isEdit ? 'Edit course' : 'Create course'}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
@@ -70,13 +86,35 @@ export function SubjectFormDialog({
             {errors.code && <p className="text-xs text-danger">{errors.code.message}</p>}
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="departmentId">Department</Label>
+            <Select
+              value={form.watch('departmentId')}
+              onValueChange={(value) => form.setValue('departmentId', value, { shouldValidate: true })}
+            >
+              <SelectTrigger id="departmentId">
+                <SelectValue placeholder="Choose a department" />
+              </SelectTrigger>
+              <SelectContent>
+                {(departments.data ?? []).map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.departmentId && (
+              <p className="text-xs text-danger">{errors.departmentId.message}</p>
+            )}
+          </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={save.isPending}>
               {save.isPending && <Loader2 className="size-4 animate-spin" />}
-              {isEdit ? 'Save changes' : 'Create subject'}
+              {isEdit ? 'Save changes' : 'Create course'}
             </Button>
           </DialogFooter>
         </form>

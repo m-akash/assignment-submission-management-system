@@ -38,7 +38,7 @@ export function AssignmentCard({
       <div className="flex-1 space-y-3 p-5">
         <div className="flex items-start justify-between gap-2">
           <Badge variant="secondary" className="font-mono text-[11px]">
-            {assignment.subjectCode}
+            {assignment.courseCode}
           </Badge>
           {submission ? <SubmissionStatusBadge status={submission.status} /> : <NotStartedBadge />}
         </div>
@@ -46,7 +46,7 @@ export function AssignmentCard({
         <div className="space-y-1">
           <h3 className="leading-snug font-medium text-balance">{assignment.title}</h3>
           <p className="text-xs text-muted-foreground">
-            {assignment.subjectName} · {assignment.teacherName}
+            {assignment.courseName} · {assignment.teacherName}
           </p>
         </div>
 

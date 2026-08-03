@@ -22,6 +22,7 @@ export const userSchema = z
     email: z.string().trim().min(1, 'Email is required').email('Enter a valid email address'),
     role: roleEnum,
     classId: z.string().optional(),
+    departmentId: z.string().optional(),
     password: z.string().optional(),
     /** Set by the form, not the user: an update may leave the password untouched. */
     isEdit: z.boolean(),
@@ -48,6 +49,13 @@ export const userSchema = z
         message: 'A student must belong to a class',
       });
     }
+    if (values.role === 'Teacher' && !values.departmentId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['departmentId'],
+        message: 'A teacher must belong to a department',
+      });
+    }
   });
 export type UserValues = z.infer<typeof userSchema>;
 
@@ -58,26 +66,39 @@ export const classSchema = z.object({
 });
 export type ClassValues = z.infer<typeof classSchema>;
 
-export const subjectSchema = z.object({
-  name: z.string().trim().min(2, 'Enter a subject name').max(150, 'Name is too long'),
+export const departmentSchema = z.object({
+  name: z.string().trim().min(2, 'Enter a department name').max(150, 'Name is too long'),
+  // Kept short because teacher ids embed it ("INS-SCI-01").
   code: z
     .string()
     .trim()
-    .min(2, 'Enter a subject code')
-    .max(30, 'Code cannot exceed 30 characters')
+    .min(2, 'Enter a department code')
+    .max(10, 'Code cannot exceed 10 characters')
     .regex(/^[A-Za-z0-9-]+$/, 'Use letters, numbers and hyphens only'),
 });
-export type SubjectValues = z.infer<typeof subjectSchema>;
+export type DepartmentValues = z.infer<typeof departmentSchema>;
+
+export const courseSchema = z.object({
+  name: z.string().trim().min(2, 'Enter a course name').max(150, 'Name is too long'),
+  code: z
+    .string()
+    .trim()
+    .min(2, 'Enter a course code')
+    .max(30, 'Code cannot exceed 30 characters')
+    .regex(/^[A-Za-z0-9-]+$/, 'Use letters, numbers and hyphens only'),
+  departmentId: z.string().min(1, 'Choose a department'),
+});
+export type CourseValues = z.infer<typeof courseSchema>;
 
 export const teacherMappingSchema = z.object({
   teacherId: z.string().min(1, 'Choose a teacher'),
-  subjectId: z.string().min(1, 'Choose a subject'),
+  courseId: z.string().min(1, 'Choose a course'),
   classId: z.string().min(1, 'Choose a class'),
 });
 export type TeacherMappingValues = z.infer<typeof teacherMappingSchema>;
 
 export const assignmentSchema = z.object({
-  teacherAssignmentId: z.string().min(1, 'Choose the class and subject'),
+  teacherAssignmentId: z.string().min(1, 'Choose the class and course'),
   title: z.string().trim().min(3, 'Enter a title').max(200, 'Title cannot exceed 200 characters'),
   description: z.string().trim().min(1, 'Describe what students must do'),
   // datetime-local produces "YYYY-MM-DDTHH:mm" in the browser's zone.

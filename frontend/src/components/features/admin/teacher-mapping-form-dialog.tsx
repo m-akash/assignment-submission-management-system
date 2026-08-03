@@ -24,7 +24,7 @@ import {
 import {
   useClassOptions,
   useCreateTeacherMapping,
-  useSubjectOptions,
+  useCourseOptions,
   useUsers,
 } from '@/hooks/use-admin-resources';
 import { teacherMappingSchema, type TeacherMappingValues } from '@/schemas';
@@ -38,16 +38,16 @@ export function TeacherMappingFormDialog({
 }) {
   const teachers = useUsers({ role: 'Teacher', pageSize: 100 });
   const classes = useClassOptions();
-  const subjects = useSubjectOptions();
+  const courses = useCourseOptions();
   const create = useCreateTeacherMapping();
 
   const form = useForm<TeacherMappingValues>({
     resolver: zodResolver(teacherMappingSchema),
-    defaultValues: { teacherId: '', subjectId: '', classId: '' },
+    defaultValues: { teacherId: '', courseId: '', classId: '' },
   });
 
   useEffect(() => {
-    if (open) form.reset({ teacherId: '', subjectId: '', classId: '' });
+    if (open) form.reset({ teacherId: '', courseId: '', classId: '' });
   }, [open, form]);
 
   async function onSubmit(values: TeacherMappingValues) {
@@ -64,7 +64,7 @@ export function TeacherMappingFormDialog({
         <DialogHeader>
           <DialogTitle>Assign a teacher</DialogTitle>
           <DialogDescription>
-            Links one teacher to one subject and class. This is what lets that teacher create
+            Links one teacher to one course and class. This is what lets that teacher create
             assignments for that class.
           </DialogDescription>
         </DialogHeader>
@@ -91,23 +91,23 @@ export function TeacherMappingFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="subjectId">Subject</Label>
+            <Label htmlFor="courseId">Course</Label>
             <Select
-              value={form.watch('subjectId')}
-              onValueChange={(value) => form.setValue('subjectId', value, { shouldValidate: true })}
+              value={form.watch('courseId')}
+              onValueChange={(value) => form.setValue('courseId', value, { shouldValidate: true })}
             >
-              <SelectTrigger id="subjectId">
-                <SelectValue placeholder={subjects.isLoading ? 'Loading…' : 'Choose a subject'} />
+              <SelectTrigger id="courseId">
+                <SelectValue placeholder={courses.isLoading ? 'Loading…' : 'Choose a course'} />
               </SelectTrigger>
               <SelectContent>
-                {(subjects.data ?? []).map((subject) => (
-                  <SelectItem key={subject.id} value={subject.id}>
-                    {subject.name}
+                {(courses.data ?? []).map((course) => (
+                  <SelectItem key={course.id} value={course.id}>
+                    {course.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {errors.subjectId && <p className="text-xs text-danger">{errors.subjectId.message}</p>}
+            {errors.courseId && <p className="text-xs text-danger">{errors.courseId.message}</p>}
           </div>
 
           <div className="space-y-2">

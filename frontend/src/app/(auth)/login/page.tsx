@@ -92,7 +92,7 @@ function LoginForm() {
             Coursework, from set to graded.
           </h2>
           <p className="text-indigo-100/90">
-            Teachers publish assignments to a class and subject, students submit answers and
+            Teachers publish assignments to a class and course, students submit answers and
             attachments before the deadline, and marks and feedback flow straight back.
           </p>
         </div>

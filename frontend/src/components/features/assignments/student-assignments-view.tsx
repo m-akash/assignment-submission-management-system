@@ -25,16 +25,16 @@ const TABS: { value: Tab; label: string }[] = [
 
 export function StudentAssignmentsView() {
   const [search, setSearch] = useState('');
-  const [subjectId, setSubjectId] = useState('');
+  const [courseId, setCourseId] = useState('');
   const [tab, setTab] = useState<Tab>('all');
   const [active, setActive] = useState<StudentAssignment | null>(null);
 
   // Title search runs server-side; the status tabs are client-side because they depend
   // on the student's own submission, which lives in a separate list.
-  const { items, isLoading, isError, error } = useStudentAssignments({ search, subjectId });
+  const { items, isLoading, isError, error } = useStudentAssignments({ search, courseId });
 
-  const subjectOptions = useMemo(() => {
-    const seen = new Map(items.map((item) => [item.subjectId, item.subjectName]));
+  const courseOptions = useMemo(() => {
+    const seen = new Map(items.map((item) => [item.courseId, item.courseName]));
     return [...seen].map(([value, label]) => ({ value, label }));
   }, [items]);
 
@@ -71,10 +71,10 @@ export function StudentAssignmentsView() {
             className="sm:max-w-xs"
           />
           <FilterSelect
-            value={subjectId}
-            onChange={setSubjectId}
-            options={subjectOptions}
-            allLabel="All subjects"
+            value={courseId}
+            onChange={setCourseId}
+            options={courseOptions}
+            allLabel="All courses"
           />
         </div>
       </div>
@@ -90,7 +90,7 @@ export function StudentAssignmentsView() {
           description={
             items.length === 0
               ? 'When your teacher publishes work for your class, it will appear here.'
-              : 'Try a different search term, subject, or tab.'
+              : 'Try a different search term, course, or tab.'
           }
           className="rounded-xl border bg-card"
         />

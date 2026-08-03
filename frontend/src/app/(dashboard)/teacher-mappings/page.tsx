@@ -15,7 +15,7 @@ import { TeacherMappingFormDialog } from '@/components/features/admin/teacher-ma
 import {
   useClassOptions,
   useDeleteTeacherMapping,
-  useSubjectOptions,
+  useCourseOptions,
   useTeacherMappings,
 } from '@/hooks/use-admin-resources';
 import type { TeacherMapping } from '@/types/api';
@@ -30,19 +30,19 @@ export default function TeacherMappingsPage() {
 
 function MappingsView() {
   const [search, setSearch] = useState('');
-  const [subjectId, setSubjectId] = useState('');
+  const [courseId, setCourseId] = useState('');
   const [classId, setClassId] = useState('');
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [deleting, setDeleting] = useState<TeacherMapping | null>(null);
 
-  const subjects = useSubjectOptions();
+  const courses = useCourseOptions();
   const classes = useClassOptions();
   const remove = useDeleteTeacherMapping();
-  const query = useTeacherMappings({ search, subjectId, classId, page, pageSize: 10 });
+  const query = useTeacherMappings({ search, courseId, classId, page, pageSize: 10 });
   const items = query.data?.items ?? [];
-  const isFiltered = !!search || !!subjectId || !!classId;
-  const subjectOptions = (subjects.data ?? []).map((s) => ({ value: s.id, label: s.name }));
+  const isFiltered = !!search || !!courseId || !!classId;
+  const courseOptions = (courses.data ?? []).map((s) => ({ value: s.id, label: s.name }));
   const classOptions = (classes.data ?? []).map((c) => ({ value: c.id, label: c.name }));
 
   function withPageReset<T>(setter: (value: T) => void) {
@@ -56,7 +56,7 @@ function MappingsView() {
     <div className="space-y-6">
       <PageHeader
         title="Teaching assignments"
-        description="Each row authorises one teacher to create assignments for one class and subject. This is the gate the assignment rules check against."
+        description="Each row authorises one teacher to create assignments for one class and course. This is the gate the assignment rules check against."
         actions={
           <Button onClick={() => setFormOpen(true)}>
             <Plus className="size-4" />
@@ -70,14 +70,14 @@ function MappingsView() {
           <SearchInput
             value={search}
             onChange={withPageReset(setSearch)}
-            placeholder="Search teacher, subject or class…"
+            placeholder="Search teacher, course or class…"
             className="sm:max-w-xs"
           />
           <FilterSelect
-            value={subjectId}
-            onChange={withPageReset(setSubjectId)}
-            options={subjectOptions}
-            allLabel="All subjects"
+            value={courseId}
+            onChange={withPageReset(setCourseId)}
+            options={courseOptions}
+            allLabel="All courses"
           />
           <FilterSelect
             value={classId}
@@ -96,7 +96,7 @@ function MappingsView() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Teacher</TableHead>
-                    <TableHead>Subject</TableHead>
+                    <TableHead>Course</TableHead>
                     <TableHead>Class</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
@@ -113,7 +113,7 @@ function MappingsView() {
                           description={
                             isFiltered
                               ? 'Try a different search term or filter.'
-                              : 'Assign a teacher to a class and subject so they can create work.'
+                              : 'Assign a teacher to a class and course so they can create work.'
                           }
                           action={
                             !isFiltered && (
@@ -134,8 +134,8 @@ function MappingsView() {
                           <p className="text-xs text-muted-foreground">{mapping.teacherEmail}</p>
                         </TableCell>
                         <TableCell>
-                          <p>{mapping.subjectName}</p>
-                          <p className="font-mono text-xs text-muted-foreground">{mapping.subjectCode}</p>
+                          <p>{mapping.courseName}</p>
+                          <p className="font-mono text-xs text-muted-foreground">{mapping.courseCode}</p>
                         </TableCell>
                         <TableCell>{mapping.className}</TableCell>
                         <TableCell>
@@ -171,7 +171,7 @@ function MappingsView() {
         title="Remove this teaching assignment?"
         description={
           deleting
-            ? `${deleting.teacherName} will no longer be able to create assignments for ${deleting.className} · ${deleting.subjectName}.`
+            ? `${deleting.teacherName} will no longer be able to create assignments for ${deleting.className} · ${deleting.courseName}.`
             : ''
         }
         confirmLabel="Remove"

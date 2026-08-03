@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useClassOptions } from '@/hooks/use-admin-resources';
+import { useClassOptions, useDepartmentOptions } from '@/hooks/use-admin-resources';
 import { useSaveUser } from '@/hooks/use-admin-resources';
 import { userSchema, type UserValues } from '@/schemas';
 import type { Role, User } from '@/types/api';
@@ -44,18 +44,22 @@ export function UserFormDialog({
 }) {
   const isEdit = !!user;
   const classes = useClassOptions();
+  const departments = useDepartmentOptions();
   const save = useSaveUser();
+
+  const emptyValues: UserValues = {
+    fullName: '',
+    email: '',
+    role: defaultRole,
+    classId: '',
+    departmentId: '',
+    password: '',
+    isEdit: false,
+  };
 
   const form = useForm<UserValues>({
     resolver: zodResolver(userSchema),
-    defaultValues: {
-      fullName: '',
-      email: '',
-      role: defaultRole,
-      classId: '',
-      password: '',
-      isEdit: false,
-    },
+    defaultValues: emptyValues,
   });
 
   useEffect(() => {
@@ -67,11 +71,13 @@ export function UserFormDialog({
             email: user.email,
             role: user.role,
             classId: user.classId ?? '',
+            departmentId: user.departmentId ?? '',
             password: '',
             isEdit: true,
           }
-        : { fullName: '', email: '', role: defaultRole, classId: '', password: '', isEdit: false },
+        : { ...emptyValues },
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, user, defaultRole, form]);
 
   const role = form.watch('role');
@@ -83,7 +89,10 @@ export function UserFormDialog({
         email: values.email,
         fullName: values.fullName,
         role: values.role,
+        // Each id belongs to exactly one role; the others are cleared so the server
+        // never sees a stale pairing.
         classId: values.role === 'Student' ? values.classId : null,
+        departmentId: values.role === 'Teacher' ? values.departmentId : null,
         password: values.password || undefined,
       },
     });
@@ -159,6 +168,30 @@ export function UserFormDialog({
                   </SelectContent>
                 </Select>
                 {errors.classId && <p className="text-xs text-danger">{errors.classId.message}</p>}
+              </div>
+            )}
+
+            {role === 'Teacher' && (
+              <div className="space-y-2">
+                <Label htmlFor="departmentId">Department</Label>
+                <Select
+                  value={form.watch('departmentId')}
+                  onValueChange={(value) => form.setValue('departmentId', value, { shouldValidate: true })}
+                >
+                  <SelectTrigger id="departmentId">
+                    <SelectValue placeholder="Choose a department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(departments.data ?? []).map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.departmentId && (
+                  <p className="text-xs text-danger">{errors.departmentId.message}</p>
+                )}
               </div>
             )}
           </div>
