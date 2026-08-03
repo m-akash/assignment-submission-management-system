@@ -35,13 +35,18 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
 
         var searchLower = search?.Trim().ToLowerInvariant();
 
+        // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
+        // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
+        // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
+#pragma warning disable CA1304, CA1311
         Criteria = a =>
             (!classId.HasValue || a.ClassId == classId.Value) &&
             (!subjectId.HasValue || a.SubjectId == subjectId.Value) &&
             (!teacherId.HasValue || a.TeacherId == teacherId.Value) &&
             (!status.HasValue || a.Status == status.Value) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
-             a.Title.ToLowerInvariant().Contains(searchLower) ||
-             a.Description.ToLowerInvariant().Contains(searchLower));
+             a.Title.ToLower().Contains(searchLower) ||
+             a.Description.ToLower().Contains(searchLower));
+#pragma warning restore CA1304, CA1311
     }
 }
