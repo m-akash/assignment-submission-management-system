@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BookOpen, ClipboardList, GraduationCap, Inbox, Link2, Users } from 'lucide-react';
+import { Backpack, BookOpen, ClipboardList, GraduationCap, Inbox, Link2, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/page-header';
 import { StatCard } from '@/components/shared/stat-card';
@@ -35,16 +35,18 @@ export function AdminOverview() {
         <StatCard
           label="Students"
           value={students.data?.pagination.total ?? 0}
-          icon={Users}
+          icon={Backpack}
           tone="success"
           loading={students.isLoading}
+          href="/users?role=Student"
         />
         <StatCard
           label="Teachers"
           value={teachers.data?.pagination.total ?? 0}
-          icon={Users}
+          icon={UserCog}
           tone="info"
           loading={teachers.isLoading}
+          href="/users?role=Teacher"
         />
         <StatCard
           label="Classes"
@@ -52,6 +54,7 @@ export function AdminOverview() {
           icon={GraduationCap}
           tone="primary"
           loading={classes.isLoading}
+          href="/classes"
         />
         <StatCard
           label="Subjects"
@@ -59,6 +62,7 @@ export function AdminOverview() {
           icon={BookOpen}
           tone="warning"
           loading={subjects.isLoading}
+          href="/subjects"
         />
       </div>
 
@@ -69,6 +73,7 @@ export function AdminOverview() {
           hint="Teacher · subject · class links"
           icon={Link2}
           loading={mappings.isLoading}
+          href="/teacher-mappings"
         />
         <StatCard
           label="Assignments"
@@ -76,6 +81,7 @@ export function AdminOverview() {
           hint="Drafts and published"
           icon={ClipboardList}
           loading={assignments.isLoading}
+          href="/assignments"
         />
         <StatCard
           label="Submissions"
@@ -83,6 +89,7 @@ export function AdminOverview() {
           hint="Across every class"
           icon={Inbox}
           loading={submissions.isLoading}
+          href="/submissions"
         />
       </div>
 
@@ -96,7 +103,7 @@ export function AdminOverview() {
           {[
             { step: 'Create the class', href: '/classes', label: 'Classes' },
             { step: 'Add the subject', href: '/subjects', label: 'Subjects' },
-            { step: 'Add teachers and students', href: '/users', label: 'Users' },
+            { step: 'Add teachers and students', href: '/users', label: 'All users' },
             { step: 'Assign a teacher to it', href: '/teacher-mappings', label: 'Teaching assignments' },
           ].map((item, index) => (
             <li key={item.href} className="rounded-lg border bg-background p-4">
