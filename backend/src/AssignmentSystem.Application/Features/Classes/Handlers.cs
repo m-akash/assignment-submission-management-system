@@ -1,3 +1,4 @@
+using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Classes;
@@ -99,11 +100,13 @@ public sealed class DeleteClassHandler : ICommandHandler<DeleteClassCommand>
 public sealed class GetClassByIdHandler : IQueryHandler<GetClassByIdQuery, ClassDto>
 {
     private readonly IRepository<Class> _classRepository;
+    private readonly IClassRosterRepository _classRosterRepository;
     private static readonly ClassMapper Mapper = new();
 
-    public GetClassByIdHandler(IRepository<Class> classRepository)
+    public GetClassByIdHandler(IRepository<Class> classRepository, IClassRosterRepository classRosterRepository)
     {
         _classRepository = classRepository;
+        _classRosterRepository = classRosterRepository;
     }
 
     public async Task<Result<ClassDto>> HandleAsync(GetClassByIdQuery query, CancellationToken ct = default)
@@ -114,18 +117,21 @@ public sealed class GetClassByIdHandler : IQueryHandler<GetClassByIdQuery, Class
             return Result<ClassDto>.Failure(Error.NotFound("Class.NotFound", "The specified class was not found."));
         }
 
-        return Mapper.MapToDto(classObj);
+        var counts = await _classRosterRepository.GetStudentCountsAsync([classObj.Id], ct);
+        return Mapper.MapToDto(classObj) with { StudentCount = counts.GetValueOrDefault(classObj.Id) };
     }
 }
 
 public sealed class GetClassesHandler : IQueryHandler<GetClassesQuery, PageResult<ClassDto>>
 {
     private readonly IRepository<Class> _classRepository;
+    private readonly IClassRosterRepository _classRosterRepository;
     private static readonly ClassMapper Mapper = new();
 
-    public GetClassesHandler(IRepository<Class> classRepository)
+    public GetClassesHandler(IRepository<Class> classRepository, IClassRosterRepository classRosterRepository)
     {
         _classRepository = classRepository;
+        _classRosterRepository = classRosterRepository;
     }
 
     public async Task<Result<PageResult<ClassDto>>> HandleAsync(GetClassesQuery query, CancellationToken ct = default)
@@ -133,7 +139,12 @@ public sealed class GetClassesHandler : IQueryHandler<GetClassesQuery, PageResul
         var spec = new ClassesPagedSpecification(query.Search, query.Page, query.PageSize);
         var pagedClasses = await _classRepository.ListPagedAsync(spec, ct);
 
-        var items = pagedClasses.Items.Select(Mapper.MapToDto).ToList();
+        var classIds = pagedClasses.Items.Select(c => c.Id).ToList();
+        var counts = await _classRosterRepository.GetStudentCountsAsync(classIds, ct);
+
+        var items = pagedClasses.Items
+            .Select(c => Mapper.MapToDto(c) with { StudentCount = counts.GetValueOrDefault(c.Id) })
+            .ToList();
         var result = new PageResult<ClassDto>(items, pagedClasses.Page, pagedClasses.PageSize, pagedClasses.Total);
 
         return result;

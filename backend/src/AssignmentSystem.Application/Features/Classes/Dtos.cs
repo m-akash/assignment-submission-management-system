@@ -7,7 +7,8 @@ public sealed record ClassDto(
     Guid Id,
     string Name,
     string? Grade,
-    string? Section
+    string? Section,
+    int StudentCount = 0
 );
 
 public sealed record CreateClassCommand(
