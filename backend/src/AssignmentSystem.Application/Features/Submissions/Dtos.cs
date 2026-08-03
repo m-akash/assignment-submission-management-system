@@ -59,6 +59,8 @@ public sealed record GetSubmissionsQuery(
     Guid? AssignmentId = null,
     Guid? StudentId = null,
     SubmissionStatus? Status = null,
+    /// <summary>Free-text match on the student's name or the assignment title.</summary>
+    string? Search = null,
     int Page = 1,
     int PageSize = 20
 ) : IQuery<PageResult<SubmissionDto>>;

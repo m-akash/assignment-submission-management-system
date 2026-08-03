@@ -51,11 +51,12 @@ public sealed class SubmissionsController : ControllerBase
         [FromQuery] Guid? assignmentId,
         [FromQuery] Guid? studentId,
         [FromQuery] SubmissionStatus? status,
+        [FromQuery] string? search,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetSubmissionsQuery(assignmentId, studentId, status, page, pageSize);
+        var query = new GetSubmissionsQuery(assignmentId, studentId, status, search, page, pageSize);
         var result = await _getListHandler.HandleAsync(query, ct);
         if (!result.IsSuccess)
         {

@@ -35,6 +35,7 @@ internal sealed class SubmissionsPagedSpecification : Specification<Submission>
         List<Guid>? assignmentIds,
         Guid? studentId,
         SubmissionStatus? status,
+        string? search,
         int page,
         int pageSize)
     {
@@ -46,11 +47,21 @@ internal sealed class SubmissionsPagedSpecification : Specification<Submission>
         ApplyOrderByDescending(s => s.SubmittedAtUtc ?? s.CreatedAtUtc);
         ApplyPaging(page, pageSize);
 
+        var searchTerm = string.IsNullOrWhiteSpace(search) ? null : search.Trim().ToLowerInvariant();
+
+        // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
+        // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
+        // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
+#pragma warning disable CA1304, CA1311
         Criteria = s =>
             (!assignmentId.HasValue || s.AssignmentId == assignmentId.Value) &&
             (assignmentIds == null || assignmentIds.Contains(s.AssignmentId)) &&
             (!studentId.HasValue || s.StudentId == studentId.Value) &&
-            (!status.HasValue || s.Status == status.Value);
+            (!status.HasValue || s.Status == status.Value) &&
+            (searchTerm == null ||
+             s.Student.FullName.ToLower().Contains(searchTerm) ||
+             s.Assignment.Title.ToLower().Contains(searchTerm));
+#pragma warning restore CA1304, CA1311
     }
 }
 
