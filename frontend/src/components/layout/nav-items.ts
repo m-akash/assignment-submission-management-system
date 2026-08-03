@@ -1,10 +1,12 @@
 import {
+  Backpack,
   BookOpen,
   ClipboardList,
   GraduationCap,
   Inbox,
   LayoutDashboard,
   Link2,
+  UserCog,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -17,6 +19,13 @@ export interface NavItem {
   roles: Role[];
   /** Groups the sidebar into sections. */
   section: 'Overview' | 'Coursework' | 'Administration';
+  /**
+   * Set when this link is the users page under a preset role filter. Teachers and
+   * students are one screen, not three: all three roles live in a single table behind
+   * one set of endpoints, so the role travels in the URL instead of being duplicated
+   * into separate pages, forms and hooks.
+   */
+  roleParam?: Role;
 }
 
 /**
@@ -46,7 +55,23 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['Admin', 'Teacher'],
     section: 'Coursework',
   },
-  { href: '/users', label: 'Users', icon: Users, roles: ['Admin'], section: 'Administration' },
+  {
+    href: '/users?role=Teacher',
+    label: 'Teachers',
+    icon: UserCog,
+    roleParam: 'Teacher',
+    roles: ['Admin'],
+    section: 'Administration',
+  },
+  {
+    href: '/users?role=Student',
+    label: 'Students',
+    icon: Backpack,
+    roleParam: 'Student',
+    roles: ['Admin'],
+    section: 'Administration',
+  },
+  { href: '/users', label: 'All users', icon: Users, roles: ['Admin'], section: 'Administration' },
   {
     href: '/classes',
     label: 'Classes',
@@ -68,4 +93,28 @@ export const NAV_SECTIONS = ['Overview', 'Coursework', 'Administration'] as cons
 
 export function navItemsFor(role: Role): NavItem[] {
   return NAV_ITEMS.filter((item) => item.roles.includes(role));
+}
+
+/** Base paths where several links share a pathname and differ only by `?role=`. */
+const ROLE_FILTERED_BASES = new Set(
+  NAV_ITEMS.filter((item) => item.roleParam).map((item) => basePathOf(item.href)),
+);
+
+function basePathOf(href: string): string {
+  return href.split('?')[0];
+}
+
+/**
+ * Whether a nav link represents the current location. Prefix matching alone is not
+ * enough: "Teachers", "Students" and "All users" all point at `/users`, so on those
+ * the active link is decided by the role in the query string.
+ */
+export function isNavItemActive(item: NavItem, pathname: string, roleParam: string): boolean {
+  // "/" would otherwise match every route.
+  if (item.href === '/') return pathname === '/';
+
+  const base = basePathOf(item.href);
+  if (!pathname.startsWith(base)) return false;
+
+  return ROLE_FILTERED_BASES.has(base) ? (item.roleParam ?? '') === roleParam : true;
 }
