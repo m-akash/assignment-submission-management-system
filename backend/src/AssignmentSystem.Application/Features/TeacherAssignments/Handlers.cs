@@ -53,6 +53,16 @@ public sealed class CreateTeacherAssignmentHandler : ICommandHandler<CreateTeach
             return Result<TeacherAssignmentDto>.Failure(Error.NotFound("Class.NotFound", "The specified class was not found."));
         }
 
+        // A group-restricted course (e.g. Physics → Science) only makes sense in a class
+        // that actually has groups. Otherwise every assignment created from this mapping
+        // would be permanently invisible to every student in the class.
+        if (course.GroupId is not null && !classObj.HasGroups)
+        {
+            return Result<TeacherAssignmentDto>.Failure(Error.Validation(
+                "TeacherAssignment.GroupClassMismatch",
+                "This course is restricted to a group, but the selected class does not have groups."));
+        }
+
         var duplicateSpec = new TeacherAssignmentDuplicateSpecification(command.TeacherId, command.CourseId, command.ClassId);
         var alreadyAssigned = await _teacherAssignmentRepository.AnyAsync(duplicateSpec, ct);
         if (alreadyAssigned)
