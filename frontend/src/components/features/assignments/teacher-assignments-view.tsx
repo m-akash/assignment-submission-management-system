@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, ClipboardList, Inbox, MoreHorizontal, Pencil, Plus, Send, Trash2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -31,6 +32,9 @@ const STATUS_OPTIONS = [
 ];
 
 export function TeacherAssignmentsView() {
+  const { user } = useAuth();
+  const readOnly = user?.role === 'Admin';
+
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<AssignmentStatus | ''>('');
   const [classId, setClassId] = useState('');
@@ -76,12 +80,18 @@ export function TeacherAssignmentsView() {
     <div className="space-y-6">
       <PageHeader
         title="Assignments"
-        description="Create work as a draft, then publish it when students should see it."
+        description={
+          readOnly
+            ? 'Browse assignments across the school.'
+            : 'Create work as a draft, then publish it when students should see it.'
+        }
         actions={
-          <Button onClick={openCreate}>
-            <Plus className="size-4" />
-            New assignment
-          </Button>
+          !readOnly && (
+            <Button onClick={openCreate}>
+              <Plus className="size-4" />
+              New assignment
+            </Button>
+          )
         }
       />
 
@@ -118,21 +128,23 @@ export function TeacherAssignmentsView() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Title</TableHead>
-                    <TableHead>Class &amp; course</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead>Course</TableHead>
+                    <TableHead>Code</TableHead>
                     <TableHead>Deadline</TableHead>
                     <TableHead className="text-right">Marks</TableHead>
                     <TableHead className="text-right">Submissions</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Publish</TableHead>
-                    <TableHead className="w-20">Action</TableHead>
+                    {!readOnly && <TableHead>Publish</TableHead>}
+                    {!readOnly && <TableHead className="w-20">Action</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={8} />
+                    <TableSkeleton columns={readOnly ? 8 : 10} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="p-0">
+                      <TableCell colSpan={readOnly ? 8 : 10} className="p-0">
                         <EmptyState
                           icon={ClipboardList}
                           title={isFiltered ? 'Nothing matches those filters' : 'No assignments yet'}
@@ -142,7 +154,8 @@ export function TeacherAssignmentsView() {
                               : 'Create your first assignment as a draft, then publish it.'
                           }
                           action={
-                            !isFiltered && (
+                            !isFiltered &&
+                            !readOnly && (
                               <Button onClick={openCreate} size="sm">
                                 <Plus className="size-4" />
                                 New assignment
@@ -161,11 +174,10 @@ export function TeacherAssignmentsView() {
                             {assignment.description}
                           </p>
                         </TableCell>
-                        <TableCell className="text-sm">
-                          <p>{assignment.className}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {assignment.courseName} · {assignment.courseCode}
-                          </p>
+                        <TableCell className="text-sm">{assignment.className}</TableCell>
+                        <TableCell className="text-sm">{assignment.courseName}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {assignment.courseCode}
                         </TableCell>
                         <TableCell>
                           <DeadlineBadge urgency={deadlineUrgency(assignment.deadlineUtc)}>
@@ -188,54 +200,58 @@ export function TeacherAssignmentsView() {
                         <TableCell>
                           <AssignmentStatusBadge status={assignment.status} />
                         </TableCell>
-                        <TableCell>
-                          {assignment.status === 'Draft' ? (
-                            <Button
-                              size="sm"
-                              onClick={() => publish.mutate(assignment.id)}
-                              disabled={publish.isPending}
-                            >
-                              <Send className="size-4" />
-                              Publish
-                            </Button>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <CheckCircle2 className="size-4 text-success" />
-                              Live
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label={`Actions for ${assignment.title}`}>
-                                <MoreHorizontal className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEdit(assignment)}>
-                                <Pencil className="size-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              {assignment.submissionCount > 0 && (
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/submissions?assignmentId=${assignment.id}`}>
-                                    <Inbox className="size-4" />
-                                    View submissions
-                                  </Link>
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() => setDeleting(assignment)}
+                        {!readOnly && (
+                          <TableCell>
+                            {assignment.status === 'Draft' ? (
+                              <Button
+                                size="sm"
+                                onClick={() => publish.mutate(assignment.id)}
+                                disabled={publish.isPending}
                               >
-                                <Trash2 className="size-4" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
+                                <Send className="size-4" />
+                                Publish
+                              </Button>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <CheckCircle2 className="size-4 text-success" />
+                                Live
+                              </span>
+                            )}
+                          </TableCell>
+                        )}
+                        {!readOnly && (
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" aria-label={`Actions for ${assignment.title}`}>
+                                  <MoreHorizontal className="size-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEdit(assignment)}>
+                                  <Pencil className="size-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                                {assignment.submissionCount > 0 && (
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/submissions?assignmentId=${assignment.id}`}>
+                                      <Inbox className="size-4" />
+                                      View submissions
+                                    </Link>
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() => setDeleting(assignment)}
+                                >
+                                  <Trash2 className="size-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))
                   )}
@@ -254,20 +270,24 @@ export function TeacherAssignmentsView() {
         )}
       </div>
 
-      <AssignmentFormDialog open={formOpen} onOpenChange={setFormOpen} assignment={editing} />
+      {!readOnly && (
+        <AssignmentFormDialog open={formOpen} onOpenChange={setFormOpen} assignment={editing} />
+      )}
 
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(open) => !open && setDeleting(null)}
-        title="Delete this assignment?"
-        description={`"${deleting?.title}" will be hidden from students. Submissions already made are kept.`}
-        pending={remove.isPending}
-        onConfirm={() => {
-          if (deleting) {
-            remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) });
-          }
-        }}
-      />
+      {!readOnly && (
+        <ConfirmDialog
+          open={!!deleting}
+          onOpenChange={(open) => !open && setDeleting(null)}
+          title="Delete this assignment?"
+          description={`"${deleting?.title}" will be hidden from students. Submissions already made are kept.`}
+          pending={remove.isPending}
+          onConfirm={() => {
+            if (deleting) {
+              remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

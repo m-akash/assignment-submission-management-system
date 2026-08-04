@@ -97,16 +97,17 @@ function MappingsView() {
                   <TableRow>
                     <TableHead>Teacher</TableHead>
                     <TableHead>Course</TableHead>
+                    <TableHead>Code</TableHead>
                     <TableHead>Class</TableHead>
                     <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={4} />
+                    <TableSkeleton columns={5} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="p-0">
+                      <TableCell colSpan={5} className="p-0">
                         <EmptyState
                           icon={Link2}
                           title={isFiltered ? 'Nothing matches those filters' : 'No teaching assignments yet'}
@@ -133,9 +134,9 @@ function MappingsView() {
                           <p className="font-medium">{mapping.teacherName}</p>
                           <p className="text-xs text-muted-foreground">{mapping.teacherEmail}</p>
                         </TableCell>
-                        <TableCell>
-                          <p>{mapping.courseName}</p>
-                          <p className="font-mono text-xs text-muted-foreground">{mapping.courseCode}</p>
+                        <TableCell>{mapping.courseName}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {mapping.courseCode}
                         </TableCell>
                         <TableCell>{mapping.className}</TableCell>
                         <TableCell>

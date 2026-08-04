@@ -107,7 +107,7 @@ export function UserFormDialog({
           <DialogDescription>
             {isEdit
               ? 'Leave the password blank to keep the current one. Class membership is managed from the class roster.'
-              : 'Self-registration is disabled — accounts are created here by an administrator.'}
+              : 'Accounts are created here by an administrator.'}
           </DialogDescription>
         </DialogHeader>
 

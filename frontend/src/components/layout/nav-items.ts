@@ -57,6 +57,20 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['Admin', 'Teacher'],
     section: 'Coursework',
   },
+  {
+    href: '/my-courses',
+    label: 'My courses',
+    icon: GraduationCap,
+    roles: ['Teacher'],
+    section: 'Coursework',
+  },
+  {
+    href: '/my-students',
+    label: 'My students',
+    icon: Backpack,
+    roles: ['Teacher'],
+    section: 'Coursework',
+  },
   { href: '/users', label: 'All Users', icon: Users, roles: ['Admin'], section: 'Administration' },
   {
     href: '/users?role=Teacher',
@@ -84,14 +98,14 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/courses', label: 'Courses', icon: BookOpen, roles: ['Admin'], section: 'Administration' },
   {
     href: '/class-courses',
-    label: 'Course offerings',
+    label: 'Course Offerings',
     icon: Layers,
     roles: ['Admin'],
     section: 'Administration',
   },
   {
     href: '/teacher-mappings',
-    label: 'Teaching assignments',
+    label: 'Teaching Assignments',
     icon: Link2,
     roles: ['Admin'],
     section: 'Administration',

@@ -6,8 +6,11 @@ import axios, {
 import { getAccessToken, setAccessToken } from './auth-token';
 import type { ApiEnvelope, LoginResponse, Paged, PaginationMeta, ProblemDetails } from '@/types/api';
 
+// Defaults to the local `dotnet run` port (5269, from launchSettings.json). When the
+// stack runs under Docker Compose the API is on 5080 — set NEXT_PUBLIC_API_URL to
+// override, which the web service's build args already do.
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://localhost:5080';
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://localhost:5269';
 
 export const REFRESH_URL = '/api/v1/auth/refresh';
 export const LOGIN_URL = '/api/v1/auth/login';

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Layers, Plus, Trash2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -51,7 +50,7 @@ function ClassCoursesView() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Course offerings"
+        title="Course Offerings"
         description="Which courses each class studies. Teachers are assigned to an offering, and assignments are created against one."
         actions={
           <Button onClick={() => setFormOpen(true)}>
@@ -94,6 +93,7 @@ function ClassCoursesView() {
                   <TableRow>
                     <TableHead>Class</TableHead>
                     <TableHead>Course</TableHead>
+                    <TableHead>Code</TableHead>
                     <TableHead>Teachers</TableHead>
                     <TableHead>Assignments</TableHead>
                     <TableHead className="w-20">Action</TableHead>
@@ -101,10 +101,10 @@ function ClassCoursesView() {
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={5} />
+                    <TableSkeleton columns={6} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="p-0">
+                      <TableCell colSpan={6} className="p-0">
                         <EmptyState
                           icon={Layers}
                           title={
@@ -131,11 +131,9 @@ function ClassCoursesView() {
                     items.map((offering) => (
                       <TableRow key={offering.id}>
                         <TableCell className="font-medium">{offering.className}</TableCell>
-                        <TableCell>
-                          <span className="mr-2">{offering.courseName}</span>
-                          <Badge variant="secondary" className="font-mono">
-                            {offering.courseCode}
-                          </Badge>
+                        <TableCell className="font-medium">{offering.courseName}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {offering.courseCode}
                         </TableCell>
                         <TableCell>
                           {/* Zero teachers means nobody can set work for this offering yet —

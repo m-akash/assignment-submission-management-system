@@ -19,18 +19,21 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SubmissionStatusBadge } from '@/components/shared/status-badge';
 import { downloadSubmissionFile, useReviewSubmission } from '@/hooks/use-submissions';
-import { formatBytes, formatDateTime } from '@/lib/format';
+import { formatBytes, formatDateTime, formatMarks } from '@/lib/format';
 import { reviewSchema, type ReviewInput, type ReviewValues } from '@/schemas';
 import type { Submission } from '@/types/api';
 
 export function ReviewDialog({
   submission,
   maxMarks,
+  readOnly = false,
   onClose,
 }: {
   submission: Submission | null;
   /** From the assignment; the schema bounds marks by it, as the API does. */
   maxMarks: number;
+  /** Admins browse Coursework read-only — no marking, no saving. */
+  readOnly?: boolean;
   onClose: () => void;
 }) {
   const review = useReviewSubmission();
@@ -127,42 +130,71 @@ export function ReviewDialog({
             </section>
           )}
 
-          <form id="review-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-            <div className="space-y-2">
-              <Label htmlFor="marks">Marks (out of {maxMarks})</Label>
-              <Input
-                id="marks"
-                type="number"
-                min={0}
-                max={maxMarks}
-                step="0.5"
-                className="max-w-[140px]"
-                {...form.register('marks')}
-              />
-              {errors.marks && <p className="text-xs text-danger">{errors.marks.message}</p>}
-            </div>
+          {readOnly ? (
+            <>
+              <section>
+                <h3 className="mb-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Marks
+                </h3>
+                <p className="text-sm">
+                  {submission.marks != null
+                    ? `${formatMarks(submission.marks, maxMarks)}`
+                    : 'Not graded yet'}
+                </p>
+              </section>
+              <section>
+                <h3 className="mb-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Feedback
+                </h3>
+                {submission.feedback ? (
+                  <p className="rounded-lg border bg-muted/40 p-4 text-sm whitespace-pre-wrap">
+                    {submission.feedback}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No feedback given yet.</p>
+                )}
+              </section>
+            </>
+          ) : (
+            <form id="review-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              <div className="space-y-2">
+                <Label htmlFor="marks">Marks (out of {maxMarks})</Label>
+                <Input
+                  id="marks"
+                  type="number"
+                  min={0}
+                  max={maxMarks}
+                  step="0.5"
+                  className="max-w-35"
+                  {...form.register('marks')}
+                />
+                {errors.marks && <p className="text-xs text-danger">{errors.marks.message}</p>}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="feedback">Feedback</Label>
-              <Textarea
-                id="feedback"
-                rows={4}
-                placeholder="What did they do well, and what should they work on?"
-                {...form.register('feedback')}
-              />
-              {errors.feedback && <p className="text-xs text-danger">{errors.feedback.message}</p>}
-            </div>
-          </form>
+              <div className="space-y-2">
+                <Label htmlFor="feedback">Feedback</Label>
+                <Textarea
+                  id="feedback"
+                  rows={4}
+                  placeholder="What did they do well, and what should they work on?"
+                  {...form.register('feedback')}
+                />
+                {errors.feedback && <p className="text-xs text-danger">{errors.feedback.message}</p>}
+              </div>
+            </form>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {readOnly ? 'Close' : 'Cancel'}
           </Button>
-          <Button type="submit" form="review-form" disabled={review.isPending}>
-            {review.isPending && <Loader2 className="size-4 animate-spin" />}
-            {submission.status === 'Graded' ? 'Update mark' : 'Save mark'}
-          </Button>
+          {!readOnly && (
+            <Button type="submit" form="review-form" disabled={review.isPending}>
+              {review.isPending && <Loader2 className="size-4 animate-spin" />}
+              {submission.status === 'Graded' ? 'Update mark' : 'Save mark'}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
