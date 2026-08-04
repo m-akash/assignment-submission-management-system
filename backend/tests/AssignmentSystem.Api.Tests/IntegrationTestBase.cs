@@ -125,20 +125,27 @@ public abstract class IntegrationTestBase
         var course = await PostAsync<CourseRef>(admin, "/api/v1/courses",
             new CreateCourseRequest($"Course {tag}", $"CRS-{tag}"));
 
+        // The offering has to exist before a teacher can be mapped to it or work set for it —
+        // it is what "this class studies this course" means now.
+        var offering = await PostAsync<ClassCourseRef>(admin, "/api/v1/class-courses",
+            new CreateClassCourseRequest(@class.Id, course.Id));
+
         var teacherEmail = $"teacher-{tag}@test.local";
         var teacher = await PostAsync<UserRef>(admin, "/api/v1/users",
             new CreateUserRequest(teacherEmail, $"Teacher {tag}", TestPassword, Role.Teacher, null));
 
+        // Creating a student with a class enrols them in it, in the same transaction.
         var studentEmail = $"student-{tag}@test.local";
         var student = await PostAsync<UserRef>(admin, "/api/v1/users",
             new CreateUserRequest(studentEmail, $"Student {tag}", TestPassword, Role.Student, @class.Id));
 
         var teacherAssignment = await PostAsync<TeacherAssignmentRef>(admin, "/api/v1/teacher-assignments",
-            new CreateTeacherAssignmentRequest(teacher.Id, course.Id, @class.Id));
+            new CreateTeacherAssignmentRequest(teacher.Id, offering.Id));
 
         return new TestWorld(
             @class.Id,
             course.Id,
+            offering.Id,
             teacherAssignment.Id,
             teacher.Id,
             teacherEmail,
@@ -149,14 +156,14 @@ public abstract class IntegrationTestBase
     /// <summary>Creates a draft assignment as the world's teacher.</summary>
     protected async Task<AssignmentDto> CreateAssignmentAsync(
         HttpClient teacherClient,
-        Guid teacherAssignmentId,
+        Guid classCourseId,
         string title = "Test Assignment",
         decimal maxMarks = 100m,
         DateTime? deadlineUtc = null,
         bool allowResubmission = true)
     {
         var response = await teacherClient.PostAsJsonAsync("/api/v1/assignments", new CreateAssignmentRequest(
-            teacherAssignmentId,
+            classCourseId,
             title,
             "Answer every question.",
             deadlineUtc ?? DateTime.UtcNow.AddDays(7),
@@ -170,14 +177,14 @@ public abstract class IntegrationTestBase
     /// <summary>Creates and publishes an assignment — the usual starting point for submission tests.</summary>
     protected async Task<AssignmentDto> CreatePublishedAssignmentAsync(
         HttpClient teacherClient,
-        Guid teacherAssignmentId,
+        Guid classCourseId,
         string title = "Test Assignment",
         decimal maxMarks = 100m,
         DateTime? deadlineUtc = null,
         bool allowResubmission = true)
     {
         var assignment = await CreateAssignmentAsync(
-            teacherClient, teacherAssignmentId, title, maxMarks, deadlineUtc, allowResubmission);
+            teacherClient, classCourseId, title, maxMarks, deadlineUtc, allowResubmission);
 
         var publish = await teacherClient.PostAsync($"/api/v1/assignments/{assignment.Id}/publish", null);
         publish.EnsureSuccessStatusCode();
@@ -219,16 +226,16 @@ public abstract class IntegrationTestBase
     }
 
     /// <summary>
-    /// A teacher-assignment the seeder created for the signed-in teacher. Filtered by
-    /// teacher id rather than taking the first row: the suite shares a database, so other
-    /// tests' mappings are present too.
+    /// The offering behind a teaching mapping the seeder created for the signed-in teacher —
+    /// what an assignment is scoped to. Filtered by teacher id rather than taking the first
+    /// row: the suite shares a database, so other tests' mappings are present too.
     ///
     /// Pass <paramref name="classId"/> whenever a student has to see the resulting
     /// assignment. The demo teacher holds several mappings across different classes and
     /// they all sort equally (same teacher name), so picking blind returns an arbitrary
     /// one — and an assignment for the wrong class is correctly a 403 for that student.
     /// </summary>
-    protected static async Task<Guid> SeededTeacherAssignmentIdAsync(HttpClient teacherClient, Guid? classId = null)
+    protected static async Task<Guid> SeededClassCourseIdAsync(HttpClient teacherClient, Guid? classId = null)
     {
         var teacherId = await CurrentUserIdAsync(teacherClient);
 
@@ -241,20 +248,23 @@ public abstract class IntegrationTestBase
         var response = await teacherClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
 
-        var mappings = await ReadAsync<List<TeacherAssignmentRef>>(response);
+        var mappings = await ReadAsync<List<TeacherMappingRef>>(response);
         mappings.Should().NotBeEmpty("the seeder links the demo teacher to a class and course");
-        return mappings[0].Id;
+        return mappings[0].ClassCourseId;
     }
 
-    /// <summary>The signed-in student's class, read from their profile rather than assumed.</summary>
+    /// <summary>
+    /// The signed-in student's first class, read from their profile rather than assumed.
+    /// A student can be enrolled in several now; the seeded ones have exactly one.
+    /// </summary>
     protected static async Task<Guid> CurrentUserClassIdAsync(HttpClient studentClient)
     {
         var response = await studentClient.GetAsync("/api/v1/auth/me");
         response.EnsureSuccessStatusCode();
 
-        var profile = await ReadAsync<UserClassRef>(response);
-        profile.ClassId.Should().NotBeNull("the caller is expected to be a student");
-        return profile.ClassId!.Value;
+        var profile = await ReadAsync<UserClassesRef>(response);
+        profile.Classes.Should().NotBeNullOrEmpty("the caller is expected to be an enrolled student");
+        return profile.Classes[0].ClassId;
     }
 
     private static async Task<T> PostAsync<T>(HttpClient client, string url, object body)
@@ -286,9 +296,15 @@ public abstract class IntegrationTestBase
     }
 
     // ── Minimal shapes for provisioning responses ─────────────────────────────
+    /// <summary>
+    /// <see cref="ClassCourseId"/> is what assignments are scoped to;
+    /// <see cref="TeacherAssignmentId"/> is the teaching mapping itself, which only the tests
+    /// asserting on the mappings endpoint care about.
+    /// </summary>
     protected sealed record TestWorld(
         Guid ClassId,
         Guid CourseId,
+        Guid ClassCourseId,
         Guid TeacherAssignmentId,
         Guid TeacherId,
         string TeacherEmail,
@@ -296,8 +312,11 @@ public abstract class IntegrationTestBase
         string StudentEmail);
 
     private sealed record ClassRef(Guid Id);
-    private sealed record UserClassRef(Guid Id, Guid? ClassId);
     private sealed record CourseRef(Guid Id);
+    private sealed record ClassCourseRef(Guid Id);
     private sealed record UserRef(Guid Id);
     private sealed record TeacherAssignmentRef(Guid Id);
+    private sealed record TeacherMappingRef(Guid Id, Guid ClassCourseId);
+    private sealed record EnrolledClassRef(Guid ClassId);
+    private sealed record UserClassesRef(Guid Id, List<EnrolledClassRef> Classes);
 }

@@ -1,7 +1,10 @@
 using AssignmentSystem.Domain.Assignments;
+using AssignmentSystem.Domain.ClassCourses;
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Courses;
+using AssignmentSystem.Domain.Enrollments;
+using AssignmentSystem.Domain.Notifications;
 using AssignmentSystem.Domain.Submissions;
 using AssignmentSystem.Domain.TeacherAssignments;
 using AssignmentSystem.Domain.Users;
@@ -29,12 +32,15 @@ public sealed class AppDbContext : DbContext
     public DbSet<ApplicationUser> Users => Set<ApplicationUser>();
     public DbSet<Class> Classes => Set<Class>();
     public DbSet<Course> Courses => Set<Course>();
+    public DbSet<ClassCourse> ClassCourses => Set<ClassCourse>();
+    public DbSet<StudentEnrollment> StudentEnrollments => Set<StudentEnrollment>();
     public DbSet<TeacherAssignment> TeacherAssignments => Set<TeacherAssignment>();
     public DbSet<Assignment> Assignments => Set<Assignment>();
     public DbSet<Submission> Submissions => Set<Submission>();
     public DbSet<SubmissionFile> SubmissionFiles => Set<SubmissionFile>();
     public DbSet<AssignmentFile> AssignmentFiles => Set<AssignmentFile>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

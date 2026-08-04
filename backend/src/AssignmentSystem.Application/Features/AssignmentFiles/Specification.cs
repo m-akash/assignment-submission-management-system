@@ -9,6 +9,9 @@ internal sealed class AssignmentFileByIdSpecification : Specification<Assignment
     {
         Criteria = f => f.Id == fileId;
         AddInclude(f => f.Assignment);
+        // Two levels: the student download check reads the offering's class id to test
+        // enrollment (rule B1), so the navigation has to be loaded, not just the assignment.
+        AddInclude("Assignment.ClassCourse");
     }
 }
 

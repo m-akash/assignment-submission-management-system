@@ -37,13 +37,9 @@ namespace AssignmentSystem.Infrastructure.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("allow_resubmission");
 
-                    b.Property<Guid>("ClassId")
+                    b.Property<Guid>("ClassCourseId")
                         .HasColumnType("uuid")
-                        .HasColumnName("class_id");
-
-                    b.Property<Guid>("CourseId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("course_id");
+                        .HasColumnName("class_course_id");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -95,10 +91,6 @@ namespace AssignmentSystem.Infrastructure.Migrations
                         .HasDefaultValue(0)
                         .HasColumnName("submission_count");
 
-                    b.Property<Guid>("TeacherAssignmentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("teacher_assignment_id");
-
                     b.Property<Guid>("TeacherId")
                         .HasColumnType("uuid")
                         .HasColumnName("teacher_id");
@@ -120,17 +112,11 @@ namespace AssignmentSystem.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_assignments");
 
-                    b.HasIndex("CourseId")
-                        .HasDatabaseName("ix_assignments_course_id");
-
-                    b.HasIndex("TeacherAssignmentId")
-                        .HasDatabaseName("ix_assignments_teacher_assignment_id");
-
                     b.HasIndex("TeacherId")
                         .HasDatabaseName("ix_assignments_teacher_id");
 
-                    b.HasIndex("ClassId", "CourseId", "Status")
-                        .HasDatabaseName("ix_assignments_class_id_course_id_status");
+                    b.HasIndex("ClassCourseId", "Status")
+                        .HasDatabaseName("ix_assignments_class_course_id_status");
 
                     b.ToTable("assignments", (string)null);
                 });
@@ -215,6 +201,57 @@ namespace AssignmentSystem.Infrastructure.Migrations
                         .HasDatabaseName("ix_assignment_files_uploaded_by_id");
 
                     b.ToTable("assignment_files", (string)null);
+                });
+
+            modelBuilder.Entity("AssignmentSystem.Domain.ClassCourses.ClassCourse", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("ClassId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("class_id");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("course_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_class_courses");
+
+                    b.HasIndex("CourseId")
+                        .HasDatabaseName("ix_class_courses_course_id");
+
+                    b.HasIndex("ClassId", "CourseId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_class_courses_class_id_course_id");
+
+                    b.ToTable("class_courses", (string)null);
                 });
 
             modelBuilder.Entity("AssignmentSystem.Domain.Classes.Class", b =>
@@ -321,6 +358,165 @@ namespace AssignmentSystem.Infrastructure.Migrations
                         .HasDatabaseName("ix_courses_code");
 
                     b.ToTable("courses", (string)null);
+                });
+
+            modelBuilder.Entity("AssignmentSystem.Domain.Enrollments.StudentEnrollment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("ClassId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("class_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime>("EnrolledAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("enrolled_at_utc");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<Guid>("StudentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("student_id");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_student_enrollments");
+
+                    b.HasIndex("ClassId")
+                        .HasDatabaseName("ix_student_enrollments_class_id");
+
+                    b.HasIndex("StudentId")
+                        .HasDatabaseName("ix_student_enrollments_student_id");
+
+                    b.HasIndex("StudentId", "ClassId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_student_enrollments_student_id_class_id");
+
+                    b.ToTable("student_enrollments", (string)null);
+                });
+
+            modelBuilder.Entity("AssignmentSystem.Domain.Notifications.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid?>("AssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignment_id");
+
+                    b.Property<int>("AttemptCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("attempt_count");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("body");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("LastAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_attempt_at_utc");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("RecipientEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("recipient_email");
+
+                    b.Property<Guid>("RecipientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipient_id");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<DateTime?>("SentAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at_utc");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("status");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("subject");
+
+                    b.Property<Guid?>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_notifications");
+
+                    b.HasIndex("RecipientId")
+                        .HasDatabaseName("ix_notifications_recipient_id");
+
+                    b.HasIndex("Status", "CreatedAtUtc")
+                        .HasDatabaseName("ix_notifications_status_created_at_utc")
+                        .HasFilter("status = 0");
+
+                    b.ToTable("notifications", (string)null);
                 });
 
             modelBuilder.Entity("AssignmentSystem.Domain.Submissions.Submission", b =>
@@ -506,13 +702,9 @@ namespace AssignmentSystem.Infrastructure.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<Guid>("ClassId")
+                    b.Property<Guid>("ClassCourseId")
                         .HasColumnType("uuid")
-                        .HasColumnName("class_id");
-
-                    b.Property<Guid>("CourseId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("course_id");
+                        .HasColumnName("class_course_id");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -543,15 +735,12 @@ namespace AssignmentSystem.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_teacher_assignments");
 
-                    b.HasIndex("ClassId")
-                        .HasDatabaseName("ix_teacher_assignments_class_id");
+                    b.HasIndex("ClassCourseId")
+                        .HasDatabaseName("ix_teacher_assignments_class_course_id");
 
-                    b.HasIndex("CourseId")
-                        .HasDatabaseName("ix_teacher_assignments_course_id");
-
-                    b.HasIndex("TeacherId", "CourseId", "ClassId")
+                    b.HasIndex("TeacherId", "ClassCourseId")
                         .IsUnique()
-                        .HasDatabaseName("ix_teacher_assignments_teacher_id_course_id_class_id");
+                        .HasDatabaseName("ix_teacher_assignments_teacher_id_class_course_id");
 
                     b.ToTable("teacher_assignments", (string)null);
                 });
@@ -563,10 +752,6 @@ namespace AssignmentSystem.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<Guid?>("ClassId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("class_id");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -644,9 +829,6 @@ namespace AssignmentSystem.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_users");
-
-                    b.HasIndex("ClassId")
-                        .HasDatabaseName("ix_users_class_id");
 
                     b.HasIndex("StudentId")
                         .IsUnique()
@@ -731,32 +913,23 @@ namespace AssignmentSystem.Infrastructure.Migrations
 
             modelBuilder.Entity("AssignmentSystem.Domain.Assignments.Assignment", b =>
                 {
-                    b.HasOne("AssignmentSystem.Domain.Classes.Class", "Class")
+                    b.HasOne("AssignmentSystem.Domain.ClassCourses.ClassCourse", "ClassCourse")
                         .WithMany()
-                        .HasForeignKey("ClassId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_assignments_classes_class_id");
-
-                    b.HasOne("AssignmentSystem.Domain.Courses.Course", "Course")
-                        .WithMany()
-                        .HasForeignKey("CourseId")
+                        .HasForeignKey("ClassCourseId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_assignments_courses_course_id");
+                        .HasConstraintName("fk_assignments_class_courses_class_course_id");
 
-                    b.HasOne("AssignmentSystem.Domain.TeacherAssignments.TeacherAssignment", "TeacherAssignment")
+                    b.HasOne("AssignmentSystem.Domain.Users.ApplicationUser", "Teacher")
                         .WithMany()
-                        .HasForeignKey("TeacherAssignmentId")
+                        .HasForeignKey("TeacherId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_assignments_teacher_assignments_teacher_assignment_id");
+                        .HasConstraintName("fk_assignments_users_teacher_id");
 
-                    b.Navigation("Class");
+                    b.Navigation("ClassCourse");
 
-                    b.Navigation("Course");
-
-                    b.Navigation("TeacherAssignment");
+                    b.Navigation("Teacher");
                 });
 
             modelBuilder.Entity("AssignmentSystem.Domain.Assignments.AssignmentFile", b =>
@@ -778,6 +951,60 @@ namespace AssignmentSystem.Infrastructure.Migrations
                     b.Navigation("Assignment");
 
                     b.Navigation("UploadedBy");
+                });
+
+            modelBuilder.Entity("AssignmentSystem.Domain.ClassCourses.ClassCourse", b =>
+                {
+                    b.HasOne("AssignmentSystem.Domain.Classes.Class", "Class")
+                        .WithMany("ClassCourses")
+                        .HasForeignKey("ClassId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_class_courses_classes_class_id");
+
+                    b.HasOne("AssignmentSystem.Domain.Courses.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_class_courses_courses_course_id");
+
+                    b.Navigation("Class");
+
+                    b.Navigation("Course");
+                });
+
+            modelBuilder.Entity("AssignmentSystem.Domain.Enrollments.StudentEnrollment", b =>
+                {
+                    b.HasOne("AssignmentSystem.Domain.Classes.Class", "Class")
+                        .WithMany("Enrollments")
+                        .HasForeignKey("ClassId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_student_enrollments_classes_class_id");
+
+                    b.HasOne("AssignmentSystem.Domain.Users.ApplicationUser", "Student")
+                        .WithMany("Enrollments")
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_student_enrollments_users_student_id");
+
+                    b.Navigation("Class");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("AssignmentSystem.Domain.Notifications.Notification", b =>
+                {
+                    b.HasOne("AssignmentSystem.Domain.Users.ApplicationUser", "Recipient")
+                        .WithMany()
+                        .HasForeignKey("RecipientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_notifications_users_recipient_id");
+
+                    b.Navigation("Recipient");
                 });
 
             modelBuilder.Entity("AssignmentSystem.Domain.Submissions.Submission", b =>
@@ -832,19 +1059,12 @@ namespace AssignmentSystem.Infrastructure.Migrations
 
             modelBuilder.Entity("AssignmentSystem.Domain.TeacherAssignments.TeacherAssignment", b =>
                 {
-                    b.HasOne("AssignmentSystem.Domain.Classes.Class", "Class")
+                    b.HasOne("AssignmentSystem.Domain.ClassCourses.ClassCourse", "ClassCourse")
                         .WithMany()
-                        .HasForeignKey("ClassId")
+                        .HasForeignKey("ClassCourseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_teacher_assignments_classes_class_id");
-
-                    b.HasOne("AssignmentSystem.Domain.Courses.Course", "Course")
-                        .WithMany()
-                        .HasForeignKey("CourseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_teacher_assignments_courses_course_id");
+                        .HasConstraintName("fk_teacher_assignments_class_courses_class_course_id");
 
                     b.HasOne("AssignmentSystem.Domain.Users.ApplicationUser", "Teacher")
                         .WithMany()
@@ -853,22 +1073,9 @@ namespace AssignmentSystem.Infrastructure.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_teacher_assignments_users_teacher_id");
 
-                    b.Navigation("Class");
-
-                    b.Navigation("Course");
+                    b.Navigation("ClassCourse");
 
                     b.Navigation("Teacher");
-                });
-
-            modelBuilder.Entity("AssignmentSystem.Domain.Users.ApplicationUser", b =>
-                {
-                    b.HasOne("AssignmentSystem.Domain.Classes.Class", "Class")
-                        .WithMany("Students")
-                        .HasForeignKey("ClassId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_users_classes_class_id");
-
-                    b.Navigation("Class");
                 });
 
             modelBuilder.Entity("AssignmentSystem.Domain.Users.RefreshToken", b =>
@@ -892,7 +1099,9 @@ namespace AssignmentSystem.Infrastructure.Migrations
 
             modelBuilder.Entity("AssignmentSystem.Domain.Classes.Class", b =>
                 {
-                    b.Navigation("Students");
+                    b.Navigation("ClassCourses");
+
+                    b.Navigation("Enrollments");
                 });
 
             modelBuilder.Entity("AssignmentSystem.Domain.Submissions.Submission", b =>
@@ -902,6 +1111,8 @@ namespace AssignmentSystem.Infrastructure.Migrations
 
             modelBuilder.Entity("AssignmentSystem.Domain.Users.ApplicationUser", b =>
                 {
+                    b.Navigation("Enrollments");
+
                     b.Navigation("RefreshTokens");
                 });
 #pragma warning restore 612, 618

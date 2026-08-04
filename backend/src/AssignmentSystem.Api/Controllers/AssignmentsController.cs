@@ -50,6 +50,7 @@ public sealed class AssignmentsController : ControllerBase
     public async Task<IActionResult> GetAssignments(
         [FromQuery] Guid? classId,
         [FromQuery] Guid? courseId,
+        [FromQuery] Guid? classCourseId,
         [FromQuery] Guid? teacherId,
         [FromQuery] Domain.Enums.AssignmentStatus? status,
         [FromQuery] string? search,
@@ -57,7 +58,7 @@ public sealed class AssignmentsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetAssignmentsQuery(classId, courseId, teacherId, status, search, page, pageSize);
+        var query = new GetAssignmentsQuery(classId, courseId, classCourseId, teacherId, status, search, page, pageSize);
         var result = await _getListHandler.HandleAsync(query, ct);
         if (!result.IsSuccess)
         {
@@ -78,12 +79,13 @@ public sealed class AssignmentsController : ControllerBase
     public async Task<IActionResult> CreateAssignment([FromBody] CreateAssignmentRequest request, CancellationToken ct)
     {
         var command = new CreateAssignmentCommand(
-            request.TeacherAssignmentId,
+            request.ClassCourseId,
             request.Title,
             request.Description,
             request.DeadlineUtc,
             request.MaxMarks,
-            request.AllowResubmission);
+            request.AllowResubmission,
+            request.TeacherId);
 
         var result = await _createHandler.HandleAsync(command, ct);
         if (!result.IsSuccess)
@@ -166,13 +168,18 @@ public sealed class AssignmentsController : ControllerBase
     }
 }
 
+/// <summary>
+/// <paramref name="TeacherId"/> is only meaningful for an admin creating work on a teacher's
+/// behalf; a teacher's own request has it ignored in favour of their token identity.
+/// </summary>
 public sealed record CreateAssignmentRequest(
-    Guid TeacherAssignmentId,
+    Guid ClassCourseId,
     string Title,
     string Description,
     DateTime DeadlineUtc,
     decimal MaxMarks,
-    bool AllowResubmission);
+    bool AllowResubmission,
+    Guid? TeacherId = null);
 
 public sealed record UpdateAssignmentRequest(
     string Title,
@@ -185,8 +192,8 @@ public sealed class CreateAssignmentRequestValidator : AbstractValidator<CreateA
 {
     public CreateAssignmentRequestValidator()
     {
-        RuleFor(x => x.TeacherAssignmentId)
-            .NotEmpty().WithMessage("Teacher assignment id is required.");
+        RuleFor(x => x.ClassCourseId)
+            .NotEmpty().WithMessage("Choose the class and course this assignment is for.");
 
         RuleFor(x => x.Title)
             .NotEmpty().WithMessage("Title is required.")

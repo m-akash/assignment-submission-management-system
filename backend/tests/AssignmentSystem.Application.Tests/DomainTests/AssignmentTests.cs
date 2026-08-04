@@ -28,8 +28,6 @@ public class AssignmentTests
         var assignment = Assignment.Create(
             Guid.NewGuid(),
             Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
             "Title",
             "Description",
             deadline,
@@ -53,8 +51,6 @@ public class AssignmentTests
         Action act = () => Assignment.Create(
             Guid.NewGuid(),
             Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
             "Title",
             "Description",
             deadline,
@@ -72,8 +68,6 @@ public class AssignmentTests
         // Arrange
         var deadline = _clockMock.Object.UtcNow.AddDays(7);
         var assignment = Assignment.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
             "Title",
@@ -96,8 +90,6 @@ public class AssignmentTests
         // Arrange
         var deadline = _clockMock.Object.UtcNow.AddDays(7);
         var assignment = Assignment.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
             "Title",

@@ -1,4 +1,3 @@
-using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Domain.Users;
 using Microsoft.EntityFrameworkCore;
@@ -8,8 +7,7 @@ namespace AssignmentSystem.Infrastructure.Persistence.Configurations;
 
 /// <summary>
 /// Fluent API config for <see cref="ApplicationUser"/>. No data annotations in the
-/// domain. UUID PK, unique email (owned value object), class FK (set null on delete),
-/// soft-delete query filter.
+/// domain. UUID PK, unique email (owned value object), soft-delete query filter.
 /// </summary>
 internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<ApplicationUser>
 {
@@ -55,13 +53,8 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
                 .IsRequired();
         });
 
-        builder.Property(u => u.ClassId);
-        builder.HasOne(u => u.Class)
-            .WithMany(c => c.Students)
-            .HasForeignKey(u => u.ClassId)
-            .OnDelete(DeleteBehavior.SetNull);
-
-        builder.HasIndex(u => u.ClassId);
+        // Class membership lives in student_enrollments (configured on the other side of
+        // the relationship, in StudentEnrollmentConfiguration) — there is no class column here.
 
         // "IX-A-003" (grade numeral, section, sequence). Null for admin/teacher — a unique
         // index over a nullable column still allows any number of nulls in Postgres.

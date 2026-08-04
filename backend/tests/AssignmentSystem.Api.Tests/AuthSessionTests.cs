@@ -41,9 +41,10 @@ public class AuthSessionTests : IntegrationTestBase
         payload!.Data!.Email.Should().Be(DbSeeder.StudentEmail);
         payload.Data.Role.Should().Be(Role.Student);
 
-        // The login body omits these; the frontend reads them from here.
-        payload.Data.ClassId.Should().NotBeNull();
-        payload.Data.ClassName.Should().NotBeNullOrWhiteSpace();
+        // The login body omits these; the frontend reads them from here. Membership is a
+        // list now, because a student can be enrolled in more than one class.
+        payload.Data.Classes.Should().NotBeNullOrEmpty();
+        payload.Data.Classes[0].ClassName.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -57,7 +58,7 @@ public class AuthSessionTests : IntegrationTestBase
         var payload = await response.Content.ReadFromJsonAsync<ApiResponseEnvelope<CurrentUser>>(JsonOptions);
 
         payload!.Data!.Role.Should().Be(Role.Admin);
-        payload.Data.ClassId.Should().BeNull();
+        payload.Data.Classes.Should().BeEmpty();
     }
 
     [Fact]
@@ -161,7 +162,8 @@ public class AuthSessionTests : IntegrationTestBase
         string Email,
         string FullName,
         Role Role,
-        Guid? ClassId,
-        string? ClassName,
-        bool IsActive);
+        bool IsActive,
+        List<EnrolledClass> Classes);
+
+    private sealed record EnrolledClass(Guid ClassId, string ClassName);
 }

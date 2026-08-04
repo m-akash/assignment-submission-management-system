@@ -25,8 +25,6 @@ public class SubmissionTests
         _assignment = Assignment.Create(
             Guid.NewGuid(),
             Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
             "Title",
             "Description",
             _clockMock.Object.UtcNow.AddDays(2),
@@ -41,8 +39,6 @@ public class SubmissionTests
     {
         // Arrange
         var draftAssignment = Assignment.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
             "Title",
@@ -131,7 +127,7 @@ public class SubmissionTests
             _assignment.Id, Guid.NewGuid(), "My work", false, _assignment, _clockMock.Object);
 
         var draft = Assignment.Create(
-            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            Guid.NewGuid(), Guid.NewGuid(),
             "Draft", "Description", _clockMock.Object.UtcNow.AddDays(7), 100m, true, _clockMock.Object);
 
         // Act

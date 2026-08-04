@@ -11,5 +11,5 @@ export default function DashboardPage() {
 
   if (user.role === 'Admin') return <AdminOverview />;
   if (user.role === 'Teacher') return <TeacherOverview name={user.fullName} />;
-  return <StudentOverview name={user.fullName} className={user.className} />;
+  return <StudentOverview name={user.fullName} classes={user.classes} />;
 }

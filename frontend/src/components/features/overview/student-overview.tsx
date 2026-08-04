@@ -9,8 +9,19 @@ import { CardGridSkeleton, EmptyState, ErrorState } from '@/components/shared/st
 import { useStudentAssignments } from '@/hooks/use-submissions';
 import { deadlineUrgency, formatMarks } from '@/lib/format';
 import { AssignmentCard } from '@/components/features/assignments/assignment-card';
+import type { EnrolledClass } from '@/types/api';
 
-export function StudentOverview({ name, className }: { name: string; className: string | null }) {
+export function StudentOverview({
+  name,
+  classes,
+}: {
+  name: string;
+  /** Every class the student is enrolled in — normally one, but the model allows more. */
+  classes: EnrolledClass[];
+}) {
+  // One label for the header, whether they sit in one class or several.
+  const className = classes.length > 0 ? classes.map((c) => c.className).join(' · ') : null;
+
   const { items, isLoading, isError, error } = useStudentAssignments({});
   const firstName = name.split(' ')[0];
 

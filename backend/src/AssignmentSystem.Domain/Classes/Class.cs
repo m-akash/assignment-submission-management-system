@@ -3,8 +3,10 @@ using AssignmentSystem.Domain.Common;
 namespace AssignmentSystem.Domain.Classes;
 
 /// <summary>
-/// A class cohort (e.g. "Class IX - Section A"). Students belong to exactly one class;
-/// teachers are linked to classes via <see cref="TeacherAssignments.TeacherAssignment"/>.
+/// A class cohort (e.g. "Class IX - Section A"). Students join through
+/// <see cref="Enrollments.StudentEnrollment"/>, the courses the class studies through
+/// <see cref="ClassCourses.ClassCourse"/>, and teachers reach it through the offering via
+/// <see cref="TeacherAssignments.TeacherAssignment"/>.
 /// Named <c>Class</c> deliberately — it is the domain term. Persisted as table
 /// <c>classes</c> to avoid the SQL reserved word.
 ///
@@ -34,8 +36,11 @@ public sealed class Class : BaseEntity
     public string GradeLabel => RomanNumerals[Level - 1];
 
     // Navigation collections (read-only externally; mutated through methods).
-    private readonly List<Users.ApplicationUser> _students = [];
-    public IReadOnlyCollection<Users.ApplicationUser> Students => _students.AsReadOnly();
+    private readonly List<Enrollments.StudentEnrollment> _enrollments = [];
+    public IReadOnlyCollection<Enrollments.StudentEnrollment> Enrollments => _enrollments.AsReadOnly();
+
+    private readonly List<ClassCourses.ClassCourse> _classCourses = [];
+    public IReadOnlyCollection<ClassCourses.ClassCourse> ClassCourses => _classCourses.AsReadOnly();
 
     private Class() { }
 

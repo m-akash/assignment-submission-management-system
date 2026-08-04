@@ -6,8 +6,8 @@ public sealed class CreateAssignmentCommandValidator : AbstractValidator<CreateA
 {
     public CreateAssignmentCommandValidator()
     {
-        RuleFor(x => x.TeacherAssignmentId)
-            .NotEmpty().WithMessage("Teacher assignment id is required.");
+        RuleFor(x => x.ClassCourseId)
+            .NotEmpty().WithMessage("Choose the class and course this assignment is for.");
 
         RuleFor(x => x.Title)
             .NotEmpty().WithMessage("Title is required.")

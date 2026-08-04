@@ -1,14 +1,12 @@
-using AssignmentSystem.Domain.Classes;
+using AssignmentSystem.Domain.ClassCourses;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Enums;
-using AssignmentSystem.Domain.Courses;
-using AssignmentSystem.Domain.TeacherAssignments;
 using AssignmentSystem.Domain.Users;
 
 namespace AssignmentSystem.Domain.Assignments;
 
 /// <summary>
-/// An assignment created by a teacher for a specific (course, class) scope.
+/// An assignment created by a teacher for one course offering.
 /// Carries title, description, deadline, max marks, draft/published status, and
 /// a resubmission flag. Soft-deletable. Enforces:
 ///  - draft → published is one-way (rule B6)
@@ -16,17 +14,21 @@ namespace AssignmentSystem.Domain.Assignments;
 /// </summary>
 public sealed class Assignment : BaseEntity, ISoftDeletable
 {
-    public Guid TeacherAssignmentId { get; private set; }
-    public TeacherAssignment TeacherAssignment { get; private set; } = null!;
+    /// <summary>
+    /// The offering this assignment belongs to — one column carrying both the class and
+    /// the course, so the pair can never contradict itself. Read the class or course
+    /// through <c>ClassCourse</c>.
+    /// </summary>
+    public Guid ClassCourseId { get; private set; }
+    public ClassCourse ClassCourse { get; private set; } = null!;
 
-    /// <summary>Denormalized teacher id for fast ownership checks + resilience.</summary>
+    /// <summary>
+    /// The authoring teacher. Stored here rather than reached through the teaching link
+    /// so ownership checks (rule B3) are a column comparison, and so removing an admin's
+    /// teacher↔offering mapping cannot orphan the authorship of work already set.
+    /// </summary>
     public Guid TeacherId { get; private set; }
-
-    public Guid CourseId { get; private set; }
-    public Course Course { get; private set; } = null!;
-
-    public Guid ClassId { get; private set; }
-    public Class Class { get; private set; } = null!;
+    public ApplicationUser Teacher { get; private set; } = null!;
 
     public string Title { get; private set; } = null!;
     public string Description { get; private set; } = null!;
@@ -58,9 +60,7 @@ public sealed class Assignment : BaseEntity, ISoftDeletable
 
     public static Assignment Create(
         Guid teacherId,
-        Guid courseId,
-        Guid classId,
-        Guid teacherAssignmentId,
+        Guid classCourseId,
         string title,
         string description,
         DateTime deadlineUtc,
@@ -68,14 +68,17 @@ public sealed class Assignment : BaseEntity, ISoftDeletable
         bool allowResubmission,
         IClock clock)
     {
+        if (teacherId == Guid.Empty || classCourseId == Guid.Empty)
+        {
+            throw new DomainException("Teacher and class-course ids are both required.");
+        }
+
         ValidateCommon(title, description, deadlineUtc, maxMarks, clock);
 
         return new Assignment
         {
             TeacherId = teacherId,
-            CourseId = courseId,
-            ClassId = classId,
-            TeacherAssignmentId = teacherAssignmentId,
+            ClassCourseId = classCourseId,
             Title = title.Trim(),
             Description = description.Trim(),
             DeadlineUtc = deadlineUtc,

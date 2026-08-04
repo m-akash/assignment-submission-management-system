@@ -240,7 +240,9 @@ function UsersView() {
                         {role === 'Student' && (
                           <>
                             <TableCell className="text-muted-foreground">
-                              {user.className ?? '—'}
+                              {user.classes.length > 0
+                                ? user.classes.map((enrolled) => enrolled.className).join(', ')
+                                : '—'}
                             </TableCell>
                             <TableCell className="font-mono text-sm text-muted-foreground">
                               {user.studentId ?? '—'}

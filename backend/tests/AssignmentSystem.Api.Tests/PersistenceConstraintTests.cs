@@ -34,7 +34,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
         using var teacher = await SignInAsync(world.TeacherEmail);
         using var student = await SignInAsync(world.StudentEmail);
 
-        var assignment = await CreatePublishedAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
         var first = await SubmitAsync(student, assignment.Id, "First attempt.");
         var second = await SubmitAsync(student, assignment.Id, "Second attempt.");
@@ -54,7 +54,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
         using var teacher = await SignInAsync(world.TeacherEmail);
         using var student = await SignInAsync(world.StudentEmail);
 
-        var dto = await CreatePublishedAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var dto = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
         await SubmitAsync(student, dto.Id, "The one and only.");
 
         // Bypass the handler's "does one already exist?" check and go straight at the table.
@@ -80,7 +80,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
         using var teacher = await SignInAsync(world.TeacherEmail);
         using var student = await SignInAsync(world.StudentEmail);
 
-        var dto = await CreatePublishedAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var dto = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
         var submission = await SubmitAsync(student, dto.Id, "Original answer.");
 
         // Two scopes read the same row version, then both try to write it.
@@ -113,7 +113,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
         using var teacher = await SignInAsync(world.TeacherEmail);
         using var student = await SignInAsync(world.StudentEmail);
 
-        var dto = await CreatePublishedAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var dto = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
         var submission = await SubmitAsync(student, dto.Id, "Original answer.");
 
         // Hold a copy read before the API writes, then try to commit it afterwards —
@@ -148,7 +148,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var response = await admin.PostAsJsonAsync("/api/v1/teacher-assignments",
-            new Api.Controllers.CreateTeacherAssignmentRequest(world.TeacherId, world.CourseId, world.ClassId));
+            new Api.Controllers.CreateTeacherAssignmentRequest(world.TeacherId, world.ClassCourseId));
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }

@@ -20,6 +20,20 @@ export const queryKeys = {
     list: (filters: unknown) => ['courses', 'list', filters] as const,
     options: ['courses', 'options'] as const,
   },
+  classCourses: {
+    all: ['class-courses'] as const,
+    list: (filters: unknown) => ['class-courses', 'list', filters] as const,
+    options: ['class-courses', 'options'] as const,
+  },
+  enrollments: {
+    all: ['enrollments'] as const,
+    list: (filters: unknown) => ['enrollments', 'list', filters] as const,
+  },
+  notifications: {
+    all: ['notifications'] as const,
+    list: (filters: unknown) => ['notifications', 'list', filters] as const,
+    summary: ['notifications', 'summary'] as const,
+  },
   teacherMappings: {
     all: ['teacher-mappings'] as const,
     list: (filters: unknown) => ['teacher-mappings', 'list', filters] as const,

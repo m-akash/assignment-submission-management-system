@@ -2,6 +2,7 @@ using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Assignments;
+using AssignmentSystem.Domain.ClassCourses;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Domain.Submissions;
@@ -10,10 +11,19 @@ using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Features.Assignments;
 
+/// <summary>
+/// Creates a draft assignment against a course offering. The gate is the teaching
+/// mapping: the author must be a teacher the admin has assigned to that offering, which is
+/// what stops a teacher setting work for a class or course that isn't theirs (rule B3).
+/// An admin may create on a teacher's behalf, but only for a teacher already mapped to
+/// the offering — otherwise the resulting assignment would be one its own author is not
+/// authorized to publish or grade.
+/// </summary>
 public sealed class CreateAssignmentHandler : ICommandHandler<CreateAssignmentCommand, AssignmentDto>
 {
     private readonly IRepository<Assignment> _assignmentRepository;
     private readonly IRepository<TeacherAssignment> _teacherAssignmentRepository;
+    private readonly IRepository<ClassCourse> _classCourseRepository;
     private readonly ICurrentUser _currentUser;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
@@ -22,12 +32,14 @@ public sealed class CreateAssignmentHandler : ICommandHandler<CreateAssignmentCo
     public CreateAssignmentHandler(
         IRepository<Assignment> assignmentRepository,
         IRepository<TeacherAssignment> teacherAssignmentRepository,
+        IRepository<ClassCourse> classCourseRepository,
         ICurrentUser currentUser,
         IClock clock,
         IUnitOfWork unitOfWork)
     {
         _assignmentRepository = assignmentRepository;
         _teacherAssignmentRepository = teacherAssignmentRepository;
+        _classCourseRepository = classCourseRepository;
         _currentUser = currentUser;
         _clock = clock;
         _unitOfWork = unitOfWork;
@@ -40,24 +52,43 @@ public sealed class CreateAssignmentHandler : ICommandHandler<CreateAssignmentCo
             return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "Only teachers or admins can create assignments."));
         }
 
-        var teacherAssignment = await _teacherAssignmentRepository.GetByIdAsync(command.TeacherAssignmentId, ct);
-        if (teacherAssignment is null)
+        var offering = await _classCourseRepository.GetByIdAsync(command.ClassCourseId, ct);
+        if (offering is null)
         {
-            return Result<AssignmentDto>.Failure(Error.NotFound("TeacherAssignment.NotFound", "The specified teacher assignment was not found."));
+            return Result<AssignmentDto>.Failure(Error.NotFound("ClassCourse.NotFound", "The specified course offering was not found."));
         }
 
-        if (_currentUser.Role == Role.Teacher && !teacherAssignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        // A teacher is always the author of their own work; only an admin names one.
+        Guid teacherId;
+        if (_currentUser.Role == Role.Teacher)
         {
-            return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have permission to create an assignment for this class/course."));
+            teacherId = _currentUser.UserId.GetValueOrDefault();
+        }
+        else if (command.TeacherId is { } named && named != Guid.Empty)
+        {
+            teacherId = named;
+        }
+        else
+        {
+            return Result<AssignmentDto>.Failure(Error.Validation(
+                "Assignment.TeacherRequired", "Choose the teacher this assignment belongs to."));
+        }
+
+        var mappingSpec = new TeacherAssignmentForOfferingSpecification(teacherId, command.ClassCourseId);
+        if (!await _teacherAssignmentRepository.AnyAsync(mappingSpec, ct))
+        {
+            return Result<AssignmentDto>.Failure(Error.Forbidden(
+                "Assignment.Forbidden",
+                _currentUser.Role == Role.Teacher
+                    ? "You are not assigned to teach this course for this class."
+                    : "That teacher is not assigned to teach this course for this class."));
         }
 
         try
         {
             var assignment = Assignment.Create(
-                teacherAssignment.TeacherId,
-                teacherAssignment.CourseId,
-                teacherAssignment.ClassId,
-                teacherAssignment.Id,
+                teacherId,
+                command.ClassCourseId,
                 command.Title,
                 command.Description,
                 command.DeadlineUtc,
@@ -68,11 +99,20 @@ public sealed class CreateAssignmentHandler : ICommandHandler<CreateAssignmentCo
             await _assignmentRepository.AddAsync(assignment, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
-            // Fetch with navigation properties for DTO
+            // Re-read with navigations so the DTO carries the class/course/teacher names.
             var spec = new AssignmentWithDetailsSpecification(assignment.Id);
             var savedAssignment = await _assignmentRepository.FirstOrDefaultAsync(spec, ct);
 
-            return Mapper.MapToDto(savedAssignment ?? assignment);
+            if (savedAssignment is null)
+            {
+                // Unreachable: the row was committed a line ago. Mapping `assignment` instead
+                // would dereference the class/course/teacher navigations it has never loaded,
+                // so this reports the anomaly rather than throwing inside the mapper.
+                return Result<AssignmentDto>.Failure(Error.Failure(
+                    "Assignment.NotReloaded", "The assignment was created but could not be read back."));
+            }
+
+            return Mapper.MapToDto(savedAssignment);
         }
         catch (DomainException ex)
         {
@@ -193,19 +233,29 @@ public sealed class DeleteAssignmentHandler : ICommandHandler<DeleteAssignmentCo
     }
 }
 
+/// <summary>
+/// Publishes a draft. This is the moment students can first see the work, so it is also
+/// the moment the class is emailed — the notifications are queued in the same transaction
+/// as the status change (see <see cref="INotificationOutbox"/>), so there is no state where
+/// an assignment is visible but the class was never told, or where students are told about
+/// something that did not actually publish.
+/// </summary>
 public sealed class PublishAssignmentHandler : ICommandHandler<PublishAssignmentCommand, AssignmentDto>
 {
     private readonly IRepository<Assignment> _assignmentRepository;
+    private readonly INotificationOutbox _notifications;
     private readonly ICurrentUser _currentUser;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly AssignmentMapper Mapper = new();
 
     public PublishAssignmentHandler(
         IRepository<Assignment> assignmentRepository,
+        INotificationOutbox notifications,
         ICurrentUser currentUser,
         IUnitOfWork unitOfWork)
     {
         _assignmentRepository = assignmentRepository;
+        _notifications = notifications;
         _currentUser = currentUser;
         _unitOfWork = unitOfWork;
     }
@@ -228,6 +278,9 @@ public sealed class PublishAssignmentHandler : ICommandHandler<PublishAssignment
         {
             assignment.Publish();
             _assignmentRepository.Update(assignment);
+
+            await _notifications.QueueAssignmentPublishedAsync(assignment, ct);
+
             await _unitOfWork.SaveChangesAsync(ct);
 
             return Mapper.MapToDto(assignment);
@@ -242,12 +295,17 @@ public sealed class PublishAssignmentHandler : ICommandHandler<PublishAssignment
 public sealed class GetAssignmentByIdHandler : IQueryHandler<GetAssignmentByIdQuery, AssignmentDto>
 {
     private readonly IRepository<Assignment> _assignmentRepository;
+    private readonly IClassRosterRepository _roster;
     private readonly ICurrentUser _currentUser;
     private static readonly AssignmentMapper Mapper = new();
 
-    public GetAssignmentByIdHandler(IRepository<Assignment> assignmentRepository, ICurrentUser currentUser)
+    public GetAssignmentByIdHandler(
+        IRepository<Assignment> assignmentRepository,
+        IClassRosterRepository roster,
+        ICurrentUser currentUser)
     {
         _assignmentRepository = assignmentRepository;
+        _roster = roster;
         _currentUser = currentUser;
     }
 
@@ -260,16 +318,22 @@ public sealed class GetAssignmentByIdHandler : IQueryHandler<GetAssignmentByIdQu
             return Result<AssignmentDto>.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        // B1: Student can only view assignment if it is for their class
-        if (_currentUser.Role == Role.Student && assignment.ClassId != _currentUser.ClassId)
+        if (_currentUser.Role == Role.Student)
         {
-            return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have access to this assignment."));
-        }
+            // X3 before B1: a draft is invisible to every student, so it is not worth a
+            // roster query to find out which draft they were asking about.
+            if (assignment.Status == AssignmentStatus.Draft)
+            {
+                return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have access to this draft assignment."));
+            }
 
-        // Student cannot see draft assignments
-        if (_currentUser.Role == Role.Student && assignment.Status == AssignmentStatus.Draft)
-        {
-            return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have access to this draft assignment."));
+            // B1: only assignments for a class they are actually enrolled in.
+            var isEnrolled = await _roster.IsEnrolledAsync(
+                _currentUser.UserId.GetValueOrDefault(), assignment.ClassCourse.ClassId, ct);
+            if (!isEnrolled)
+            {
+                return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have access to this assignment."));
+            }
         }
 
         return Mapper.MapToDto(assignment);
@@ -279,25 +343,32 @@ public sealed class GetAssignmentByIdHandler : IQueryHandler<GetAssignmentByIdQu
 public sealed class GetAssignmentsHandler : IQueryHandler<GetAssignmentsQuery, PageResult<AssignmentDto>>
 {
     private readonly IRepository<Assignment> _assignmentRepository;
+    private readonly IClassRosterRepository _roster;
     private readonly ICurrentUser _currentUser;
     private static readonly AssignmentMapper Mapper = new();
 
-    public GetAssignmentsHandler(IRepository<Assignment> assignmentRepository, ICurrentUser currentUser)
+    public GetAssignmentsHandler(
+        IRepository<Assignment> assignmentRepository,
+        IClassRosterRepository roster,
+        ICurrentUser currentUser)
     {
         _assignmentRepository = assignmentRepository;
+        _roster = roster;
         _currentUser = currentUser;
     }
 
     public async Task<Result<PageResult<AssignmentDto>>> HandleAsync(GetAssignmentsQuery query, CancellationToken ct = default)
     {
-        var classId = query.ClassId;
         var teacherId = query.TeacherId;
         var status = query.Status;
+        IReadOnlyList<Guid>? restrictToClassIds = null;
 
-        // B1: Student sees only assignments for their class and only published ones
         if (_currentUser.Role == Role.Student)
         {
-            classId = _currentUser.ClassId;
+            // B1 + X3: published work, and only for classes they are enrolled in. The
+            // enrollment list is read here rather than taken from the token so an admin
+            // moving a student between classes takes effect on their next request.
+            restrictToClassIds = await _roster.GetEnrolledClassIdsAsync(_currentUser.UserId.GetValueOrDefault(), ct);
             status = AssignmentStatus.Published;
         }
         else if (_currentUser.Role == Role.Teacher)
@@ -306,12 +377,26 @@ public sealed class GetAssignmentsHandler : IQueryHandler<GetAssignmentsQuery, P
             teacherId = _currentUser.UserId.GetValueOrDefault();
         }
 
-        var spec = new AssignmentsPagedSpecification(classId, query.CourseId, teacherId, status, query.Search, query.Page, query.PageSize);
+        var spec = new AssignmentsPagedSpecification(
+            query.ClassId, query.CourseId, query.ClassCourseId, restrictToClassIds,
+            teacherId, status, query.Search, query.Page, query.PageSize);
         var pagedAssignments = await _assignmentRepository.ListPagedAsync(spec, ct);
 
         var items = pagedAssignments.Items.Select(Mapper.MapToDto).ToList();
         var result = new PageResult<AssignmentDto>(items, pagedAssignments.Page, pagedAssignments.PageSize, pagedAssignments.Total);
 
         return result;
+    }
+}
+
+/// <summary>
+/// "Is this teacher allowed to set work for this offering?" — the authorization backbone
+/// query behind rules B3 and B7.
+/// </summary>
+internal sealed class TeacherAssignmentForOfferingSpecification : Specification<TeacherAssignment>
+{
+    public TeacherAssignmentForOfferingSpecification(Guid teacherId, Guid classCourseId)
+    {
+        Criteria = ta => ta.TeacherId == teacherId && ta.ClassCourseId == classCourseId;
     }
 }

@@ -9,28 +9,28 @@ internal sealed class TeacherAssignmentWithDetailsSpecification : Specification<
     {
         Criteria = ta => ta.Id == id;
         AddInclude(ta => ta.Teacher);
-        AddInclude(ta => ta.Course);
-        AddInclude(ta => ta.Class);
+        AddInclude("ClassCourse.Class");
+        AddInclude("ClassCourse.Course");
     }
 }
 
 internal sealed class TeacherAssignmentDuplicateSpecification : Specification<TeacherAssignment>
 {
-    public TeacherAssignmentDuplicateSpecification(Guid teacherId, Guid courseId, Guid classId)
+    public TeacherAssignmentDuplicateSpecification(Guid teacherId, Guid classCourseId)
     {
-        Criteria = ta => ta.TeacherId == teacherId && ta.CourseId == courseId && ta.ClassId == classId;
+        Criteria = ta => ta.TeacherId == teacherId && ta.ClassCourseId == classCourseId;
     }
 }
 
 internal sealed class TeacherAssignmentsPagedSpecification : Specification<TeacherAssignment>
 {
     public TeacherAssignmentsPagedSpecification(
-        Guid? teacherId, Guid? courseId, Guid? classId, string? search, int page, int pageSize)
+        Guid? teacherId, Guid? courseId, Guid? classId, Guid? classCourseId, string? search, int page, int pageSize)
     {
         ApplyNoTracking();
         AddInclude(ta => ta.Teacher);
-        AddInclude(ta => ta.Course);
-        AddInclude(ta => ta.Class);
+        AddInclude("ClassCourse.Class");
+        AddInclude("ClassCourse.Course");
         ApplyOrderBy(ta => ta.Teacher.FullName);
         ApplyPaging(page, pageSize);
 
@@ -42,12 +42,13 @@ internal sealed class TeacherAssignmentsPagedSpecification : Specification<Teach
 #pragma warning disable CA1304, CA1311
         Criteria = ta =>
             (!teacherId.HasValue || ta.TeacherId == teacherId.Value) &&
-            (!courseId.HasValue || ta.CourseId == courseId.Value) &&
-            (!classId.HasValue || ta.ClassId == classId.Value) &&
+            (!classCourseId.HasValue || ta.ClassCourseId == classCourseId.Value) &&
+            (!courseId.HasValue || ta.ClassCourse.CourseId == courseId.Value) &&
+            (!classId.HasValue || ta.ClassCourse.ClassId == classId.Value) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              ta.Teacher.FullName.ToLower().Contains(searchLower) ||
-             ta.Course.Name.ToLower().Contains(searchLower) ||
-             ta.Class.Name.ToLower().Contains(searchLower));
+             ta.ClassCourse.Course.Name.ToLower().Contains(searchLower) ||
+             ta.ClassCourse.Class.Name.ToLower().Contains(searchLower));
 #pragma warning restore CA1304, CA1311
     }
 }
