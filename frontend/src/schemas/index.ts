@@ -22,14 +22,9 @@ export const userSchema = z
     email: z.string().trim().min(1, 'Email is required').email('Enter a valid email address'),
     role: roleEnum,
     classId: z.string().optional(),
-    departmentId: z.string().optional(),
-    groupId: z.string().optional(),
     password: z.string().optional(),
     /** Set by the form, not the user: an update may leave the password untouched. */
     isEdit: z.boolean(),
-    /** Also set by the form — mirrors `hasGroups` on the class the user picked, so the
-     *  rule below never has to guess where the grade threshold sits. */
-    classHasGroups: z.boolean(),
   })
   .superRefine((values, ctx) => {
     if (!values.isEdit && (values.password ?? '').length < 8) {
@@ -53,20 +48,6 @@ export const userSchema = z
         message: 'A student must belong to a class',
       });
     }
-    if (values.role === 'Teacher' && !values.departmentId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['departmentId'],
-        message: 'A teacher must belong to a department',
-      });
-    }
-    if (values.role === 'Student' && values.classHasGroups && !values.groupId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['groupId'],
-        message: 'Students in this class must choose a group',
-      });
-    }
   });
 export type UserValues = z.infer<typeof userSchema>;
 
@@ -81,30 +62,6 @@ export const classSchema = z.object({
 });
 export type ClassValues = z.infer<typeof classSchema>;
 
-export const groupSchema = z.object({
-  name: z.string().trim().min(2, 'Enter a group name').max(150, 'Name is too long'),
-  // Short by design, like the department code.
-  code: z
-    .string()
-    .trim()
-    .min(2, 'Enter a group code')
-    .max(10, 'Code cannot exceed 10 characters')
-    .regex(/^[A-Za-z0-9-]+$/, 'Use letters, numbers and hyphens only'),
-});
-export type GroupValues = z.infer<typeof groupSchema>;
-
-export const departmentSchema = z.object({
-  name: z.string().trim().min(2, 'Enter a department name').max(150, 'Name is too long'),
-  // Kept short because teacher ids embed it ("INS-SCI-01").
-  code: z
-    .string()
-    .trim()
-    .min(2, 'Enter a department code')
-    .max(10, 'Code cannot exceed 10 characters')
-    .regex(/^[A-Za-z0-9-]+$/, 'Use letters, numbers and hyphens only'),
-});
-export type DepartmentValues = z.infer<typeof departmentSchema>;
-
 export const courseSchema = z.object({
   name: z.string().trim().min(2, 'Enter a course name').max(150, 'Name is too long'),
   code: z
@@ -113,9 +70,6 @@ export const courseSchema = z.object({
     .min(2, 'Enter a course code')
     .max(30, 'Code cannot exceed 30 characters')
     .regex(/^[A-Za-z0-9-]+$/, 'Use letters, numbers and hyphens only'),
-  departmentId: z.string().min(1, 'Choose a department'),
-  /** Empty string means "open to everyone" — coerced to null before it reaches the API. */
-  groupId: z.string().optional(),
 });
 export type CourseValues = z.infer<typeof courseSchema>;
 

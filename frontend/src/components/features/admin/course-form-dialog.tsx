@@ -14,19 +14,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { useDepartmentOptions, useGroupOptions, useSaveCourse } from '@/hooks/use-admin-resources';
+import { useSaveCourse } from '@/hooks/use-admin-resources';
 import { courseSchema, type CourseValues } from '@/schemas';
 import type { Course } from '@/types/api';
-
-/** Radix `<Select>` rejects an empty-string value, so "open to everyone" needs a sentinel. */
-const NO_GROUP = 'none';
 
 export function CourseFormDialog({
   open,
@@ -38,27 +28,16 @@ export function CourseFormDialog({
   course?: Course | null;
 }) {
   const isEdit = !!course;
-  const departments = useDepartmentOptions();
-  const groups = useGroupOptions();
   const save = useSaveCourse();
 
   const form = useForm<CourseValues>({
     resolver: zodResolver(courseSchema),
-    defaultValues: { name: '', code: '', departmentId: '', groupId: NO_GROUP },
+    defaultValues: { name: '', code: '' },
   });
 
   useEffect(() => {
     if (!open) return;
-    form.reset(
-      course
-        ? {
-            name: course.name,
-            code: course.code,
-            departmentId: course.departmentId,
-            groupId: course.groupId ?? NO_GROUP,
-          }
-        : { name: '', code: '', departmentId: '', groupId: NO_GROUP },
-    );
+    form.reset(course ? { name: course.name, code: course.code } : { name: '', code: '' });
   }, [open, course, form]);
 
   async function onSubmit(values: CourseValues) {
@@ -67,8 +46,6 @@ export function CourseFormDialog({
       input: {
         name: values.name,
         code: values.code.toUpperCase(),
-        departmentId: values.departmentId,
-        groupId: values.groupId && values.groupId !== NO_GROUP ? values.groupId : null,
       },
     });
     onOpenChange(false);
@@ -94,49 +71,6 @@ export function CourseFormDialog({
             <Label htmlFor="code">Code</Label>
             <Input id="code" placeholder="MATH101" className="uppercase" {...form.register('code')} />
             {errors.code && <p className="text-xs text-danger">{errors.code.message}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="departmentId">Department</Label>
-            <Select
-              value={form.watch('departmentId')}
-              onValueChange={(value) => form.setValue('departmentId', value, { shouldValidate: true })}
-            >
-              <SelectTrigger id="departmentId">
-                <SelectValue placeholder="Choose a department" />
-              </SelectTrigger>
-              <SelectContent>
-                {(departments.data ?? []).map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.departmentId && (
-              <p className="text-xs text-danger">{errors.departmentId.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="groupId">Group</Label>
-            <Select
-              value={form.watch('groupId') || NO_GROUP}
-              onValueChange={(value) => form.setValue('groupId', value, { shouldValidate: true })}
-            >
-              <SelectTrigger id="groupId">
-                <SelectValue placeholder="Open to everyone" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_GROUP}>Open to everyone</SelectItem>
-                {(groups.data ?? []).map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {g.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.groupId && <p className="text-xs text-danger">{errors.groupId.message}</p>}
           </div>
 
           <DialogFooter>

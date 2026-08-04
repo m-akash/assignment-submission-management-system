@@ -72,9 +72,7 @@ export function ClassFormDialog({
             <div className="space-y-2">
               <Label htmlFor="level">Grade</Label>
               <Input id="level" type="number" min={1} max={12} placeholder="10" {...form.register('level')} />
-              <p className="text-xs text-muted-foreground">
-                1–12. Shown as a Roman numeral; groups start at 9.
-              </p>
+              <p className="text-xs text-muted-foreground">1–12. Shown as a Roman numeral.</p>
               {errors.level && <p className="text-xs text-danger">{errors.level.message}</p>}
             </div>
             <div className="space-y-2">

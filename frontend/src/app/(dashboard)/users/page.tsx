@@ -101,7 +101,7 @@ function UsersView() {
   const heading = HEADINGS[role];
   // Name, email, role, actions — plus the identity columns that only make sense for one
   // role. On the unfiltered list a mixed table would leave most of them blank.
-  const columnCount = role === 'Student' ? 7 : role === 'Teacher' ? 6 : 4;
+  const columnCount = role === 'Student' ? 6 : role === 'Teacher' ? 5 : 4;
   // The role is a heading here, not a filter the user needs telling about.
   const isFiltered = !!search || !!classId;
   const classOptions = (classes.data ?? []).map((c) => ({ value: c.id, label: c.name }));
@@ -186,16 +186,10 @@ function UsersView() {
                     {role === 'Student' && (
                       <>
                         <TableHead>Class</TableHead>
-                        <TableHead>Group</TableHead>
                         <TableHead>Student ID</TableHead>
                       </>
                     )}
-                    {role === 'Teacher' && (
-                      <>
-                        <TableHead>Department</TableHead>
-                        <TableHead>Teacher ID</TableHead>
-                      </>
-                    )}
+                    {role === 'Teacher' && <TableHead>Teacher ID</TableHead>}
                     <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -248,23 +242,15 @@ function UsersView() {
                             <TableCell className="text-muted-foreground">
                               {user.className ?? '—'}
                             </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {user.groupName ?? '—'}
-                            </TableCell>
                             <TableCell className="font-mono text-sm text-muted-foreground">
                               {user.studentId ?? '—'}
                             </TableCell>
                           </>
                         )}
                         {role === 'Teacher' && (
-                          <>
-                            <TableCell className="text-muted-foreground">
-                              {user.departmentName ?? '—'}
-                            </TableCell>
-                            <TableCell className="font-mono text-sm text-muted-foreground">
-                              {user.teacherId ?? '—'}
-                            </TableCell>
-                          </>
+                          <TableCell className="font-mono text-sm text-muted-foreground">
+                            {user.teacherId ?? '—'}
+                          </TableCell>
                         )}
                         <TableCell>
                           <DropdownMenu>

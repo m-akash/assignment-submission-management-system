@@ -81,17 +81,15 @@ function CoursesView() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Code</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Group</TableHead>
                     <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={5} />
+                    <TableSkeleton columns={3} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="p-0">
+                      <TableCell colSpan={3} className="p-0">
                         <EmptyState
                           icon={BookOpen}
                           title={search ? 'Nothing matches that search' : 'No courses yet'}
@@ -115,12 +113,6 @@ function CoursesView() {
                           <Badge variant="secondary" className="font-mono">
                             {course.code}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {course.departmentName ?? '—'}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {course.groupName ?? 'Open to everyone'}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>

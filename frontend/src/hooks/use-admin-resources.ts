@@ -4,16 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiDelete, apiGetPaged, apiPost, apiPut, toQuery } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
-import type {
-  ClassRoom,
-  Course,
-  Department,
-  Group,
-  Paged,
-  Role,
-  TeacherMapping,
-  User,
-} from '@/types/api';
+import type { ClassRoom, Course, Paged, Role, TeacherMapping, User } from '@/types/api';
 
 /** Shared shape of every list screen's server-side filter state. */
 export interface ListFilters {
@@ -43,8 +34,6 @@ export interface UserInput {
   password?: string;
   role: Role;
   classId?: string | null;
-  departmentId?: string | null;
-  groupId?: string | null;
 }
 
 export function useSaveUser() {
@@ -57,14 +46,10 @@ export function useSaveUser() {
             fullName: input.fullName,
             password: input.password || null,
             classId: input.classId || null,
-            departmentId: input.departmentId || null,
-            groupId: input.groupId || null,
           })
         : apiPost<User>('/api/v1/users', {
             ...input,
             classId: input.classId || null,
-            departmentId: input.departmentId || null,
-            groupId: input.groupId || null,
           }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
@@ -111,79 +96,9 @@ export function useDeleteClass() {
   return useResourceDelete('/api/v1/classes', queryKeys.classes.all, 'Class deleted');
 }
 
-// ── Departments ─────────────────────────────────────────────────────────────
-
-export function useDepartments(filters: ListFilters) {
-  return useQuery({
-    queryKey: queryKeys.departments.list(filters),
-    queryFn: () => apiGetPaged<Department>(`/api/v1/departments${toQuery({ ...filters })}`),
-  });
-}
-
-export function useDepartmentOptions() {
-  return useQuery({
-    queryKey: queryKeys.departments.options,
-    queryFn: () => apiGetPaged<Department>('/api/v1/departments?pageSize=100'),
-    staleTime: 5 * 60 * 1000,
-    select: (page: Paged<Department>) => page.items,
-  });
-}
-
-export interface DepartmentInput {
-  name: string;
-  code: string;
-}
-
-export function useSaveDepartment() {
-  return useResourceSave<Department, DepartmentInput>(
-    '/api/v1/departments',
-    queryKeys.departments.all,
-    'Department',
-  );
-}
-
-export function useDeleteDepartment() {
-  return useResourceDelete('/api/v1/departments', queryKeys.departments.all, 'Department deleted');
-}
-
-// ── Groups ──────────────────────────────────────────────────────────────────
-
-export function useGroups(filters: ListFilters) {
-  return useQuery({
-    queryKey: queryKeys.groups.list(filters),
-    queryFn: () => apiGetPaged<Group>(`/api/v1/groups${toQuery({ ...filters })}`),
-  });
-}
-
-export function useGroupOptions() {
-  return useQuery({
-    queryKey: queryKeys.groups.options,
-    queryFn: () => apiGetPaged<Group>('/api/v1/groups?pageSize=100'),
-    staleTime: 5 * 60 * 1000,
-    select: (page: Paged<Group>) => page.items,
-  });
-}
-
-export interface GroupInput {
-  name: string;
-  code: string;
-}
-
-export function useSaveGroup() {
-  return useResourceSave<Group, GroupInput>('/api/v1/groups', queryKeys.groups.all, 'Group');
-}
-
-export function useDeleteGroup() {
-  return useResourceDelete('/api/v1/groups', queryKeys.groups.all, 'Group deleted');
-}
-
 // ── Courses ────────────────────────────────────────────────────────────────
 
-export interface CourseFilters extends ListFilters {
-  departmentId?: string;
-}
-
-export function useCourses(filters: CourseFilters) {
+export function useCourses(filters: ListFilters) {
   return useQuery({
     queryKey: queryKeys.courses.list(filters),
     queryFn: () => apiGetPaged<Course>(`/api/v1/courses${toQuery({ ...filters })}`),
@@ -202,8 +117,6 @@ export function useCourseOptions() {
 export interface CourseInput {
   name: string;
   code: string;
-  departmentId: string;
-  groupId?: string | null;
 }
 
 export function useSaveCourse() {
