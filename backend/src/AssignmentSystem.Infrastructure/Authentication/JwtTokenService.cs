@@ -29,7 +29,7 @@ internal sealed class JwtTokenService : IJwtTokenService
     }
 
     public (string AccessToken, DateTime ExpiresAtUtc) GenerateAccessToken(
-        Guid userId, string email, string fullName, Role role, Guid? classId)
+        Guid userId, string email, string fullName, Role role)
     {
         var now = DateTime.UtcNow;
         var expires = now.AddMinutes(_options.AccessTokenMinutes);
@@ -41,7 +41,6 @@ internal sealed class JwtTokenService : IJwtTokenService
             new(JwtRegisteredClaimNames.Name, fullName),
             new(ClaimTypes.Role, role.ToString()),
             new(CustomClaims.Role, role.ToString()),
-            new(CustomClaims.ClassId, classId?.ToString() ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 
@@ -103,7 +102,7 @@ internal sealed class JwtTokenService : IJwtTokenService
         existing.Revoke(replacedByTokenHash: newHash);
         await _context.SaveChangesAsync(ct);
 
-        var (access, accessExpires) = GenerateAccessToken(user.Id, user.EmailValue, user.FullName, user.Role, user.ClassId);
+        var (access, accessExpires) = GenerateAccessToken(user.Id, user.EmailValue, user.FullName, user.Role);
         return new RefreshTokenRotation(user.Id, newPlain, newExpiresAt, access, accessExpires);
     }
 
@@ -148,9 +147,12 @@ internal sealed class JwtTokenService : IJwtTokenService
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }
 
-/// <summary>Custom claim types used in addition to the standard JWT claims.</summary>
+/// <summary>
+/// Custom claim types used in addition to the standard JWT claims. Class membership is
+/// deliberately not among them: a student's enrollments can change while a token is still
+/// valid, so authorization reads them from the roster instead (see <c>ICurrentUser</c>).
+/// </summary>
 public static class CustomClaims
 {
     public const string Role = "role";
-    public const string ClassId = "class_id";
 }

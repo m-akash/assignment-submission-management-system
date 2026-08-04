@@ -29,10 +29,10 @@ public class AssignmentSubmissionFlowTests : IntegrationTestBase
         // The seeded teacher's mapping for the seeded student's own class — the teacher
         // has several, and an assignment for any other class is invisible to this student.
         var studentClassId = await CurrentUserClassIdAsync(student);
-        var teacherAssignmentId = await SeededTeacherAssignmentIdAsync(teacher, studentClassId);
+        var classCourseId = await SeededClassCourseIdAsync(teacher, studentClassId);
 
         // 1. Create a draft, then publish it.
-        var assignment = await CreateAssignmentAsync(teacher, teacherAssignmentId, "Integration Test Assignment");
+        var assignment = await CreateAssignmentAsync(teacher, classCourseId, "Integration Test Assignment");
         assignment.Status.Should().Be(AssignmentStatus.Draft);
 
         var publish = await teacher.PostAsync($"/api/v1/assignments/{assignment.Id}/publish", null);

@@ -1,9 +1,8 @@
 using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
-using AssignmentSystem.Domain.Classes;
+using AssignmentSystem.Domain.ClassCourses;
 using AssignmentSystem.Domain.Common;
-using AssignmentSystem.Domain.Courses;
 using AssignmentSystem.Domain.TeacherAssignments;
 using AssignmentSystem.Domain.Users;
 using AssignmentSystem.Shared.Common;
@@ -14,22 +13,19 @@ public sealed class CreateTeacherAssignmentHandler : ICommandHandler<CreateTeach
 {
     private readonly IRepository<TeacherAssignment> _teacherAssignmentRepository;
     private readonly IRepository<ApplicationUser> _userRepository;
-    private readonly IRepository<Course> _courseRepository;
-    private readonly IRepository<Class> _classRepository;
+    private readonly IRepository<ClassCourse> _classCourseRepository;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly TeacherAssignmentMapper Mapper = new();
 
     public CreateTeacherAssignmentHandler(
         IRepository<TeacherAssignment> teacherAssignmentRepository,
         IRepository<ApplicationUser> userRepository,
-        IRepository<Course> courseRepository,
-        IRepository<Class> classRepository,
+        IRepository<ClassCourse> classCourseRepository,
         IUnitOfWork unitOfWork)
     {
         _teacherAssignmentRepository = teacherAssignmentRepository;
         _userRepository = userRepository;
-        _courseRepository = courseRepository;
-        _classRepository = classRepository;
+        _classCourseRepository = classCourseRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -41,19 +37,16 @@ public sealed class CreateTeacherAssignmentHandler : ICommandHandler<CreateTeach
             return Result<TeacherAssignmentDto>.Failure(Error.Validation("Teacher.Invalid", "The selected user is not an active teacher."));
         }
 
-        var course = await _courseRepository.GetByIdAsync(command.CourseId, ct);
-        if (course is null)
+        // One lookup instead of the two this used to need. The offering already guarantees
+        // the class actually studies the course, so there is no longer a (class, course)
+        // pair to validate against each other here.
+        var offering = await _classCourseRepository.GetByIdAsync(command.ClassCourseId, ct);
+        if (offering is null)
         {
-            return Result<TeacherAssignmentDto>.Failure(Error.NotFound("Course.NotFound", "The specified course was not found."));
+            return Result<TeacherAssignmentDto>.Failure(Error.NotFound("ClassCourse.NotFound", "The specified course offering was not found."));
         }
 
-        var classObj = await _classRepository.GetByIdAsync(command.ClassId, ct);
-        if (classObj is null)
-        {
-            return Result<TeacherAssignmentDto>.Failure(Error.NotFound("Class.NotFound", "The specified class was not found."));
-        }
-
-        var duplicateSpec = new TeacherAssignmentDuplicateSpecification(command.TeacherId, command.CourseId, command.ClassId);
+        var duplicateSpec = new TeacherAssignmentDuplicateSpecification(command.TeacherId, command.ClassCourseId);
         var alreadyAssigned = await _teacherAssignmentRepository.AnyAsync(duplicateSpec, ct);
         if (alreadyAssigned)
         {
@@ -62,7 +55,7 @@ public sealed class CreateTeacherAssignmentHandler : ICommandHandler<CreateTeach
 
         try
         {
-            var teacherAssignment = TeacherAssignment.Create(command.TeacherId, command.CourseId, command.ClassId);
+            var teacherAssignment = TeacherAssignment.Create(command.TeacherId, command.ClassCourseId);
             await _teacherAssignmentRepository.AddAsync(teacherAssignment, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
@@ -70,7 +63,15 @@ public sealed class CreateTeacherAssignmentHandler : ICommandHandler<CreateTeach
             var fetchSpec = new TeacherAssignmentWithDetailsSpecification(teacherAssignment.Id);
             var savedAssignment = await _teacherAssignmentRepository.FirstOrDefaultAsync(fetchSpec, ct);
 
-            return Mapper.MapToDto(savedAssignment ?? teacherAssignment);
+            if (savedAssignment is null)
+            {
+                // Unreachable — see the note on CreateAssignmentHandler. The DTO needs the
+                // teacher, class and course names, which live behind navigations.
+                return Result<TeacherAssignmentDto>.Failure(Error.Failure(
+                    "TeacherAssignment.NotReloaded", "The mapping was created but could not be read back."));
+            }
+
+            return Mapper.MapToDto(savedAssignment);
         }
         catch (DomainException ex)
         {
@@ -128,7 +129,7 @@ public sealed class GetTeacherAssignmentsHandler : IQueryHandler<GetTeacherAssig
             : query.TeacherId;
 
         var spec = new TeacherAssignmentsPagedSpecification(
-            teacherId, query.CourseId, query.ClassId, query.Search, query.Page, query.PageSize);
+            teacherId, query.CourseId, query.ClassId, query.ClassCourseId, query.Search, query.Page, query.PageSize);
         var pagedAssignments = await _teacherAssignmentRepository.ListPagedAsync(spec, ct);
 
         var items = pagedAssignments.Items.Select(Mapper.MapToDto).ToList();

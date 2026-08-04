@@ -1,7 +1,9 @@
 using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Domain.Assignments;
+using AssignmentSystem.Domain.ClassCourses;
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Courses;
+using AssignmentSystem.Domain.Enrollments;
 using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Domain.Submissions;
 using AssignmentSystem.Domain.TeacherAssignments;
@@ -14,10 +16,15 @@ namespace AssignmentSystem.Infrastructure.Persistence.Seed;
 /// <summary>
 /// Idempotent database seeder. Creates the demo Admin/Teacher/Student accounts (the
 /// ones documented in the README) plus a wider sample dataset — 10 classes, 12
-/// courses, 12 teachers, 15 students, 15 teacher-assignments, 15 assignments and 15
-/// submissions spread across every status — so an evaluator sees a populated system
-/// immediately instead of three empty accounts. Skips entirely once the admin account
-/// already exists.
+/// courses, 15 course offerings, 12 teachers, 15 students with their enrollments,
+/// 15 teaching mappings, 15 assignments and 15 submissions spread across every status —
+/// so an evaluator sees a populated system immediately instead of three empty accounts.
+/// Skips entirely once the admin account already exists.
+///
+/// Deliberately queues no notifications. They are a consequence of a teacher publishing or
+/// a student submitting, and manufacturing a backlog of them would mean a fresh checkout
+/// tries to email fifteen fictional addresses the moment it starts. Publish an assignment
+/// from the UI to see the outbox fill.
 /// </summary>
 public sealed class DbSeeder
 {
@@ -163,24 +170,31 @@ public sealed class DbSeeder
             return $"{prefix}-{sequence:D3}";
         }
 
-        var students = new[]
+        // Class membership is a StudentEnrollment row now, so the class each student sits in
+        // is tracked alongside them here and turned into enrollments once ids exist.
+        var studentPlacements = new (string Email, string Name, Class Class)[]
         {
-            ApplicationUser.Create(StudentEmail, "Jane Student", passwordHash, Role.Student, class10A.Id, NextStudentId(class10A)),
-            ApplicationUser.Create("student2@assignment.test", "Arif Hasan", passwordHash, Role.Student, class6A.Id, NextStudentId(class6A)),
-            ApplicationUser.Create("student3@assignment.test", "Priya Sultana", passwordHash, Role.Student, class6A.Id, NextStudentId(class6A)),
-            ApplicationUser.Create("student4@assignment.test", "Tanvir Alam", passwordHash, Role.Student, class6B.Id, NextStudentId(class6B)),
-            ApplicationUser.Create("student5@assignment.test", "Nadia Islam", passwordHash, Role.Student, class7A.Id, NextStudentId(class7A)),
-            ApplicationUser.Create("student6@assignment.test", "Omar Faruk", passwordHash, Role.Student, class7A.Id, NextStudentId(class7A)),
-            ApplicationUser.Create("student7@assignment.test", "Lamia Akter", passwordHash, Role.Student, class7B.Id, NextStudentId(class7B)),
-            ApplicationUser.Create("student8@assignment.test", "Zubair Rahman", passwordHash, Role.Student, class8A.Id, NextStudentId(class8A)),
-            ApplicationUser.Create("student9@assignment.test", "Rakib Hossain", passwordHash, Role.Student, class8B.Id, NextStudentId(class8B)),
-            ApplicationUser.Create("student10@assignment.test", "Sadia Islam", passwordHash, Role.Student, class9A.Id, NextStudentId(class9A)),
-            ApplicationUser.Create("student11@assignment.test", "Mahin Khan", passwordHash, Role.Student, class9B.Id, NextStudentId(class9B)),
-            ApplicationUser.Create("student12@assignment.test", "Farzana Rahman", passwordHash, Role.Student, class10A.Id, NextStudentId(class10A)),
-            ApplicationUser.Create("student13@assignment.test", "Hasib Chowdhury", passwordHash, Role.Student, class10B.Id, NextStudentId(class10B)),
-            ApplicationUser.Create("student14@assignment.test", "Ayesha Siddika", passwordHash, Role.Student, class10B.Id, NextStudentId(class10B)),
-            ApplicationUser.Create("student15@assignment.test", "Kamrul Islam", passwordHash, Role.Student, class9A.Id, NextStudentId(class9A)),
+            (StudentEmail, "Jane Student", class10A),
+            ("student2@assignment.test", "Arif Hasan", class6A),
+            ("student3@assignment.test", "Priya Sultana", class6A),
+            ("student4@assignment.test", "Tanvir Alam", class6B),
+            ("student5@assignment.test", "Nadia Islam", class7A),
+            ("student6@assignment.test", "Omar Faruk", class7A),
+            ("student7@assignment.test", "Lamia Akter", class7B),
+            ("student8@assignment.test", "Zubair Rahman", class8A),
+            ("student9@assignment.test", "Rakib Hossain", class8B),
+            ("student10@assignment.test", "Sadia Islam", class9A),
+            ("student11@assignment.test", "Mahin Khan", class9B),
+            ("student12@assignment.test", "Farzana Rahman", class10A),
+            ("student13@assignment.test", "Hasib Chowdhury", class10B),
+            ("student14@assignment.test", "Ayesha Siddika", class10B),
+            ("student15@assignment.test", "Kamrul Islam", class9A),
         };
+
+        var students = studentPlacements
+            .Select(p => ApplicationUser.Create(
+                p.Email, p.Name, passwordHash, Role.Student, NextStudentId(p.Class)))
+            .ToArray();
         _context.Users.AddRange(students);
         var jane = students[0];
         var arif = students[1];
@@ -201,37 +215,62 @@ public sealed class DbSeeder
 
         await _context.SaveChangesAsync(ct); // persist to resolve generated IDs
 
-        // ── Teacher assignments (15): who may teach/grade what, where ───────────────
-        var teacherAssignments = new[]
+        // ── Enrollments (15): one class each, matching the placements above ─────────
+        _context.StudentEnrollments.AddRange(
+            students.Select((student, i) =>
+                StudentEnrollment.Create(student.Id, studentPlacements[i].Class.Id, now)));
+
+        // ── Course offerings (15): which courses each class studies ─────────────────
+        // Every teaching mapping and assignment below hangs off one of these, so the
+        // catalogue has to exist before either.
+        var offeringPlan = new (Class Class, Course Course)[]
         {
-            TeacherAssignment.Create(johnTeacher.Id, math.Id, class10A.Id),
-            TeacherAssignment.Create(johnTeacher.Id, physics.Id, class10A.Id),
-            TeacherAssignment.Create(johnTeacher.Id, math.Id, class10B.Id),
-            TeacherAssignment.Create(sarah.Id, english.Id, class6A.Id),
-            TeacherAssignment.Create(kamal.Id, bangla.Id, class6B.Id),
-            TeacherAssignment.Create(nusrat.Id, chemistry.Id, class9A.Id),
-            TeacherAssignment.Create(farhan.Id, biology.Id, class9B.Id),
-            TeacherAssignment.Create(rima.Id, ict.Id, class8A.Id),
-            TeacherAssignment.Create(imran.Id, history.Id, class8B.Id),
-            TeacherAssignment.Create(tania.Id, geography.Id, class7A.Id),
-            TeacherAssignment.Create(shakil.Id, economics.Id, class7B.Id),
-            TeacherAssignment.Create(mou.Id, accounting.Id, class10B.Id),
-            TeacherAssignment.Create(rafiq.Id, higherMath.Id, class9A.Id),
-            TeacherAssignment.Create(sabrina.Id, physics.Id, class9B.Id),
-            TeacherAssignment.Create(nusrat.Id, chemistry.Id, class9B.Id),
+            (class10A, math),
+            (class10A, physics),
+            (class10B, math),
+            (class6A, english),
+            (class6B, bangla),
+            (class9A, chemistry),
+            (class9B, biology),
+            (class8A, ict),
+            (class8B, history),
+            (class7A, geography),
+            (class7B, economics),
+            (class10B, accounting),
+            (class9A, higherMath),
+            (class9B, physics),
+            (class9B, chemistry),
         };
+
+        var offerings = offeringPlan
+            .Select(p => ClassCourse.Create(p.Class.Id, p.Course.Id))
+            .ToArray();
+        _context.ClassCourses.AddRange(offerings);
+        await _context.SaveChangesAsync(ct);
+
+        // ── Teaching mappings (15): who may set and grade work for each offering ────
+        var teachersByOffering = new[]
+        {
+            johnTeacher, johnTeacher, johnTeacher, sarah, kamal,
+            nusrat, farhan, rima, imran, tania,
+            shakil, mou, rafiq, sabrina, nusrat,
+        };
+
+        var teacherAssignments = offerings
+            .Select((offering, i) => TeacherAssignment.Create(teachersByOffering[i].Id, offering.Id))
+            .ToArray();
         _context.TeacherAssignments.AddRange(teacherAssignments);
         await _context.SaveChangesAsync(ct);
 
         // ── Assignments (15): mostly Published, two Draft (not visible to students) ──
+        // Indexed by teaching mapping so each assignment is authored by a teacher who is
+        // actually mapped to its offering — the same rule CreateAssignmentHandler enforces.
         Assignment MakeAssignment(int taIndex, string title, string description, TimeSpan untilDeadline, decimal maxMarks, bool publish)
         {
             var ta = teacherAssignments[taIndex];
             var assignment = Assignment.Create(
                 teacherId: ta.TeacherId,
-                courseId: ta.CourseId,
-                classId: ta.ClassId,
-                teacherAssignmentId: ta.Id,
+                classCourseId: ta.ClassCourseId,
                 title: title,
                 description: description,
                 deadlineUtc: now.Add(untilDeadline),
@@ -306,11 +345,12 @@ public sealed class DbSeeder
         await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Seed complete: {Classes} classes, {Courses} courses, {Teachers} teachers, {Students} students, " +
-            "{TeacherAssignments} teacher-assignments, {Assignments} assignments, {Submissions} submissions. " +
+            "Seed complete: {Classes} classes, {Courses} courses, {Offerings} offerings, {Teachers} teachers, " +
+            "{Students} students, {Enrollments} enrollments, {TeacherAssignments} teaching mappings, " +
+            "{Assignments} assignments, {Submissions} submissions. " +
             "Demo logins — admin={Admin}, teacher={Teacher}, student={Student}",
-            classes.Length, courses.Length, teachers.Length, students.Length,
-            teacherAssignments.Length, 15, 15,
+            classes.Length, courses.Length, offerings.Length, teachers.Length,
+            students.Length, students.Length, teacherAssignments.Length, 15, 15,
             AdminEmail, TeacherEmail, StudentEmail);
     }
 

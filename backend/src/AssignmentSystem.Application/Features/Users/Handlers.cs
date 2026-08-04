@@ -3,6 +3,7 @@ using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
+using AssignmentSystem.Domain.Enrollments;
 using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Domain.Users;
 using AssignmentSystem.Shared.Common;
@@ -10,29 +11,40 @@ using AssignmentSystem.Application.Features.Auth;
 
 namespace AssignmentSystem.Application.Features.Users;
 
+/// <summary>
+/// Creates a user, and for a student their first enrollment in the same transaction —
+/// the domain cannot enforce "a student has a class" from inside the entity now that
+/// membership is a separate row, so this handler is the choke point that guarantees it.
+/// </summary>
 public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserDto>
 {
     private readonly IRepository<ApplicationUser> _userRepository;
     private readonly IRepository<Class> _classRepository;
+    private readonly IRepository<StudentEnrollment> _enrollmentRepository;
     private readonly IClassRosterRepository _classRosterRepository;
     private readonly ITeacherRosterRepository _teacherRosterRepository;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly UserMapper Mapper = new();
 
     public CreateUserHandler(
         IRepository<ApplicationUser> userRepository,
         IRepository<Class> classRepository,
+        IRepository<StudentEnrollment> enrollmentRepository,
         IClassRosterRepository classRosterRepository,
         ITeacherRosterRepository teacherRosterRepository,
         IPasswordHasher passwordHasher,
+        IClock clock,
         IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
         _classRepository = classRepository;
+        _enrollmentRepository = enrollmentRepository;
         _classRosterRepository = classRosterRepository;
         _teacherRosterRepository = teacherRosterRepository;
         _passwordHasher = passwordHasher;
+        _clock = clock;
         _unitOfWork = unitOfWork;
     }
 
@@ -45,6 +57,8 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
             return Result<UserDto>.Failure(Error.Conflict("User.EmailAlreadyTaken", "A user with this email already exists."));
         }
 
+        // The student id is derived from the class they start in, so the class has to be
+        // resolved before the user is built even though the enrollment is written after it.
         string? studentId = null;
         if (command.ClassId.HasValue)
         {
@@ -78,15 +92,22 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
                 command.FullName,
                 passwordHash,
                 command.Role,
-                command.ClassId,
                 studentId,
                 teacherId);
 
             await _userRepository.AddAsync(user, ct);
+
+            if (command.Role == Role.Student && command.ClassId is { } classId)
+            {
+                await _enrollmentRepository.AddAsync(
+                    StudentEnrollment.Create(user.Id, classId, _clock.UtcNow), ct);
+            }
+
+            // One SaveChanges for both rows: a student is never persisted classless.
             await _unitOfWork.SaveChangesAsync(ct);
 
-            // Fetch again with Class included for full DTO mapping
-            var fetchSpec = new UserWithClassByIdSpecification(user.Id);
+            // Fetch again with enrollments included for full DTO mapping
+            var fetchSpec = new UserWithClassesByIdSpecification(user.Id);
             var savedUser = await _userRepository.FirstOrDefaultAsync(fetchSpec, ct);
 
             return Mapper.MapToDto(savedUser ?? user);
@@ -112,26 +133,23 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
 public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand, UserDto>
 {
     private readonly IRepository<ApplicationUser> _userRepository;
-    private readonly IRepository<Class> _classRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly UserMapper Mapper = new();
 
     public UpdateUserHandler(
         IRepository<ApplicationUser> userRepository,
-        IRepository<Class> classRepository,
         IPasswordHasher passwordHasher,
         IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
-        _classRepository = classRepository;
         _passwordHasher = passwordHasher;
         _unitOfWork = unitOfWork;
     }
 
     public async Task<Result<UserDto>> HandleAsync(UpdateUserCommand command, CancellationToken ct = default)
     {
-        var fetchSpec = new UserWithClassByIdSpecification(command.Id);
+        var fetchSpec = new UserWithClassesByIdSpecification(command.Id);
         var user = await _userRepository.FirstOrDefaultAsync(fetchSpec, ct);
         if (user is null)
         {
@@ -142,16 +160,6 @@ public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand, UserD
         {
             user.UpdateProfile(command.FullName);
 
-            if (command.ClassId.HasValue && command.ClassId.Value != user.ClassId)
-            {
-                var effectiveClass = await _classRepository.GetByIdAsync(command.ClassId.Value, ct);
-                if (effectiveClass is null)
-                {
-                    return Result<UserDto>.Failure(Error.NotFound("Class.NotFound", "The specified class was not found."));
-                }
-                user.AssignToClass(command.ClassId.Value);
-            }
-
             if (!string.IsNullOrWhiteSpace(command.Password))
             {
                 user.SetPasswordHash(_passwordHasher.Hash(command.Password));
@@ -160,7 +168,7 @@ public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand, UserD
             _userRepository.Update(user);
             await _unitOfWork.SaveChangesAsync(ct);
 
-            // Fetch again with Class included for full DTO mapping
+            // Fetch again with enrollments included for full DTO mapping
             var updatedUser = await _userRepository.FirstOrDefaultAsync(fetchSpec, ct);
             return Mapper.MapToDto(updatedUser ?? user);
         }
@@ -215,7 +223,7 @@ public sealed class GetUserByIdHandler : IQueryHandler<GetUserByIdQuery, UserDto
 
     public async Task<Result<UserDto>> HandleAsync(GetUserByIdQuery query, CancellationToken ct = default)
     {
-        var spec = new UserWithClassByIdSpecification(query.Id);
+        var spec = new UserWithClassesByIdSpecification(query.Id);
         var user = await _userRepository.FirstOrDefaultAsync(spec, ct);
         if (user is null)
         {
@@ -250,7 +258,7 @@ public sealed class GetCurrentUserHandler : IQueryHandler<GetCurrentUserQuery, U
             return Result<UserDto>.Failure(Error.Unauthorized("Auth.NotAuthenticated", "Authentication is required."));
         }
 
-        var spec = new UserWithClassByIdSpecification(userId);
+        var spec = new UserWithClassesByIdSpecification(userId);
         var user = await _userRepository.FirstOrDefaultAsync(spec, ct);
 
         // The token is valid but the account is gone or deactivated — treat as unauthenticated

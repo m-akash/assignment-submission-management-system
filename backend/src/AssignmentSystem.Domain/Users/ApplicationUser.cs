@@ -1,5 +1,5 @@
-using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
+using AssignmentSystem.Domain.Enrollments;
 using AssignmentSystem.Domain.Enums;
 
 namespace AssignmentSystem.Domain.Users;
@@ -7,7 +7,9 @@ namespace AssignmentSystem.Domain.Users;
 /// <summary>
 /// Application user — all three roles (Admin, Teacher, Student) in one table,
 /// discriminated by <see cref="Role"/>. Password hash is stored (never the plain
-/// password); students carry a <see cref="ClassId"/>. Supports soft delete + activation.
+/// password). Class membership is not a column here: a student's classes are
+/// <see cref="StudentEnrollment"/> rows, so one student can belong to several.
+/// Supports soft delete + activation.
 /// </summary>
 public sealed class ApplicationUser : BaseEntity, ISoftDeletable
 {
@@ -17,10 +19,6 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
     public string FullName { get; private set; } = null!;
     public string PasswordHash { get; private set; } = null!;
     public Role Role { get; private set; }
-
-    /// <summary>Class id — only meaningful for students (null for admin/teacher).</summary>
-    public Guid? ClassId { get; private set; }
-    public Class? Class { get; private set; }
 
     /// <summary>
     /// Human-readable school id, e.g. "10-A-003" (class grade - section - sequence).
@@ -47,6 +45,10 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
     private readonly List<RefreshToken> _refreshTokens = [];
     public IReadOnlyCollection<RefreshToken> RefreshTokens => _refreshTokens.AsReadOnly();
 
+    // ── Class membership (students only) ──────────────────────────────────────
+    private readonly List<StudentEnrollment> _enrollments = [];
+    public IReadOnlyCollection<StudentEnrollment> Enrollments => _enrollments.AsReadOnly();
+
     private ApplicationUser() { }
 
     public static ApplicationUser Create(
@@ -54,7 +56,6 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
         string fullName,
         string passwordHash,
         Role role,
-        Guid? classId = null,
         string? studentId = null,
         string? teacherId = null)
     {
@@ -68,19 +69,10 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
             throw new DomainException("Password hash is required.");
         }
 
-        // A student must belong to a class; admins/teachers must not.
-        if (role == Role.Student && classId is null)
-        {
-            throw new DomainException("A student must be assigned to a class.");
-        }
-
-        if (role != Role.Student && classId is not null)
-        {
-            throw new DomainException("Only students may be assigned to a class.");
-        }
-
-        // Same shape as the class rule above: students must have a student id, and
-        // only students may.
+        // Students must have a student id, and only students may. The class they sit in
+        // is a StudentEnrollment row, created alongside the user by the handler — this
+        // entity cannot enforce "a student has at least one class" on its own, so
+        // CreateUserHandler does (and the validator refuses the request without one).
         if (role == Role.Student && string.IsNullOrWhiteSpace(studentId))
         {
             throw new DomainException("A student must have a student id.");
@@ -107,7 +99,6 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
             FullName = fullName.Trim(),
             PasswordHash = passwordHash,
             Role = role,
-            ClassId = classId,
             StudentId = studentId?.Trim(),
             TeacherId = teacherId?.Trim(),
             IsActive = true,
@@ -134,11 +125,16 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
         PasswordHash = passwordHash;
     }
 
-    public void AssignToClass(Guid classId)
+    /// <summary>
+    /// Enrols this student into a class. Idempotent — re-enrolling into a class they are
+    /// already in is a no-op rather than an error, so a repeated admin action cannot
+    /// create a duplicate the unique index would then reject.
+    /// </summary>
+    public StudentEnrollment EnrollIn(Guid classId, DateTime enrolledAtUtc)
     {
         if (Role != Role.Student)
         {
-            throw new DomainException("Only students may be assigned to a class.");
+            throw new DomainException("Only students may be enrolled in a class.");
         }
 
         if (classId == Guid.Empty)
@@ -146,8 +142,19 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
             throw new DomainException("A valid class id is required.");
         }
 
-        ClassId = classId;
+        var existing = _enrollments.Find(e => e.ClassId == classId);
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var enrollment = StudentEnrollment.Create(Id, classId, enrolledAtUtc);
+        _enrollments.Add(enrollment);
+        return enrollment;
     }
+
+    /// <summary>True when the student is enrolled in the given class (rule B1).</summary>
+    public bool IsEnrolledIn(Guid classId) => _enrollments.Exists(e => e.ClassId == classId);
 
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;

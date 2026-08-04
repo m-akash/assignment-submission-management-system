@@ -116,15 +116,18 @@ public sealed class UploadAssignmentFileHandler : ICommandHandler<UploadAssignme
 public sealed class DownloadAssignmentFileHandler : IQueryHandler<DownloadAssignmentFileQuery, AssignmentFileDownloadResult>
 {
     private readonly IRepository<AssignmentFile> _fileRepository;
+    private readonly IClassRosterRepository _roster;
     private readonly IFileStorage _fileStorage;
     private readonly ICurrentUser _currentUser;
 
     public DownloadAssignmentFileHandler(
         IRepository<AssignmentFile> fileRepository,
+        IClassRosterRepository roster,
         IFileStorage fileStorage,
         ICurrentUser currentUser)
     {
         _fileRepository = fileRepository;
+        _roster = roster;
         _fileStorage = fileStorage;
         _currentUser = currentUser;
     }
@@ -147,8 +150,14 @@ public sealed class DownloadAssignmentFileHandler : IQueryHandler<DownloadAssign
 
         if (_currentUser.Role == Role.Student)
         {
-            // B1: same class, and published — a draft's attachments are not visible either.
-            if (assignment.ClassId != _currentUser.ClassId || assignment.Status != AssignmentStatus.Published)
+            // B1 + X3: enrolled in the offering's class, and the assignment published — a
+            // draft's attachments are not visible either. Status is checked first because it
+            // needs no query.
+            var isEnrolled = assignment.Status == AssignmentStatus.Published
+                && await _roster.IsEnrolledAsync(
+                    _currentUser.UserId.GetValueOrDefault(), assignment.ClassCourse.ClassId, ct);
+
+            if (!isEnrolled)
             {
                 return Result<AssignmentFileDownloadResult>.Failure(Error.Forbidden("AssignmentFile.Forbidden", "You do not have permission to download this file."));
             }

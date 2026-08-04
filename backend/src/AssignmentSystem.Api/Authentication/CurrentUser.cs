@@ -47,14 +47,5 @@ internal sealed class CurrentUser : ICurrentUser
         }
     }
 
-    public Guid? ClassId
-    {
-        get
-        {
-            var classId = Principal?.FindFirst(CustomClaims.ClassId)?.Value;
-            return Guid.TryParse(classId, out var id) && id != Guid.Empty ? id : null;
-        }
-    }
-
     public bool IsInRole(Role role) => Role == role;
 }

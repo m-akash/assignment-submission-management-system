@@ -98,6 +98,14 @@ try
         SwaggerSetup.AddJwtBearerSecurity(options);
     });
 
+    // ── Notification outbox dispatcher ────────────────────────────────────────
+    // Opt-out via Email:EnableDispatcher so integration tests can assert on queued rows
+    // without a timer racing them, and so a second instance can be run purely as an API.
+    if (builder.Configuration.GetValue("Email:EnableDispatcher", true))
+    {
+        builder.Services.AddHostedService<AssignmentSystem.Api.BackgroundServices.NotificationDispatcherService>();
+    }
+
     // ── Cross-cutting ─────────────────────────────────────────────────────────
     builder.Services.AddHealthChecks()
         .AddDbContextCheck<AppDbContext>();

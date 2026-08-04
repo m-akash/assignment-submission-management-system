@@ -123,7 +123,7 @@ public class AssignmentFileAuthorizationTests : IntegrationTestBase
         using var teacher = await SignInAsync(world.TeacherEmail);
         using var student = await SignInAsync(world.StudentEmail);
 
-        var draft = await CreateAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var draft = await CreateAssignmentAsync(teacher, world.ClassCourseId);
         var upload = await UploadAsync(teacher, draft.Id, "handout.pdf", PdfBytes);
         upload.EnsureSuccessStatusCode();
         var file = await ReadAsync<AssignmentFileDto>(upload);
@@ -243,7 +243,7 @@ public class AssignmentFileAuthorizationTests : IntegrationTestBase
         var world = await ProvisionWorldAsync(label);
         var teacher = await SignInAsync(world.TeacherEmail);
         var student = await SignInAsync(world.StudentEmail);
-        var assignment = await CreatePublishedAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
         return new Scenario(world, assignment, teacher, student);
     }

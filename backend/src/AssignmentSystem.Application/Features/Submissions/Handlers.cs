@@ -1,6 +1,10 @@
 using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
+// AssignmentWithScopeSpecification: the submission paths need the assignment's offering to
+// resolve its class (rule B1) and to name the course in a notification. Reused rather than
+// redeclared so there is one definition of "an assignment plus its scope".
+using AssignmentSystem.Application.Features.Assignments;
 using AssignmentSystem.Domain.Assignments;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Enums;
@@ -14,6 +18,8 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
 {
     private readonly IRepository<Submission> _submissionRepository;
     private readonly IRepository<Assignment> _assignmentRepository;
+    private readonly IClassRosterRepository _roster;
+    private readonly INotificationOutbox _notifications;
     private readonly ICurrentUser _currentUser;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
@@ -22,12 +28,16 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
     public SubmitAssignmentHandler(
         IRepository<Submission> submissionRepository,
         IRepository<Assignment> assignmentRepository,
+        IClassRosterRepository roster,
+        INotificationOutbox notifications,
         ICurrentUser currentUser,
         IClock clock,
         IUnitOfWork unitOfWork)
     {
         _submissionRepository = submissionRepository;
         _assignmentRepository = assignmentRepository;
+        _roster = roster;
+        _notifications = notifications;
         _currentUser = currentUser;
         _clock = clock;
         _unitOfWork = unitOfWork;
@@ -40,14 +50,19 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
             return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "Only students can submit assignments."));
         }
 
-        var assignment = await _assignmentRepository.GetByIdAsync(command.AssignmentId, ct);
+        // Loaded with its offering: the class id behind the B1 check lives there, and the
+        // notification body needs the class and course names.
+        var scopeSpec = new AssignmentWithScopeSpecification(command.AssignmentId);
+        var assignment = await _assignmentRepository.FirstOrDefaultAsync(scopeSpec, ct);
         if (assignment is null)
         {
             return Result<SubmissionDto>.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        // B1: Student can only submit to assignments for their class
-        if (assignment.ClassId != _currentUser.ClassId)
+        // B1: Student can only submit to assignments for a class they are enrolled in
+        var isEnrolled = await _roster.IsEnrolledAsync(
+            _currentUser.UserId.GetValueOrDefault(), assignment.ClassCourse.ClassId, ct);
+        if (!isEnrolled)
         {
             return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "You do not belong to the class for this assignment."));
         }
@@ -61,6 +76,11 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
         // Check if submission already exists (e.g. created during file upload)
         var spec = new SubmissionByStudentAndAssignmentSpecification(_currentUser.UserId.GetValueOrDefault(), command.AssignmentId);
         var submission = await _submissionRepository.FirstOrDefaultAsync(spec, ct);
+
+        // Whether the teacher has already been told about this one. A student may edit a
+        // draft submission repeatedly before the deadline; only the first crossing into a
+        // submitted state is news, so the teacher is not mailed on every keystroke-save.
+        var wasAlreadySubmitted = submission is { Status: SubmissionStatus.Submitted or SubmissionStatus.Late };
 
         try
         {
@@ -86,10 +106,16 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
                     finalize: true);
 
                 await _submissionRepository.AddAsync(submission, ct);
-                
+
                 // Track submission count increment in assignment
                 assignment.IncrementSubmissionCount();
                 _assignmentRepository.Update(assignment);
+            }
+
+            var isNowSubmitted = submission.Status is SubmissionStatus.Submitted or SubmissionStatus.Late;
+            if (isNowSubmitted && !wasAlreadySubmitted)
+            {
+                await _notifications.QueueSubmissionReceivedAsync(submission, assignment, ct);
             }
 
             await _unitOfWork.SaveChangesAsync(ct);
@@ -171,6 +197,7 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
 {
     private readonly IRepository<Submission> _submissionRepository;
     private readonly IRepository<Assignment> _assignmentRepository;
+    private readonly INotificationOutbox _notifications;
     private readonly ICurrentUser _currentUser;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
@@ -179,12 +206,14 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
     public ReviewSubmissionHandler(
         IRepository<Submission> submissionRepository,
         IRepository<Assignment> assignmentRepository,
+        INotificationOutbox notifications,
         ICurrentUser currentUser,
         IClock clock,
         IUnitOfWork unitOfWork)
     {
         _submissionRepository = submissionRepository;
         _assignmentRepository = assignmentRepository;
+        _notifications = notifications;
         _currentUser = currentUser;
         _clock = clock;
         _unitOfWork = unitOfWork;
@@ -204,7 +233,9 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
             return Result<SubmissionDto>.Failure(Error.NotFound("Submission.NotFound", "The specified submission was not found."));
         }
 
-        var assignment = await _assignmentRepository.GetByIdAsync(submission.AssignmentId, ct);
+        // With its offering loaded: the notification body names the course and class.
+        var assignmentSpec = new AssignmentWithScopeSpecification(submission.AssignmentId);
+        var assignment = await _assignmentRepository.FirstOrDefaultAsync(assignmentSpec, ct);
         if (assignment is null)
         {
             return Result<SubmissionDto>.Failure(Error.NotFound("Assignment.NotFound", "The associated assignment was not found."));
@@ -221,6 +252,11 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
             if (command.Status == SubmissionStatus.Graded)
             {
                 submission.Grade(command.Marks, command.Feedback, _currentUser.UserId.GetValueOrDefault(), assignment, _clock);
+
+                // Only Graded is worth an email. A teacher moving a submission back to
+                // Pending for re-evaluation (rule B7) is bookkeeping, not news — and mailing
+                // it would tell the student marks are ready when they have just been withdrawn.
+                await _notifications.QueueSubmissionGradedAsync(submission, assignment, ct);
             }
             else
             {
@@ -337,7 +373,11 @@ public sealed class GetSubmissionsHandler : IQueryHandler<GetSubmissionsQuery, P
     {
         var studentId = query.StudentId;
         var assignmentId = query.AssignmentId;
-        List<Guid>? teacherAssignmentIds = null;
+
+        // The assignments a teacher authored — used to restrict the list to submissions
+        // against their own work. Named for what it holds: these are assignment ids, not
+        // ids of the teacher↔offering mappings that TeacherAssignment now refers to.
+        List<Guid>? authoredAssignmentIds = null;
 
         // Scoping
         if (_currentUser.Role == Role.Student)
@@ -358,15 +398,15 @@ public sealed class GetSubmissionsHandler : IQueryHandler<GetSubmissionsQuery, P
             }
             else
             {
-                // Find all assignments taught by this teacher
-                var teacherAssignmentsSpec = new AssignmentsByTeacherSpecification(teacherId);
-                var teacherAssignments = await _assignmentRepository.ListAsync(teacherAssignmentsSpec, ct);
-                teacherAssignmentIds = teacherAssignments.Select(a => a.Id).ToList();
+                // Every assignment this teacher authored
+                var authoredSpec = new AssignmentsByTeacherSpecification(teacherId);
+                var authored = await _assignmentRepository.ListAsync(authoredSpec, ct);
+                authoredAssignmentIds = authored.Select(a => a.Id).ToList();
             }
         }
 
         var spec = new SubmissionsPagedSpecification(
-            assignmentId, teacherAssignmentIds, studentId, query.Status, query.Search, query.Page, query.PageSize);
+            assignmentId, authoredAssignmentIds, studentId, query.Status, query.Search, query.Page, query.PageSize);
         var pagedSubmissions = await _submissionRepository.ListPagedAsync(spec, ct);
 
         var items = pagedSubmissions.Items.Select(Mapper.MapToDto).ToList();
@@ -389,6 +429,7 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
     private readonly IRepository<Submission> _submissionRepository;
     private readonly IRepository<SubmissionFile> _fileRepository;
     private readonly IRepository<Assignment> _assignmentRepository;
+    private readonly IClassRosterRepository _roster;
     private readonly IFileStorage _fileStorage;
     private readonly IFileUploadPolicy _uploadPolicy;
     private readonly ICurrentUser _currentUser;
@@ -400,6 +441,7 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
         IRepository<Submission> submissionRepository,
         IRepository<SubmissionFile> fileRepository,
         IRepository<Assignment> assignmentRepository,
+        IClassRosterRepository roster,
         IFileStorage fileStorage,
         IFileUploadPolicy uploadPolicy,
         ICurrentUser currentUser,
@@ -409,6 +451,7 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
         _submissionRepository = submissionRepository;
         _fileRepository = fileRepository;
         _assignmentRepository = assignmentRepository;
+        _roster = roster;
         _fileStorage = fileStorage;
         _uploadPolicy = uploadPolicy;
         _currentUser = currentUser;
@@ -423,14 +466,17 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
             return Result<SubmissionFileDto>.Failure(Error.Forbidden("SubmissionFile.Forbidden", "Only students can upload files."));
         }
 
-        var assignment = await _assignmentRepository.GetByIdAsync(command.AssignmentId, ct);
+        var scopeSpec = new AssignmentWithScopeSpecification(command.AssignmentId);
+        var assignment = await _assignmentRepository.FirstOrDefaultAsync(scopeSpec, ct);
         if (assignment is null)
         {
             return Result<SubmissionFileDto>.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        // B1: Class check
-        if (assignment.ClassId != _currentUser.ClassId)
+        // B1: Class check — the student must be enrolled in the offering's class
+        var isEnrolled = await _roster.IsEnrolledAsync(
+            _currentUser.UserId.GetValueOrDefault(), assignment.ClassCourse.ClassId, ct);
+        if (!isEnrolled)
         {
             return Result<SubmissionFileDto>.Failure(Error.Forbidden("SubmissionFile.Forbidden", "You do not belong to the class for this assignment."));
         }

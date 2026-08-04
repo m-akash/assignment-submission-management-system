@@ -1,4 +1,6 @@
+using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Application.Common.Handlers;
+using AssignmentSystem.Application.Features.Notifications;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
@@ -37,6 +39,11 @@ public static class DependencyInjection
             .AddClasses(classes => classes.AssignableTo(typeof(IQueryHandler<,>)))
             .AsImplementedInterfaces()
             .WithScopedLifetime());
+
+        // Registered explicitly: the scans above only pick up command/query handlers, and
+        // the notification outbox writer is neither — it is a collaborator several handlers
+        // share, enlisted in their transaction.
+        services.AddScoped<INotificationOutbox, NotificationOutbox>();
 
         return services;
     }

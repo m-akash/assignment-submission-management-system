@@ -65,7 +65,7 @@ public class SubmissionFileAuthorizationTests : IntegrationTestBase
         using var teacher = await SignInAsync(world.TeacherEmail);
         using var student = await SignInAsync(world.StudentEmail);
 
-        var draft = await CreateAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var draft = await CreateAssignmentAsync(teacher, world.ClassCourseId);
 
         var response = await UploadAsync(student, draft.Id, "answer.pdf", PdfBytes);
 
@@ -240,7 +240,7 @@ public class SubmissionFileAuthorizationTests : IntegrationTestBase
         var world = await ProvisionWorldAsync(label);
         var teacher = await SignInAsync(world.TeacherEmail);
         var student = await SignInAsync(world.StudentEmail);
-        var assignment = await CreatePublishedAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
         return new Scenario(world, assignment, teacher, student);
     }

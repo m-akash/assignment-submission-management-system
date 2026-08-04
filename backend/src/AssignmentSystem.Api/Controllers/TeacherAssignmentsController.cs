@@ -32,12 +32,13 @@ public sealed class TeacherAssignmentsController : ControllerBase
         [FromQuery] Guid? teacherId,
         [FromQuery] Guid? courseId,
         [FromQuery] Guid? classId,
+        [FromQuery] Guid? classCourseId,
         [FromQuery] string? search,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetTeacherAssignmentsQuery(teacherId, courseId, classId, search, page, pageSize);
+        var query = new GetTeacherAssignmentsQuery(teacherId, courseId, classId, classCourseId, search, page, pageSize);
         var result = await _getQueryHandler.HandleAsync(query, ct);
         if (!result.IsSuccess)
         {
@@ -50,7 +51,7 @@ public sealed class TeacherAssignmentsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateTeacherAssignment([FromBody] CreateTeacherAssignmentRequest request, CancellationToken ct)
     {
-        var command = new CreateTeacherAssignmentCommand(request.TeacherId, request.CourseId, request.ClassId);
+        var command = new CreateTeacherAssignmentCommand(request.TeacherId, request.ClassCourseId);
         var result = await _createHandler.HandleAsync(command, ct);
         if (!result.IsSuccess)
         {
@@ -68,7 +69,11 @@ public sealed class TeacherAssignmentsController : ControllerBase
     }
 }
 
-public sealed record CreateTeacherAssignmentRequest(Guid TeacherId, Guid CourseId, Guid ClassId);
+/// <summary>
+/// The client sends the offering, not a (class, course) pair — the pair it would otherwise
+/// send could name a combination the class does not study.
+/// </summary>
+public sealed record CreateTeacherAssignmentRequest(Guid TeacherId, Guid ClassCourseId);
 
 public sealed class CreateTeacherAssignmentRequestValidator : AbstractValidator<CreateTeacherAssignmentRequest>
 {
@@ -77,10 +82,7 @@ public sealed class CreateTeacherAssignmentRequestValidator : AbstractValidator<
         RuleFor(x => x.TeacherId)
             .NotEmpty().WithMessage("Teacher id is required.");
 
-        RuleFor(x => x.CourseId)
-            .NotEmpty().WithMessage("Course id is required.");
-
-        RuleFor(x => x.ClassId)
-            .NotEmpty().WithMessage("Class id is required.");
+        RuleFor(x => x.ClassCourseId)
+            .NotEmpty().WithMessage("Choose the class and course to assign the teacher to.");
     }
 }

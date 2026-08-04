@@ -5,10 +5,15 @@ using Microsoft.EntityFrameworkCore;
 namespace AssignmentSystem.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Class-scoped queries over <c>ApplicationUser</c> that don't fit the generic
-/// Specification pattern: counting students per class with a single grouped SQL query
-/// (SELECT class_id, COUNT(*) ... GROUP BY class_id) instead of loading every student
-/// row or querying once per class, and issuing the next student-id sequence number.
+/// Roster queries that don't fit the generic Specification pattern: counting students per
+/// class with a single grouped SQL query instead of loading every enrollment row, resolving
+/// a student's classes for the rule-B1 checks, and issuing the next student-id sequence
+/// number.
+///
+/// Every read here joins through to the student and filters on their account state. The
+/// enrollment row is a link, so it says nothing about whether the person on the end of it is
+/// still a live user — an enrollment belonging to a soft-deleted student must not be counted
+/// in a class total or mailed about.
 /// </summary>
 internal sealed class ClassRosterRepository : IClassRosterRepository
 {
@@ -24,13 +29,46 @@ internal sealed class ClassRosterRepository : IClassRosterRepository
             return new Dictionary<Guid, int>();
         }
 
-        var counts = await _context.Users
-            .Where(u => u.Role == Role.Student && u.ClassId != null && classIds.Contains(u.ClassId.Value))
-            .GroupBy(u => u.ClassId!.Value)
+        // SELECT class_id, COUNT(*) ... GROUP BY class_id — one round trip for the page.
+        // The Student navigation is subject to the soft-delete query filter on users, so
+        // enrollments whose student is gone drop out of the join automatically.
+        var counts = await _context.StudentEnrollments
+            .Where(e => classIds.Contains(e.ClassId) && e.Student.Role == Role.Student)
+            .GroupBy(e => e.ClassId)
             .Select(g => new { ClassId = g.Key, Count = g.Count() })
             .ToListAsync(ct);
 
         return counts.ToDictionary(x => x.ClassId, x => x.Count);
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetEnrolledClassIdsAsync(Guid studentId, CancellationToken ct = default)
+    {
+        return await _context.StudentEnrollments
+            .Where(e => e.StudentId == studentId)
+            .Select(e => e.ClassId)
+            .ToListAsync(ct);
+    }
+
+    public async Task<bool> IsEnrolledAsync(Guid studentId, Guid classId, CancellationToken ct = default)
+    {
+        return await _context.StudentEnrollments
+            .AnyAsync(e => e.StudentId == studentId && e.ClassId == classId, ct);
+    }
+
+    public async Task<IReadOnlyList<NotificationRecipient>> GetClassRecipientsAsync(
+        Guid classId, CancellationToken ct = default)
+    {
+        // IsActive as well as the implicit soft-delete filter: a deactivated student cannot
+        // log in to act on the assignment, so mailing them is noise.
+        var recipients = await _context.StudentEnrollments
+            .Where(e => e.ClassId == classId && e.Student.Role == Role.Student && e.Student.IsActive)
+            .Select(e => new { e.StudentId, Email = e.Student.Email.Value, e.Student.FullName })
+            .Distinct()
+            .ToListAsync(ct);
+
+        return recipients
+            .Select(r => new NotificationRecipient(r.StudentId, r.Email, r.FullName))
+            .ToList();
     }
 
     public async Task<int> GetNextStudentSequenceAsync(string studentIdPrefix, CancellationToken ct = default)

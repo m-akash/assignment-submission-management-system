@@ -56,6 +56,12 @@ public sealed class ApiFactory : IAsyncLifetime
         {
             builder.UseSetting("ConnectionStrings:Default", _database.GetConnectionString());
             builder.UseSetting("FileStorage:Root", FileStorageRoot);
+
+            // The outbox dispatcher is off so notification tests are deterministic: a timer
+            // sweeping in the background would flip rows from Pending to Sent underneath an
+            // assertion. Draining is still exercised — through the explicit dispatch endpoint.
+            builder.UseSetting("Email:EnableDispatcher", "false");
+            builder.UseSetting("Email:AppBaseUrl", "http://localhost:3000");
         });
 
         // Creating a client boots the host, which migrates and seeds on startup.

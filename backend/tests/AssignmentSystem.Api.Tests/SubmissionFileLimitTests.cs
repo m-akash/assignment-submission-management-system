@@ -114,7 +114,7 @@ public class SubmissionFileLimitTests : IntegrationTestBase
         var world = await ProvisionWorldAsync(label);
         using var teacher = await SignInAsync(world.TeacherEmail);
         var student = await SignInAsync(world.StudentEmail);
-        var assignment = await CreatePublishedAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
         return (assignment, student);
     }

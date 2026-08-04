@@ -86,7 +86,7 @@ public class RequestHardeningTests : IntegrationTestBase
         using var teacher = await SignInAsync(world.TeacherEmail);
         using var student = await SignInAsync(world.StudentEmail);
 
-        var assignment = await CreatePublishedAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
         var response = await student.PostAsJsonAsync(
             $"/api/v1/assignments/{assignment.Id}/submissions",
@@ -108,7 +108,7 @@ public class RequestHardeningTests : IntegrationTestBase
         using var teacher = await SignInAsync(world.TeacherEmail);
         using var student = await SignInAsync(world.StudentEmail);
 
-        var assignment = await CreatePublishedAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
         // Raw JSON, so the removed property is genuinely on the wire.
         using var body = JsonContent.Create(new
@@ -130,7 +130,7 @@ public class RequestHardeningTests : IntegrationTestBase
         using var teacher = await SignInAsync(world.TeacherEmail);
         using var student = await SignInAsync(world.StudentEmail);
 
-        var assignment = await CreatePublishedAssignmentAsync(teacher, world.TeacherAssignmentId);
+        var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
         var submission = await SubmitAsync(student, assignment.Id, "Just text, no attachment.");
 

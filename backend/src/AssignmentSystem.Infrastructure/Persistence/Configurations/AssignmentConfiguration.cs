@@ -14,10 +14,8 @@ internal sealed class AssignmentConfiguration : IEntityTypeConfiguration<Assignm
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Id).HasDefaultValueSql("gen_random_uuid()");
 
-        builder.Property(a => a.TeacherAssignmentId).IsRequired();
+        builder.Property(a => a.ClassCourseId).IsRequired();
         builder.Property(a => a.TeacherId).IsRequired();
-        builder.Property(a => a.CourseId).IsRequired();
-        builder.Property(a => a.ClassId).IsRequired();
 
         builder.Property(a => a.Title).HasMaxLength(200).IsRequired();
         builder.Property(a => a.Description).IsRequired();
@@ -45,23 +43,24 @@ internal sealed class AssignmentConfiguration : IEntityTypeConfiguration<Assignm
 
         builder.Property(a => a.RowVersion).IsRowVersion();
 
-        builder.HasOne(a => a.TeacherAssignment)
+        // Restrict, not Cascade: an offering cannot be dropped while assignments (and so
+        // student submissions) still hang off it. DeleteClassCourseHandler turns that into a
+        // 409 with an explanation rather than letting it surface as a constraint violation.
+        builder.HasOne(a => a.ClassCourse)
             .WithMany()
-            .HasForeignKey(a => a.TeacherAssignmentId)
-            .OnDelete(DeleteBehavior.Restrict); // don't lose the scope chain
-
-        builder.HasOne(a => a.Course)
-            .WithMany()
-            .HasForeignKey(a => a.CourseId)
+            .HasForeignKey(a => a.ClassCourseId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(a => a.Class)
+        // Restrict on the author too — a teacher account is soft-deleted, never removed, so
+        // this only guards against a hard delete taking the authorship of live work with it.
+        builder.HasOne(a => a.Teacher)
             .WithMany()
-            .HasForeignKey(a => a.ClassId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .HasForeignKey(a => a.TeacherId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-        // Composite index for the common "assignments for my class/course" query.
-        builder.HasIndex(a => new { a.ClassId, a.CourseId, a.Status });
+        // Covers the two ways the list is read: by offering (a student's or admin's class
+        // view) and by author (a teacher's own work).
+        builder.HasIndex(a => new { a.ClassCourseId, a.Status });
         builder.HasIndex(a => a.TeacherId);
 
         builder.HasMany(a => a.Files)

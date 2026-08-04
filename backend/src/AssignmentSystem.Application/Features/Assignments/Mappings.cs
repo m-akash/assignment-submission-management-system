@@ -7,10 +7,12 @@ namespace AssignmentSystem.Application.Features.Assignments;
 [Mapper]
 public partial class AssignmentMapper
 {
-    [MapProperty("TeacherAssignment.Teacher.FullName", nameof(AssignmentDto.TeacherName))]
-    [MapProperty("Course.Name", nameof(AssignmentDto.CourseName))]
-    [MapProperty("Course.Code", nameof(AssignmentDto.CourseCode))]
-    [MapProperty("Class.Name", nameof(AssignmentDto.ClassName))]
+    [MapProperty("Teacher.FullName", nameof(AssignmentDto.TeacherName))]
+    [MapProperty("ClassCourse.CourseId", nameof(AssignmentDto.CourseId))]
+    [MapProperty("ClassCourse.Course.Name", nameof(AssignmentDto.CourseName))]
+    [MapProperty("ClassCourse.Course.Code", nameof(AssignmentDto.CourseCode))]
+    [MapProperty("ClassCourse.ClassId", nameof(AssignmentDto.ClassId))]
+    [MapProperty("ClassCourse.Class.Name", nameof(AssignmentDto.ClassName))]
     public partial AssignmentDto MapToDto(Assignment assignment);
 
     public partial AssignmentFileDto MapToFileDto(AssignmentFile file);

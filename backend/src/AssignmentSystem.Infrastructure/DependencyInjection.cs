@@ -4,6 +4,7 @@ using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Infrastructure.Authentication;
 using AssignmentSystem.Infrastructure.Common;
 using AssignmentSystem.Infrastructure.Identity;
+using AssignmentSystem.Infrastructure.Notifications;
 using AssignmentSystem.Infrastructure.Persistence;
 using AssignmentSystem.Infrastructure.Persistence.Interceptors;
 using AssignmentSystem.Infrastructure.Persistence.Repositories;
@@ -43,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IClassRosterRepository, ClassRosterRepository>();
         services.AddScoped<ITeacherRosterRepository, TeacherRosterRepository>();
+        services.AddScoped<IClassCourseUsageReader, ClassCourseUsageReader>();
 
         // ── Clock ──────────────────────────────────────────────────────────────
         services.AddSingleton<IClock, SystemClock>();
@@ -56,6 +58,15 @@ public static class DependencyInjection
         // ── File storage (local disk / Docker volume) + upload rules ───────────
         services.AddSingleton<IFileStorage, LocalFileStorage>();
         services.AddSingleton<IFileUploadPolicy, FileUploadPolicy>();
+
+        // ── Email notifications (outbox) ───────────────────────────────────────
+        // The sender is a singleton (it holds only configuration and builds a fresh
+        // SmtpClient per message); the dispatcher is scoped because it works through the
+        // DbContext, so the hosted service opens a scope per sweep.
+        services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        services.AddSingleton<INotificationSettings, NotificationSettings>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
 
         // No-op domain event dispatcher until concrete handlers are added.
         services.AddScoped<IDomainEventDispatcher, NullDomainEventDispatcher>();

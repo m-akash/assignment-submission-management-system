@@ -73,7 +73,7 @@ public sealed class UsersController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequest request, CancellationToken ct)
     {
-        var command = new UpdateUserCommand(id, request.FullName, request.Password, request.ClassId);
+        var command = new UpdateUserCommand(id, request.FullName, request.Password);
         var result = await _updateUserHandler.HandleAsync(command, ct);
         return result.ToActionResult(this);
     }
@@ -87,7 +87,11 @@ public sealed class UsersController : ControllerBase
 }
 
 public sealed record CreateUserRequest(string Email, string FullName, string Password, Role Role, Guid? ClassId);
-public sealed record UpdateUserRequest(string FullName, string? Password, Guid? ClassId);
+/// <summary>
+/// No class here: moving a student between classes goes through the enrollments endpoint,
+/// which enforces that they never end up with none.
+/// </summary>
+public sealed record UpdateUserRequest(string FullName, string? Password);
 
 public sealed class CreateUserRequestValidator : AbstractValidator<CreateUserRequest>
 {
