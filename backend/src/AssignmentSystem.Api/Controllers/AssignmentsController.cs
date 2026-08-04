@@ -75,7 +75,7 @@ public sealed class AssignmentsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Teacher")]
+    [Authorize(Roles = "Teacher")]
     public async Task<IActionResult> CreateAssignment([FromBody] CreateAssignmentRequest request, CancellationToken ct)
     {
         var command = new CreateAssignmentCommand(
@@ -84,8 +84,7 @@ public sealed class AssignmentsController : ControllerBase
             request.Description,
             request.DeadlineUtc,
             request.MaxMarks,
-            request.AllowResubmission,
-            request.TeacherId);
+            request.AllowResubmission);
 
         var result = await _createHandler.HandleAsync(command, ct);
         if (!result.IsSuccess)
@@ -96,7 +95,7 @@ public sealed class AssignmentsController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Admin,Teacher")]
+    [Authorize(Roles = "Teacher")]
     public async Task<IActionResult> UpdateAssignment(Guid id, [FromBody] UpdateAssignmentRequest request, CancellationToken ct)
     {
         var command = new UpdateAssignmentCommand(
@@ -112,7 +111,7 @@ public sealed class AssignmentsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/publish")]
-    [Authorize(Roles = "Admin,Teacher")]
+    [Authorize(Roles = "Teacher")]
     public async Task<IActionResult> PublishAssignment(Guid id, CancellationToken ct)
     {
         var result = await _publishHandler.HandleAsync(new PublishAssignmentCommand(id), ct);
@@ -120,7 +119,7 @@ public sealed class AssignmentsController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin,Teacher")]
+    [Authorize(Roles = "Teacher")]
     public async Task<IActionResult> DeleteAssignment(Guid id, CancellationToken ct)
     {
         var result = await _deleteHandler.HandleAsync(new DeleteAssignmentCommand(id), ct);
@@ -132,9 +131,10 @@ public sealed class AssignmentsController : ControllerBase
     // The request body limit comes from FileStorage:MaxBytes (wired to FormOptions in
     // Program.cs) rather than a hard-coded attribute, so one setting governs the cap.
     [HttpPost("{id:guid}/attachments/upload")]
-    [Authorize(Roles = "Admin,Teacher")]
-    public async Task<IActionResult> UploadAttachment(Guid id, [FromForm] IFormFile file, CancellationToken ct)
+    [Authorize(Roles = "Teacher")]
+    public async Task<IActionResult> UploadAttachment(Guid id, [FromForm] FileUploadRequest request, CancellationToken ct)
     {
+        var file = request.File;
         if (file is null || file.Length == 0)
         {
             return BadRequest(new ApiResponse<object> { Success = false, Message = "No file uploaded." });
@@ -160,7 +160,7 @@ public sealed class AssignmentsController : ControllerBase
     }
 
     [HttpDelete("attachments/{fileId:guid}")]
-    [Authorize(Roles = "Admin,Teacher")]
+    [Authorize(Roles = "Teacher")]
     public async Task<IActionResult> DeleteAttachment(Guid fileId, CancellationToken ct)
     {
         var result = await _deleteFileHandler.HandleAsync(new DeleteAssignmentFileCommand(fileId), ct);
@@ -168,18 +168,13 @@ public sealed class AssignmentsController : ControllerBase
     }
 }
 
-/// <summary>
-/// <paramref name="TeacherId"/> is only meaningful for an admin creating work on a teacher's
-/// behalf; a teacher's own request has it ignored in favour of their token identity.
-/// </summary>
 public sealed record CreateAssignmentRequest(
     Guid ClassCourseId,
     string Title,
     string Description,
     DateTime DeadlineUtc,
     decimal MaxMarks,
-    bool AllowResubmission,
-    Guid? TeacherId = null);
+    bool AllowResubmission);
 
 public sealed record UpdateAssignmentRequest(
     string Title,

@@ -103,7 +103,7 @@ public sealed class SubmissionsController : ControllerBase
     }
 
     [HttpPost("submissions/{id:guid}/review")]
-    [Authorize(Roles = "Admin,Teacher")]
+    [Authorize(Roles = "Teacher")]
     public async Task<IActionResult> ReviewSubmission(Guid id, [FromBody] ReviewSubmissionRequest request, CancellationToken ct)
     {
         var command = new ReviewSubmissionCommand(id, request.Marks, request.Feedback, request.Status);
@@ -117,8 +117,9 @@ public sealed class SubmissionsController : ControllerBase
     // Program.cs) rather than a hard-coded attribute, so one setting governs the cap.
     [HttpPost("assignments/{assignmentId:guid}/submissions/upload")]
     [Authorize(Roles = "Student")]
-    public async Task<IActionResult> UploadFile(Guid assignmentId, [FromForm] IFormFile file, CancellationToken ct)
+    public async Task<IActionResult> UploadFile(Guid assignmentId, [FromForm] FileUploadRequest request, CancellationToken ct)
     {
+        var file = request.File;
         if (file is null || file.Length == 0)
         {
             return BadRequest(new ApiResponse<object> { Success = false, Message = "No file uploaded." });
