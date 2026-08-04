@@ -8,5 +8,6 @@ public partial class CourseMapper
 {
     [MapProperty("Department.Name", nameof(CourseDto.DepartmentName))]
     [MapProperty("Department.Code", nameof(CourseDto.DepartmentCode))]
+    [MapProperty("Group.Name", nameof(CourseDto.GroupName))]
     public partial CourseDto MapToDto(Course course);
 }

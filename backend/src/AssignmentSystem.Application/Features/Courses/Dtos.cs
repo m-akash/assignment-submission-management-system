@@ -9,20 +9,25 @@ public sealed record CourseDto(
     string Code,
     Guid DepartmentId,
     string? DepartmentName,
-    string? DepartmentCode
+    string? DepartmentCode,
+    /// <summary>Null when the course is open to every student in the class.</summary>
+    Guid? GroupId,
+    string? GroupName
 );
 
 public sealed record CreateCourseCommand(
     string Name,
     string Code,
-    Guid DepartmentId
+    Guid DepartmentId,
+    Guid? GroupId
 ) : ICommand<CourseDto>;
 
 public sealed record UpdateCourseCommand(
     Guid Id,
     string Name,
     string Code,
-    Guid DepartmentId
+    Guid DepartmentId,
+    Guid? GroupId
 ) : ICommand<CourseDto>;
 
 public sealed record DeleteCourseCommand(Guid Id) : ICommand;

@@ -60,7 +60,7 @@ public sealed class CoursesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateCourse([FromBody] CreateCourseRequest request, CancellationToken ct)
     {
-        var command = new CreateCourseCommand(request.Name, request.Code, request.DepartmentId);
+        var command = new CreateCourseCommand(request.Name, request.Code, request.DepartmentId, request.GroupId);
         var result = await _createCourseHandler.HandleAsync(command, ct);
         if (!result.IsSuccess)
         {
@@ -73,7 +73,7 @@ public sealed class CoursesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdateCourse(Guid id, [FromBody] UpdateCourseRequest request, CancellationToken ct)
     {
-        var command = new UpdateCourseCommand(id, request.Name, request.Code, request.DepartmentId);
+        var command = new UpdateCourseCommand(id, request.Name, request.Code, request.DepartmentId, request.GroupId);
         var result = await _updateCourseHandler.HandleAsync(command, ct);
         return result.ToActionResult(this);
     }
@@ -87,8 +87,8 @@ public sealed class CoursesController : ControllerBase
     }
 }
 
-public sealed record CreateCourseRequest(string Name, string Code, Guid DepartmentId);
-public sealed record UpdateCourseRequest(string Name, string Code, Guid DepartmentId);
+public sealed record CreateCourseRequest(string Name, string Code, Guid DepartmentId, Guid? GroupId);
+public sealed record UpdateCourseRequest(string Name, string Code, Guid DepartmentId, Guid? GroupId);
 
 public sealed class CreateCourseRequestValidator : AbstractValidator<CreateCourseRequest>
 {

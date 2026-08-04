@@ -3,6 +3,7 @@ using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Courses;
 using AssignmentSystem.Domain.Departments;
+using AssignmentSystem.Domain.Groups;
 using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Features.Courses;
@@ -11,16 +12,19 @@ public sealed class CreateCourseHandler : ICommandHandler<CreateCourseCommand, C
 {
     private readonly IRepository<Course> _courseRepository;
     private readonly IRepository<Department> _departmentRepository;
+    private readonly IRepository<Group> _groupRepository;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly CourseMapper Mapper = new();
 
     public CreateCourseHandler(
         IRepository<Course> courseRepository,
         IRepository<Department> departmentRepository,
+        IRepository<Group> groupRepository,
         IUnitOfWork unitOfWork)
     {
         _courseRepository = courseRepository;
         _departmentRepository = departmentRepository;
+        _groupRepository = groupRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -39,9 +43,14 @@ public sealed class CreateCourseHandler : ICommandHandler<CreateCourseCommand, C
             return Result<CourseDto>.Failure(Error.NotFound("Department.NotFound", "The specified department was not found."));
         }
 
+        if (command.GroupId.HasValue && await _groupRepository.GetByIdAsync(command.GroupId.Value, ct) is null)
+        {
+            return Result<CourseDto>.Failure(Error.NotFound("Group.NotFound", "The specified group was not found."));
+        }
+
         try
         {
-            var course = Course.Create(command.Name, command.Code, command.DepartmentId);
+            var course = Course.Create(command.Name, command.Code, command.DepartmentId, command.GroupId);
             await _courseRepository.AddAsync(course, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
@@ -60,16 +69,19 @@ public sealed class UpdateCourseHandler : ICommandHandler<UpdateCourseCommand, C
 {
     private readonly IRepository<Course> _courseRepository;
     private readonly IRepository<Department> _departmentRepository;
+    private readonly IRepository<Group> _groupRepository;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly CourseMapper Mapper = new();
 
     public UpdateCourseHandler(
         IRepository<Course> courseRepository,
         IRepository<Department> departmentRepository,
+        IRepository<Group> groupRepository,
         IUnitOfWork unitOfWork)
     {
         _courseRepository = courseRepository;
         _departmentRepository = departmentRepository;
+        _groupRepository = groupRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -101,9 +113,14 @@ public sealed class UpdateCourseHandler : ICommandHandler<UpdateCourseCommand, C
             }
         }
 
+        if (command.GroupId.HasValue && await _groupRepository.GetByIdAsync(command.GroupId.Value, ct) is null)
+        {
+            return Result<CourseDto>.Failure(Error.NotFound("Group.NotFound", "The specified group was not found."));
+        }
+
         try
         {
-            course.Update(command.Name, command.Code, command.DepartmentId);
+            course.Update(command.Name, command.Code, command.DepartmentId, command.GroupId);
             _courseRepository.Update(course);
             await _unitOfWork.SaveChangesAsync(ct);
 

@@ -34,5 +34,16 @@ internal sealed class CourseConfiguration : IEntityTypeConfiguration<Course>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(s => s.DepartmentId);
+
+        // Restrict, not SetNull: silently opening a Science-only course to everyone the
+        // moment the Science group is deleted would be a correctness change no one asked
+        // for. The admin has to move the course to a different group (or clear it) first.
+        builder.Property(s => s.GroupId);
+        builder.HasOne(s => s.Group)
+            .WithMany()
+            .HasForeignKey(s => s.GroupId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(s => s.GroupId);
     }
 }

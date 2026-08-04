@@ -18,6 +18,7 @@ internal sealed class CourseWithDepartmentByIdSpecification : Specification<Cour
     {
         Criteria = s => s.Id == id;
         AddInclude(s => s.Department);
+        AddInclude(s => s.Group!);
     }
 }
 
@@ -27,6 +28,7 @@ internal sealed class CoursesPagedSpecification : Specification<Course>
     {
         ApplyNoTracking();
         AddInclude(s => s.Department);
+        AddInclude(s => s.Group!);
         ApplyOrderBy(s => s.Name);
         ApplyPaging(page, pageSize);
 
