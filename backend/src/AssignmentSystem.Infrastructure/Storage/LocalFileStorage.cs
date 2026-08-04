@@ -116,7 +116,10 @@ internal sealed class LocalFileStorage : IFileStorage
     private string ResolveWithinRoot(string relativePath)
     {
         var root = Path.GetFullPath(_options.Root);
-        var full = Path.GetFullPath(SafeCombine(root, relativePath));
+
+        var normalized = relativePath.Replace('\\', '/').Replace('/', Path.DirectorySeparatorChar);
+
+        var full = Path.GetFullPath(SafeCombine(root, normalized));
 
         // Compare against the root *plus its separator*. A bare prefix check would accept
         // "/data/submissions-evil/secret" as being inside "/data/submissions".
