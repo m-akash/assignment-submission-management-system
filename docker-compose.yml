@@ -34,6 +34,16 @@ services:
       Jwt__AccessTokenMinutes: "${Jwt__AccessTokenMinutes:-5}"
       Jwt__RefreshTokenDays: "${Jwt__RefreshTokenDays:-7}"
       FileStorage__Root: "/data/submissions"
+      # Empty Email__Host is a working default: notifications are queued and logged
+      # rather than sent, so the stack comes up without any mail credentials.
+      Email__Host: "${Email__Host:-}"
+      Email__Port: "${Email__Port:-587}"
+      Email__UseSsl: "${Email__UseSsl:-true}"
+      Email__Username: "${Email__Username:-}"
+      Email__Password: "${Email__Password:-}"
+      Email__FromAddress: "${Email__FromAddress:-}"
+      Email__FromName: "${Email__FromName:-Assignment System}"
+      Email__AppBaseUrl: "${Email__AppBaseUrl:-http://localhost:3000}"
       Database__AutoMigrate: "true"
       Database__SeedOnStartup: "true"
       ASPNETCORE_ENVIRONMENT: "Development"

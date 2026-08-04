@@ -1,0 +1,206 @@
+%% Assignment & Submission Management System — data model
+%%
+%% Reading notes
+%% ─────────────
+%% • PK/FK are Postgres uuid (gen_random_uuid()), not bigint. Ids travel in URLs and JWTs,
+%%   so a non-guessable, non-enumerable key matters more here than 8 bytes per row.
+%% • Every table also carries created_at_utc, updated_at_utc, created_by, updated_by and an
+%%   xmin row-version for optimistic concurrency. Omitted below to keep the diagram readable —
+%%   they are set by an EF Core interceptor, never by a client.
+%% • UK marks a UNIQUE constraint. The composite ones are named in the notes per table.
+%% • Timestamps are UTC throughout; the "_utc" suffix is a reminder, not a type.
+%%
+%% Enum values (Postgres stores these as int)
+%% ──────────────────────────────────────────
+%%   users.role                → 0 Admin | 1 Teacher | 2 Student
+%%   assignments.status        → 0 Draft | 1 Published            (draft → published is one-way)
+%%   submissions.status        → 0 Pending | 1 Submitted | 2 Graded | 3 Late
+%%   notifications.type        → 0 AssignmentPublished | 1 SubmissionReceived | 2 SubmissionGraded
+%%   notifications.status      → 0 Pending | 1 Sent | 2 Failed
+
+erDiagram
+    %% ── The two junctions the model hangs off ────────────────────────────────
+    %% CLASS_COURSES is the "offering": this class studies this course. Making it a real
+    %% row is what stops a teacher being mapped to — or work being set for — a (class,
+    %% course) pair the class does not actually study. Everything downstream points at the
+    %% offering, so an assignment's class and course can never disagree: one column, not two.
+    CLASSES        ||--o{ CLASS_COURSES : offers
+    COURSES        ||--o{ CLASS_COURSES : "offered as"
+
+    %% STUDENT_ENROLLMENTS replaces a users.class_id column so a student can sit in more
+    %% than one class (repeated grade, elective cohort, mid-year transfer where both
+    %% memberships stay visible) and so the date they joined is recorded.
+    USERS          ||--o{ STUDENT_ENROLLMENTS : "enrolled in (role=Student)"
+    CLASSES        ||--o{ STUDENT_ENROLLMENTS : enrols
+
+    %% ── Authorization backbone ───────────────────────────────────────────────
+    %% Who may set and grade work for an offering. A real entity, not a pure join table:
+    %% the link carries authorization meaning, and it is the gate for rules B3 and B7.
+    USERS          ||--o{ TEACHER_ASSIGNMENTS : "teaches (role=Teacher)"
+    CLASS_COURSES  ||--o{ TEACHER_ASSIGNMENTS : "taught by"
+
+    %% ── Coursework ───────────────────────────────────────────────────────────
+    CLASS_COURSES  ||--o{ ASSIGNMENTS : scopes
+    USERS          ||--o{ ASSIGNMENTS : "authored (role=Teacher)"
+    ASSIGNMENTS    ||--o{ ASSIGNMENT_FILES : "has material"
+    ASSIGNMENTS    ||--o{ SUBMISSIONS : receives
+    USERS          ||--o{ SUBMISSIONS : "submits (role=Student)"
+    USERS          |o--o{ SUBMISSIONS : "grades (role=Teacher)"
+    SUBMISSIONS    ||--o{ SUBMISSION_FILES : "has attachment"
+
+    %% ── Cross-cutting ────────────────────────────────────────────────────────
+    USERS          ||--o{ REFRESH_TOKENS : "signs in from"
+    USERS          ||--o{ NOTIFICATIONS : "is emailed"
+
+    %% ═════════════════════════════════════════════════════════════════════════
+
+    USERS {
+        uuid id PK
+        varchar email UK "normalized lowercase; unique index in migration"
+        varchar full_name
+        varchar password_hash "ASP.NET Core Identity hasher; never the password"
+        int role "see enum notes"
+        varchar student_id UK "'IX-A-003' — students only, null otherwise"
+        varchar teacher_id UK "'INS-01' — teachers only, null otherwise"
+        boolean is_active "deactivated: cannot sign in, still referenced by history"
+        boolean is_deleted "soft delete — global query filter hides these"
+        timestamptz deleted_at_utc
+    }
+
+    CLASSES {
+        uuid id PK
+        varchar name "'Class IX - Section A'"
+        int level "grade 1..12; the Roman numeral is derived, not stored"
+        varchar section "nullable"
+    }
+
+    COURSES {
+        uuid id PK
+        varchar name
+        varchar code UK "uppercased on write"
+    }
+
+    CLASS_COURSES {
+        uuid id PK
+        uuid class_id FK "cascade: an offering is meaningless without its class"
+        uuid course_id FK "restrict: protects a course any class still studies"
+    }
+    %% UNIQUE (class_id, course_id) — a class studies a course once. This is the constraint
+    %% that makes the offering a usable identity for everything below it.
+
+    STUDENT_ENROLLMENTS {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        timestamptz enrolled_at_utc
+    }
+    %% UNIQUE (student_id, class_id) — a student sits in a class once.
+    %% Indexed both ways: by student for the per-request rule-B1 check, by class for the
+    %% roster count and the "assignment published" recipient list.
+
+    TEACHER_ASSIGNMENTS {
+        uuid id PK
+        uuid teacher_id FK
+        uuid class_course_id FK
+    }
+    %% UNIQUE (teacher_id, class_course_id) — a teacher is linked to an offering once.
+    %% Two teachers may share one offering; both may then set and grade work for it.
+
+    ASSIGNMENTS {
+        uuid id PK
+        uuid class_course_id FK "restrict: cannot drop an offering that has work"
+        uuid teacher_id FK "the author; denormalized so rule B3 is a column comparison"
+        varchar title
+        text description
+        timestamptz deadline_utc "must be >= 1 hour ahead at write time (rule X5)"
+        numeric max_marks "numeric(5,2) — matches submissions.marks"
+        int status "see enum notes"
+        boolean allow_resubmission "may a student edit after the deadline?"
+        int submission_count "cached for rule X6 (locks metadata once work arrives)"
+        boolean is_deleted
+        timestamptz deleted_at_utc
+    }
+    %% INDEX (class_course_id, status) for the class/student view; (teacher_id) for a
+    %% teacher's own list.
+    %% Note there is no teacher_assignment_id: "may this teacher publish or grade this?" is
+    %% answered by looking the mapping up, so removing a mapping cannot orphan authorship.
+
+    SUBMISSIONS {
+        uuid id PK
+        uuid assignment_id FK
+        uuid student_id FK
+        text content "nullable — a file-only submission is valid"
+        int status "see enum notes"
+        timestamptz submitted_at_utc
+        numeric marks "numeric(5,2), nullable until graded"
+        numeric marks_out_of "the assignment max, snapshotted at grading time"
+        text feedback "nullable; max 2000 chars"
+        uuid reviewed_by_id FK "nullable; set null if the grader is removed"
+        timestamptz reviewed_at_utc
+    }
+    %% UNIQUE (assignment_id, student_id) — one submission per student per assignment
+    %% (rule X4). Without it, "update my submission" degrades into "insert another row".
+
+    %% File BYTES live on disk (or a Docker volume) via IFileStorage — never in these rows.
+    %% Two tables rather than one polymorphic one: the authorization rules differ completely
+    %% (a teacher owns assignment material, a student owns their own attachments), and a
+    %% shared table would have to be filtered by a discriminator on every check.
+    ASSIGNMENT_FILES {
+        uuid id PK
+        uuid assignment_id FK
+        uuid uploaded_by_id FK "nullable; set null if the uploader is removed"
+        varchar stored_file_name "server-generated '<guid>.pdf'"
+        varchar original_file_name "sanitized; directory components stripped"
+        varchar content_type "re-derived from the validated extension, not trusted"
+        bigint file_size_bytes
+        varchar relative_path "under the storage root, so the store can move hosts"
+        timestamptz uploaded_at_utc
+    }
+
+    SUBMISSION_FILES {
+        uuid id PK
+        uuid submission_id FK
+        uuid uploaded_by_id FK "nullable; set null if the uploader is removed"
+        varchar stored_file_name
+        varchar original_file_name
+        varchar content_type
+        bigint file_size_bytes
+        varchar relative_path
+        timestamptz uploaded_at_utc
+    }
+
+    REFRESH_TOKENS {
+        uuid id PK
+        uuid user_id FK
+        varchar token_hash UK "SHA-256 only — the plaintext is returned once and never stored"
+        timestamptz expires_at_utc
+        timestamptz revoked_at_utc "nullable"
+        varchar replaced_by_token_hash "rotation chain, for reuse detection (rule X8)"
+        varchar created_by_ip
+    }
+
+    %% Transactional outbox, not a log of mail already sent. The row is written in the same
+    %% transaction as the change that caused it; a background dispatcher sends it afterwards.
+    %% So a slow or misconfigured SMTP server cannot fail a publish, nothing is silently
+    %% lost when one is, retries are bounded and recorded, and a test can assert on rows.
+    NOTIFICATIONS {
+        uuid id PK
+        uuid recipient_id FK
+        varchar recipient_email "snapshotted: still explains where mail went after a change"
+        int type "see enum notes"
+        varchar subject
+        text body "plain text — renders identically everywhere, carries no injection"
+        int status "see enum notes"
+        int attempt_count "bounds the retry loop"
+        timestamptz last_attempt_at_utc
+        timestamptz sent_at_utc
+        text last_error "why the last attempt failed; kept after a later success too"
+        uuid assignment_id "plain id, NO FK — see note below"
+        uuid submission_id "plain id, NO FK — see note below"
+    }
+    %% The two context ids deliberately have no foreign key: a notification about a deleted
+    %% assignment is still a true record of mail sent, and an FK would either block the
+    %% delete or take the history with it.
+    %% Partial INDEX (status, created_at_utc) WHERE status = 0 — the dispatcher only ever
+    %% reads pending rows, so the index stays proportional to the backlog rather than to the
+    %% whole ever-growing outbox.
