@@ -37,6 +37,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<Assignment> Assignments => Set<Assignment>();
     public DbSet<Submission> Submissions => Set<Submission>();
     public DbSet<SubmissionFile> SubmissionFiles => Set<SubmissionFile>();
+    public DbSet<AssignmentFile> AssignmentFiles => Set<AssignmentFile>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

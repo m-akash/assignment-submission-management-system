@@ -266,6 +266,13 @@ public sealed class GetAssignmentByIdHandler : IQueryHandler<GetAssignmentByIdQu
             return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have access to this assignment."));
         }
 
+        // Group gate: a course restricted to a group (e.g. Science) is invisible to
+        // students outside that group, even within the same class.
+        if (_currentUser.Role == Role.Student && assignment.Course.GroupId is not null && assignment.Course.GroupId != _currentUser.GroupId)
+        {
+            return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have access to this assignment."));
+        }
+
         // Student cannot see draft assignments
         if (_currentUser.Role == Role.Student && assignment.Status == AssignmentStatus.Draft)
         {
@@ -293,12 +300,14 @@ public sealed class GetAssignmentsHandler : IQueryHandler<GetAssignmentsQuery, P
         var classId = query.ClassId;
         var teacherId = query.TeacherId;
         var status = query.Status;
+        var restrictToViewerGroup = false;
 
         // B1: Student sees only assignments for their class and only published ones
         if (_currentUser.Role == Role.Student)
         {
             classId = _currentUser.ClassId;
             status = AssignmentStatus.Published;
+            restrictToViewerGroup = true;
         }
         else if (_currentUser.Role == Role.Teacher)
         {
@@ -306,7 +315,9 @@ public sealed class GetAssignmentsHandler : IQueryHandler<GetAssignmentsQuery, P
             teacherId = _currentUser.UserId.GetValueOrDefault();
         }
 
-        var spec = new AssignmentsPagedSpecification(classId, query.CourseId, teacherId, status, query.Search, query.Page, query.PageSize);
+        var spec = new AssignmentsPagedSpecification(
+            classId, query.CourseId, teacherId, status, query.Search, query.Page, query.PageSize,
+            restrictToViewerGroup, _currentUser.GroupId);
         var pagedAssignments = await _assignmentRepository.ListPagedAsync(spec, ct);
 
         var items = pagedAssignments.Items.Select(Mapper.MapToDto).ToList();

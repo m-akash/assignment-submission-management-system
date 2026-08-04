@@ -33,6 +33,8 @@ internal sealed class FileUploadPolicy : IFileUploadPolicy
 
     public int MaxFilesPerSubmission => _options.MaxFilesPerSubmission;
 
+    public int MaxFilesPerAssignment => _options.MaxFilesPerAssignment;
+
     public IReadOnlyList<string> AllowedExtensions { get; }
 
     public Result<ValidatedUpload> Validate(string fileName, long sizeBytes, Stream content)

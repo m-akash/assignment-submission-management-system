@@ -14,6 +14,8 @@ public interface IFileUploadPolicy
 
     int MaxFilesPerSubmission { get; }
 
+    int MaxFilesPerAssignment { get; }
+
     IReadOnlyList<string> AllowedExtensions { get; }
 
     /// <summary>

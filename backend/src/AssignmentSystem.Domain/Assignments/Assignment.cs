@@ -51,6 +51,9 @@ public sealed class Assignment : BaseEntity, ISoftDeletable
     private readonly List<Submissions.Submission> _submissions = [];
     public IReadOnlyCollection<Submissions.Submission> Submissions => _submissions.AsReadOnly();
 
+    private readonly List<AssignmentFile> _files = [];
+    public IReadOnlyCollection<AssignmentFile> Files => _files.AsReadOnly();
+
     private Assignment() { }
 
     public static Assignment Create(
@@ -142,6 +145,16 @@ public sealed class Assignment : BaseEntity, ISoftDeletable
 
     /// <summary>Incremented by the handler when a submission is created (for X6 checks).</summary>
     public void IncrementSubmissionCount() => SubmissionCount++;
+
+    public void AttachFile(AssignmentFile file)
+    {
+        if (file.AssignmentId != Id)
+        {
+            throw new DomainException("File does not belong to this assignment.");
+        }
+
+        _files.Add(file);
+    }
 
     private static void ValidateCommon(string title, string description, DateTime deadlineUtc, decimal maxMarks, IClock clock)
     {

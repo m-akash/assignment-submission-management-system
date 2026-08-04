@@ -1,4 +1,5 @@
 using AssignmentSystem.Application.Common.Handlers;
+using AssignmentSystem.Application.Features.AssignmentFiles;
 using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Shared.Common;
 
@@ -21,7 +22,8 @@ public sealed record AssignmentDto(
     AssignmentStatus Status,
     bool AllowResubmission,
     int SubmissionCount,
-    DateTime CreatedAtUtc
+    DateTime CreatedAtUtc,
+    List<AssignmentFileDto> Files
 );
 
 public sealed record CreateAssignmentCommand(

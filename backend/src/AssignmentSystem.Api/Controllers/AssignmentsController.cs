@@ -1,8 +1,10 @@
 using AssignmentSystem.Api.Common;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Features.Assignments;
+using AssignmentSystem.Application.Features.AssignmentFiles;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AssignmentSystem.Api.Controllers;
@@ -18,6 +20,9 @@ public sealed class AssignmentsController : ControllerBase
     private readonly ICommandHandler<PublishAssignmentCommand, AssignmentDto> _publishHandler;
     private readonly IQueryHandler<GetAssignmentByIdQuery, AssignmentDto> _getByIdHandler;
     private readonly IQueryHandler<GetAssignmentsQuery, Shared.Common.PageResult<AssignmentDto>> _getListHandler;
+    private readonly ICommandHandler<UploadAssignmentFileCommand, AssignmentFileDto> _uploadFileHandler;
+    private readonly IQueryHandler<DownloadAssignmentFileQuery, AssignmentFileDownloadResult> _downloadFileHandler;
+    private readonly ICommandHandler<DeleteAssignmentFileCommand> _deleteFileHandler;
 
     public AssignmentsController(
         ICommandHandler<CreateAssignmentCommand, AssignmentDto> createHandler,
@@ -25,7 +30,10 @@ public sealed class AssignmentsController : ControllerBase
         ICommandHandler<DeleteAssignmentCommand> deleteHandler,
         ICommandHandler<PublishAssignmentCommand, AssignmentDto> publishHandler,
         IQueryHandler<GetAssignmentByIdQuery, AssignmentDto> getByIdHandler,
-        IQueryHandler<GetAssignmentsQuery, Shared.Common.PageResult<AssignmentDto>> getListHandler)
+        IQueryHandler<GetAssignmentsQuery, Shared.Common.PageResult<AssignmentDto>> getListHandler,
+        ICommandHandler<UploadAssignmentFileCommand, AssignmentFileDto> uploadFileHandler,
+        IQueryHandler<DownloadAssignmentFileQuery, AssignmentFileDownloadResult> downloadFileHandler,
+        ICommandHandler<DeleteAssignmentFileCommand> deleteFileHandler)
     {
         _createHandler = createHandler;
         _updateHandler = updateHandler;
@@ -33,6 +41,9 @@ public sealed class AssignmentsController : ControllerBase
         _publishHandler = publishHandler;
         _getByIdHandler = getByIdHandler;
         _getListHandler = getListHandler;
+        _uploadFileHandler = uploadFileHandler;
+        _downloadFileHandler = downloadFileHandler;
+        _deleteFileHandler = deleteFileHandler;
     }
 
     [HttpGet]
@@ -111,6 +122,46 @@ public sealed class AssignmentsController : ControllerBase
     public async Task<IActionResult> DeleteAssignment(Guid id, CancellationToken ct)
     {
         var result = await _deleteHandler.HandleAsync(new DeleteAssignmentCommand(id), ct);
+        return result.ToActionResult(this);
+    }
+
+    // ── Attachments (teacher-uploaded reference material) ──────────────────────
+
+    // The request body limit comes from FileStorage:MaxBytes (wired to FormOptions in
+    // Program.cs) rather than a hard-coded attribute, so one setting governs the cap.
+    [HttpPost("{id:guid}/attachments/upload")]
+    [Authorize(Roles = "Admin,Teacher")]
+    public async Task<IActionResult> UploadAttachment(Guid id, [FromForm] IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(new ApiResponse<object> { Success = false, Message = "No file uploaded." });
+        }
+
+        await using var stream = file.OpenReadStream();
+        var command = new UploadAssignmentFileCommand(id, file.FileName, file.Length, stream);
+        var result = await _uploadFileHandler.HandleAsync(command, ct);
+        return result.ToActionResult(this);
+    }
+
+    [HttpGet("attachments/{fileId:guid}")]
+    public async Task<IActionResult> DownloadAttachment(Guid fileId, CancellationToken ct)
+    {
+        var result = await _downloadFileHandler.HandleAsync(new DownloadAssignmentFileQuery(fileId), ct);
+        if (!result.IsSuccess)
+        {
+            return result.ToActionResult(this);
+        }
+
+        var fileStream = result.Value!.Stream;
+        return File(fileStream, result.Value.ContentType, result.Value.FileName, enableRangeProcessing: true);
+    }
+
+    [HttpDelete("attachments/{fileId:guid}")]
+    [Authorize(Roles = "Admin,Teacher")]
+    public async Task<IActionResult> DeleteAttachment(Guid fileId, CancellationToken ct)
+    {
+        var result = await _deleteFileHandler.HandleAsync(new DeleteAssignmentFileCommand(fileId), ct);
         return result.ToActionResult(this);
     }
 }

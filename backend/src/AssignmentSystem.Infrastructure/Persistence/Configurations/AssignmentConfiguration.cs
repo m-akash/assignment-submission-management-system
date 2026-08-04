@@ -64,6 +64,11 @@ internal sealed class AssignmentConfiguration : IEntityTypeConfiguration<Assignm
         builder.HasIndex(a => new { a.ClassId, a.CourseId, a.Status });
         builder.HasIndex(a => a.TeacherId);
 
+        builder.HasMany(a => a.Files)
+            .WithOne(f => f.Assignment)
+            .HasForeignKey(f => f.AssignmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasQueryFilter(a => !a.IsDeleted);
     }
 }

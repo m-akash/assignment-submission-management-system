@@ -1,4 +1,5 @@
 using Riok.Mapperly.Abstractions;
+using AssignmentSystem.Application.Features.AssignmentFiles;
 using AssignmentSystem.Domain.Assignments;
 
 namespace AssignmentSystem.Application.Features.Assignments;
@@ -11,4 +12,6 @@ public partial class AssignmentMapper
     [MapProperty("Course.Code", nameof(AssignmentDto.CourseCode))]
     [MapProperty("Class.Name", nameof(AssignmentDto.ClassName))]
     public partial AssignmentDto MapToDto(Assignment assignment);
+
+    public partial AssignmentFileDto MapToFileDto(AssignmentFile file);
 }

@@ -9,6 +9,7 @@ internal sealed class FileStorageOptions
     public string Root { get; init; } = "../_uploads";
     public long MaxBytes { get; init; } = 10 * 1024 * 1024; // 10 MB
     public int MaxFilesPerSubmission { get; init; } = 3;
+    public int MaxFilesPerAssignment { get; init; } = 5;
     /// <summary>
     /// Extensions accepted on upload. Enforced together with a file-signature check, so a
     /// type is only listed here if its bytes can be verified. Archives are excluded

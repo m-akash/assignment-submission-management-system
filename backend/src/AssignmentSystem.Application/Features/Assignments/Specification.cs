@@ -10,8 +10,10 @@ internal sealed class AssignmentWithDetailsSpecification : Specification<Assignm
     {
         Criteria = a => a.Id == id;
         AddInclude(a => a.Course);
+        AddInclude("Course.Group");
         AddInclude(a => a.Class);
         AddInclude("TeacherAssignment.Teacher");
+        AddInclude(a => a.Files);
     }
 }
 
@@ -24,12 +26,16 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
         AssignmentStatus? status,
         string? search,
         int page,
-        int pageSize)
+        int pageSize,
+        bool restrictToViewerGroup = false,
+        Guid? viewerGroupId = null)
     {
         ApplyNoTracking();
         AddInclude(a => a.Course);
+        AddInclude("Course.Group");
         AddInclude(a => a.Class);
         AddInclude("TeacherAssignment.Teacher");
+        AddInclude(a => a.Files);
         ApplyOrderByDescending(a => a.CreatedAtUtc);
         ApplyPaging(page, pageSize);
 
@@ -44,6 +50,7 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
             (!courseId.HasValue || a.CourseId == courseId.Value) &&
             (!teacherId.HasValue || a.TeacherId == teacherId.Value) &&
             (!status.HasValue || a.Status == status.Value) &&
+            (!restrictToViewerGroup || a.Course.GroupId == null || a.Course.GroupId == viewerGroupId) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              a.Title.ToLower().Contains(searchLower) ||
              a.Description.ToLower().Contains(searchLower));
