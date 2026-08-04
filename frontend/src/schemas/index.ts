@@ -41,7 +41,9 @@ export const userSchema = z
         message: 'Use at least 8 characters, or leave blank to keep the current one',
       });
     }
-    if (values.role === 'Student' && !values.classId) {
+    // Only on create: the field is not shown when editing, because moving a student
+    // between classes goes through enrollments (which refuses to leave them with none).
+    if (!values.isEdit && values.role === 'Student' && !values.classId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['classId'],
@@ -73,15 +75,36 @@ export const courseSchema = z.object({
 });
 export type CourseValues = z.infer<typeof courseSchema>;
 
+/**
+ * A mapping is made against an offering, not a (class, course) pair — the pair could name
+ * a combination the class does not study, which is exactly what the offering rules out.
+ */
 export const teacherMappingSchema = z.object({
   teacherId: z.string().min(1, 'Choose a teacher'),
-  courseId: z.string().min(1, 'Choose a course'),
-  classId: z.string().min(1, 'Choose a class'),
+  classCourseId: z.string().min(1, 'Choose the class and course'),
 });
 export type TeacherMappingValues = z.infer<typeof teacherMappingSchema>;
 
+export const classCourseSchema = z.object({
+  classId: z.string().min(1, 'Choose a class'),
+  courseId: z.string().min(1, 'Choose a course'),
+});
+export type ClassCourseValues = z.infer<typeof classCourseSchema>;
+
+export const enrollmentSchema = z.object({
+  studentId: z.string().min(1, 'Choose a student'),
+  classId: z.string().min(1, 'Choose a class'),
+});
+export type EnrollmentValues = z.infer<typeof enrollmentSchema>;
+
 export const assignmentSchema = z.object({
-  teacherAssignmentId: z.string().min(1, 'Choose the class and course'),
+  /**
+   * The teaching mapping, not the offering: it identifies the class, the course AND the
+   * teacher in one choice. A teacher sees only their own, so it reads as "which of my
+   * classes"; an admin sees all of them, so it also answers "on whose behalf". The
+   * submit handler unpacks it into the offering and teacher the API expects.
+   */
+  teachingMappingId: z.string().min(1, 'Choose the class and course'),
   title: z.string().trim().min(3, 'Enter a title').max(200, 'Title cannot exceed 200 characters'),
   description: z.string().trim().min(1, 'Describe what students must do'),
   // datetime-local produces "YYYY-MM-DDTHH:mm" in the browser's zone.

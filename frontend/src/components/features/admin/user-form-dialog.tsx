@@ -68,7 +68,9 @@ export function UserFormDialog({
             fullName: user.fullName,
             email: user.email,
             role: user.role,
-            classId: user.classId ?? '',
+            // Create-only: an existing student's classes are managed on the class roster,
+            // where removing their last one can be refused.
+            classId: '',
             password: '',
             isEdit: true,
           }
@@ -86,8 +88,8 @@ export function UserFormDialog({
         email: values.email,
         fullName: values.fullName,
         role: values.role,
-        // Each id belongs to exactly one role; cleared for the others so the server
-        // never sees a stale pairing.
+        // Only meaningful on create, where it becomes the student's first enrollment.
+        // Cleared for other roles so the server never sees a stale pairing.
         classId: values.role === 'Student' ? values.classId : null,
         password: values.password || undefined,
       },
@@ -104,7 +106,7 @@ export function UserFormDialog({
           <DialogTitle>{isEdit ? 'Edit user' : 'Create user'}</DialogTitle>
           <DialogDescription>
             {isEdit
-              ? 'Leave the password blank to keep the current one.'
+              ? 'Leave the password blank to keep the current one. Class membership is managed from the class roster.'
               : 'Self-registration is disabled — accounts are created here by an administrator.'}
           </DialogDescription>
         </DialogHeader>
@@ -145,7 +147,7 @@ export function UserFormDialog({
               {isEdit && <p className="text-xs text-muted-foreground">Role cannot be changed.</p>}
             </div>
 
-            {role === 'Student' && (
+            {role === 'Student' && !isEdit && (
               <div className="space-y-2">
                 <Label htmlFor="classId">Class</Label>
                 <Select

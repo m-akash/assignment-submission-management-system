@@ -46,9 +46,13 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
           </Sheet>
 
           <div className="min-w-0 flex-1">
-            {user.className && (
+            {user.classes.length > 0 && (
               <p className="truncate text-sm text-muted-foreground">
-                <span className="text-foreground">{user.className}</span>
+                {/* Joined rather than showing only the first: a student enrolled in two
+                    classes needs to see both, and this is the only place it is stated. */}
+                <span className="text-foreground">
+                  {user.classes.map((enrolled) => enrolled.className).join(' · ')}
+                </span>
               </p>
             )}
           </div>

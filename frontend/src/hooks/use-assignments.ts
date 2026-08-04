@@ -10,6 +10,7 @@ export interface AssignmentFilters {
   search?: string;
   classId?: string;
   courseId?: string;
+  classCourseId?: string;
   status?: AssignmentStatus | '';
   page?: number;
   pageSize?: number;
@@ -28,7 +29,10 @@ export function useAssignments(filters: AssignmentFilters) {
 }
 
 export interface AssignmentInput {
-  teacherAssignmentId: string;
+  /** The offering the work is for. */
+  classCourseId: string;
+  /** Only sent by an admin; a teacher's own request is authored from their token. */
+  teacherId?: string;
   title: string;
   description: string;
   deadlineUtc: string;
@@ -65,7 +69,9 @@ export function usePublishAssignment() {
     mutationFn: (id: string) => apiPost<Assignment>(`/api/v1/assignments/${id}/publish`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.assignments.all });
-      toast.success('Assignment published — students can see it now');
+      // Publishing queues an email to every enrolled student, so the outbox is stale.
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+      toast.success('Assignment published — students have been notified');
     },
     onError: (error: Error) => toast.error(error.message),
   });

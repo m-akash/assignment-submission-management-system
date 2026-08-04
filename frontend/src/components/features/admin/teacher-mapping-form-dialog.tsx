@@ -22,13 +22,21 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  useClassOptions,
+  useClassCourseOptions,
   useCreateTeacherMapping,
-  useCourseOptions,
   useUsers,
 } from '@/hooks/use-admin-resources';
 import { teacherMappingSchema, type TeacherMappingValues } from '@/schemas';
 
+const EMPTY: TeacherMappingValues = { teacherId: '', classCourseId: '' };
+
+/**
+ * Assigns a teacher to a course offering.
+ *
+ * One picker for the offering rather than separate class and course pickers: the admin can
+ * then only choose a combination the class actually studies, which is the point of the
+ * offering existing. Creating a new pairing is a different job, done on the Offerings screen.
+ */
 export function TeacherMappingFormDialog({
   open,
   onOpenChange,
@@ -37,17 +45,16 @@ export function TeacherMappingFormDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const teachers = useUsers({ role: 'Teacher', pageSize: 100 });
-  const classes = useClassOptions();
-  const courses = useCourseOptions();
+  const offerings = useClassCourseOptions();
   const create = useCreateTeacherMapping();
 
   const form = useForm<TeacherMappingValues>({
     resolver: zodResolver(teacherMappingSchema),
-    defaultValues: { teacherId: '', courseId: '', classId: '' },
+    defaultValues: EMPTY,
   });
 
   useEffect(() => {
-    if (open) form.reset({ teacherId: '', courseId: '', classId: '' });
+    if (open) form.reset(EMPTY);
   }, [open, form]);
 
   async function onSubmit(values: TeacherMappingValues) {
@@ -56,6 +63,7 @@ export function TeacherMappingFormDialog({
   }
 
   const teacherOptions = teachers.data?.items ?? [];
+  const offeringOptions = offerings.data ?? [];
   const errors = form.formState.errors;
 
   return (
@@ -64,8 +72,8 @@ export function TeacherMappingFormDialog({
         <DialogHeader>
           <DialogTitle>Assign a teacher</DialogTitle>
           <DialogDescription>
-            Links one teacher to one course and class. This is what lets that teacher create
-            assignments for that class.
+            Links one teacher to one course offering. This is what lets that teacher create
+            assignments and grade submissions for that class and course.
           </DialogDescription>
         </DialogHeader>
 
@@ -91,43 +99,34 @@ export function TeacherMappingFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="courseId">Course</Label>
+            <Label htmlFor="classCourseId">Class and course</Label>
             <Select
-              value={form.watch('courseId')}
-              onValueChange={(value) => form.setValue('courseId', value, { shouldValidate: true })}
+              value={form.watch('classCourseId')}
+              onValueChange={(value) =>
+                form.setValue('classCourseId', value, { shouldValidate: true })
+              }
             >
-              <SelectTrigger id="courseId">
-                <SelectValue placeholder={courses.isLoading ? 'Loading…' : 'Choose a course'} />
+              <SelectTrigger id="classCourseId">
+                <SelectValue
+                  placeholder={offerings.isLoading ? 'Loading…' : 'Choose a class and course'}
+                />
               </SelectTrigger>
               <SelectContent>
-                {(courses.data ?? []).map((course) => (
-                  <SelectItem key={course.id} value={course.id}>
-                    {course.name}
+                {offeringOptions.map((offering) => (
+                  <SelectItem key={offering.id} value={offering.id}>
+                    {offering.className} · {offering.courseName}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {errors.courseId && <p className="text-xs text-danger">{errors.courseId.message}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="classId">Class</Label>
-            <Select
-              value={form.watch('classId')}
-              onValueChange={(value) => form.setValue('classId', value, { shouldValidate: true })}
-            >
-              <SelectTrigger id="classId">
-                <SelectValue placeholder={classes.isLoading ? 'Loading…' : 'Choose a class'} />
-              </SelectTrigger>
-              <SelectContent>
-                {(classes.data ?? []).map((classRoom) => (
-                  <SelectItem key={classRoom.id} value={classRoom.id}>
-                    {classRoom.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.classId && <p className="text-xs text-danger">{errors.classId.message}</p>}
+            {errors.classCourseId && (
+              <p className="text-xs text-danger">{errors.classCourseId.message}</p>
+            )}
+            {!offerings.isLoading && offeringOptions.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No offerings yet — add a course to a class on the Offerings screen first.
+              </p>
+            )}
           </div>
 
           <DialogFooter>

@@ -1,6 +1,8 @@
 'use client';
 
-import { Users } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Loader2, UserMinus, UserPlus, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -8,13 +10,30 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/shared/states';
-import { useUsers } from '@/hooks/use-admin-resources';
+import {
+  useCreateEnrollment,
+  useDeleteEnrollment,
+  useEnrollments,
+  useUsers,
+} from '@/hooks/use-admin-resources';
 import type { ClassRoom } from '@/types/api';
 
-/** Who's in a class — an admin drills in from the Classes list rather than every row
- * carrying its own student array (the list endpoint only returns a count). */
+/**
+ * Who's in a class, and the place to change it.
+ *
+ * Enrollments are edited here rather than on the user form because the rules are about the
+ * class: a student cannot be enrolled twice, and cannot be removed from their only class.
+ * Both are enforced by the server and surface here as a toast.
+ */
 export function ClassRosterDialog({
   open,
   onOpenChange,
@@ -24,50 +43,114 @@ export function ClassRosterDialog({
   onOpenChange: (open: boolean) => void;
   classRoom: ClassRoom | null;
 }) {
-  const query = useUsers(
-    { role: 'Student', classId: classRoom?.id, pageSize: 100 },
-    { enabled: open && !!classRoom },
-  );
-  const students = query.data?.items ?? [];
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+
+  const enabled = open && !!classRoom;
+  const roster = useEnrollments({ classId: classRoom?.id, pageSize: 100 }, { enabled });
+  // Every student, so the picker can offer the ones not already here.
+  const allStudents = useUsers({ role: 'Student', pageSize: 200 }, { enabled });
+
+  const enrol = useCreateEnrollment();
+  const remove = useDeleteEnrollment();
+
+  // Memoised so the `??` fallback does not produce a new array identity on every render,
+  // which would make the derived list below recompute each time.
+  const enrolled = useMemo(() => roster.data?.items ?? [], [roster.data]);
+
+  // Filtered client-side: the API has no "students not in class X" query, and offering
+  // someone already enrolled would only produce a 409.
+  const addable = useMemo(() => {
+    const already = new Set(enrolled.map((entry) => entry.studentId));
+    return (allStudents.data?.items ?? []).filter((student) => !already.has(student.id));
+  }, [enrolled, allStudents.data]);
+
+  async function onEnrol() {
+    if (!classRoom || !selectedStudentId) return;
+    await enrol.mutateAsync({ studentId: selectedStudentId, classId: classRoom.id });
+    setSelectedStudentId('');
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{classRoom?.name ?? 'Students'}</DialogTitle>
           <DialogDescription>
-            {classRoom?.studentCount ?? 0} student{classRoom?.studentCount === 1 ? '' : 's'} in this class.
+            {enrolled.length} student{enrolled.length === 1 ? '' : 's'} enrolled. A student must
+            belong to at least one class, so add them to the new one before removing this.
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
+              <SelectTrigger aria-label="Student to enrol">
+                <SelectValue
+                  placeholder={
+                    allStudents.isLoading
+                      ? 'Loading…'
+                      : addable.length === 0
+                        ? 'Every student is already enrolled'
+                        : 'Choose a student to enrol'
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {addable.map((student) => (
+                  <SelectItem key={student.id} value={student.id}>
+                    {student.fullName}
+                    {student.studentId ? ` · ${student.studentId}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={onEnrol} disabled={!selectedStudentId || enrol.isPending}>
+            {enrol.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <UserPlus className="size-4" />
+            )}
+            Enrol
+          </Button>
+        </div>
+
         <div className="max-h-96 overflow-y-auto">
-          {query.isError ? (
-            <ErrorState message={query.error instanceof Error ? query.error.message : undefined} />
-          ) : query.isLoading ? (
+          {roster.isError ? (
+            <ErrorState
+              message={roster.error instanceof Error ? roster.error.message : undefined}
+            />
+          ) : roster.isLoading ? (
             <div className="space-y-3 py-2">
               {Array.from({ length: 3 }).map((_, index) => (
                 <Skeleton key={index} className="h-10 w-full" />
               ))}
             </div>
-          ) : students.length === 0 ? (
+          ) : enrolled.length === 0 ? (
             <EmptyState icon={Users} title="No students in this class yet" />
           ) : (
             <ul className="divide-y">
-              {students.map((student) => (
-                <li key={student.id} className="flex items-center justify-between gap-3 py-3">
+              {enrolled.map((entry) => (
+                <li key={entry.id} className="flex items-center justify-between gap-3 py-3">
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{student.fullName}</p>
-                    <p className="truncate text-sm text-muted-foreground">{student.email}</p>
+                    <p className="truncate font-medium">{entry.studentName}</p>
+                    <p className="truncate text-sm text-muted-foreground">{entry.studentEmail}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    {student.studentId && (
-                      <span className="font-mono text-xs text-muted-foreground">{student.studentId}</span>
-                    )}
-                    {!student.isActive && (
-                      <span className="rounded-full border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                        Inactive
+                    {entry.studentNumber && (
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {entry.studentNumber}
                       </span>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Remove ${entry.studentName} from this class`}
+                      disabled={remove.isPending}
+                      onClick={() => remove.mutate(entry.id)}
+                    >
+                      <UserMinus className="size-4" />
+                    </Button>
                   </div>
                 </li>
               ))}

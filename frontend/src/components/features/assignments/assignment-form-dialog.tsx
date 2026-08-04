@@ -76,7 +76,7 @@ export function AssignmentFormDialog({
   const form = useForm<AssignmentValues>({
     resolver: zodResolver(assignmentSchema),
     defaultValues: {
-      teacherAssignmentId: '',
+      teachingMappingId: '',
       title: '',
       description: '',
       deadlineLocal: defaultDeadline(),
@@ -85,6 +85,22 @@ export function AssignmentFormDialog({
     },
   });
 
+  /**
+   * The mapping that corresponds to an existing assignment: same offering, same author.
+   * Falls back to any mapping for the offering so the disabled picker still shows the right
+   * class and course even if the admin has since reassigned who teaches it.
+   */
+  function mappingFor(existing: Assignment) {
+    const options = mappings.data ?? [];
+    return (
+      options.find(
+        (option) =>
+          option.classCourseId === existing.classCourseId &&
+          option.teacherId === existing.teacherId,
+      ) ?? options.find((option) => option.classCourseId === existing.classCourseId)
+    );
+  }
+
   // Repopulate whenever the dialog opens so a reopened form never shows stale values.
   useEffect(() => {
     if (!open) return;
@@ -92,7 +108,9 @@ export function AssignmentFormDialog({
     form.reset(
       assignment
         ? {
-            teacherAssignmentId: assignment.teacherAssignmentId,
+            // Resolved from the assignment's offering and author rather than stored on it:
+            // the assignment points at the offering directly, not at a mapping.
+            teachingMappingId: mappingFor(assignment)?.id ?? '',
             title: assignment.title,
             description: assignment.description,
             deadlineLocal: toLocalInput(assignment.deadlineUtc),
@@ -100,7 +118,7 @@ export function AssignmentFormDialog({
             allowResubmission: assignment.allowResubmission,
           }
         : {
-            teacherAssignmentId: '',
+            teachingMappingId: '',
             title: '',
             description: '',
             deadlineLocal: defaultDeadline(),
@@ -108,13 +126,20 @@ export function AssignmentFormDialog({
             allowResubmission: true,
           },
     );
-  }, [open, assignment, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, assignment, form, mappings.data]);
 
   async function onSubmit(values: AssignmentValues) {
+    // Unpack the one choice the form makes into the two the API takes. teacherId only
+    // matters for an admin creating on someone's behalf; the server ignores it for a
+    // teacher and uses their token identity instead.
+    const mapping = options.find((option) => option.id === values.teachingMappingId);
+
     const saved = await save.mutateAsync({
       id: assignment?.id,
       input: {
-        teacherAssignmentId: values.teacherAssignmentId,
+        classCourseId: mapping?.classCourseId ?? '',
+        teacherId: mapping?.teacherId,
         title: values.title,
         description: values.description,
         // The API stores UTC; convert once, here.
@@ -146,6 +171,11 @@ export function AssignmentFormDialog({
   }
 
   const options = mappings.data ?? [];
+
+  // An admin's list spans every teacher, so the option label has to say whose class it is;
+  // a teacher's list is all their own, where the name would be noise.
+  const showsTeacherNames = new Set(options.map((option) => option.teacherId)).size > 1;
+
   const errors = form.formState.errors;
 
   return (
@@ -171,19 +201,21 @@ export function AssignmentFormDialog({
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="space-y-2">
-            <Label htmlFor="teacherAssignmentId">Class and course</Label>
+            <Label htmlFor="teachingMappingId">Class and course</Label>
             <Select
-              value={form.watch('teacherAssignmentId')}
-              onValueChange={(value) => form.setValue('teacherAssignmentId', value, { shouldValidate: true })}
+              value={form.watch('teachingMappingId')}
+              onValueChange={(value) => form.setValue('teachingMappingId', value, { shouldValidate: true })}
               disabled={isEdit || options.length === 0}
             >
-              <SelectTrigger id="teacherAssignmentId" className="w-full">
+              <SelectTrigger id="teachingMappingId" className="w-full">
                 <SelectValue placeholder={mappings.isLoading ? 'Loading…' : 'Choose class and course'} />
               </SelectTrigger>
               <SelectContent>
                 {options.map((mapping) => (
                   <SelectItem key={mapping.id} value={mapping.id}>
                     {mapping.className} · {mapping.courseName}
+                    {/* Shown only when the list spans teachers, i.e. for an admin. */}
+                    {showsTeacherNames && ` · ${mapping.teacherName}`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -193,8 +225,8 @@ export function AssignmentFormDialog({
                 The class and course cannot be moved after creation.
               </p>
             )}
-            {errors.teacherAssignmentId && (
-              <p className="text-xs text-danger">{errors.teacherAssignmentId.message}</p>
+            {errors.teachingMappingId && (
+              <p className="text-xs text-danger">{errors.teachingMappingId.message}</p>
             )}
           </div>
 
