@@ -117,20 +117,27 @@ public sealed class DbSeeder
         var businessGroup = groups[2];
 
         // ── Courses (12) ─────────────────────────────────────────────────────────
+        // Group-restricting a course only makes sense for a course whose every seeded
+        // teacher-assignment (below) is at a class IX+ AND whose already-scripted
+        // submissions (below) belong to a student in that same group. Physics/Chemistry
+        // are also taught to a Humanities-group student in class IX B in this seed, so
+        // they stay open rather than contradicting an already-existing submission from
+        // that student — only Biology (draft-only, no submissions yet), Higher
+        // Mathematics and Accounting satisfy that everywhere they're used here.
         var courses = new[]
         {
             Course.Create("Mathematics", "MATH101", mathsDept.Id),
             Course.Create("Physics", "PHY101", scienceDept.Id),
             Course.Create("Chemistry", "CHE101", scienceDept.Id),
-            Course.Create("Biology", "BIO101", scienceDept.Id),
+            Course.Create("Biology", "BIO101", scienceDept.Id, scienceGroup.Id),
             Course.Create("English", "ENG101", languagesDept.Id),
             Course.Create("Bangla", "BAN101", languagesDept.Id),
             Course.Create("ICT", "ICT101", businessDept.Id),
             Course.Create("History", "HIS101", humanitiesDept.Id),
             Course.Create("Geography", "GEO101", humanitiesDept.Id),
             Course.Create("Economics", "ECO101", businessDept.Id),
-            Course.Create("Accounting", "ACC101", businessDept.Id),
-            Course.Create("Higher Mathematics", "HMT101", mathsDept.Id),
+            Course.Create("Accounting", "ACC101", businessDept.Id, businessGroup.Id),
+            Course.Create("Higher Mathematics", "HMT101", mathsDept.Id, scienceGroup.Id),
         };
         _context.Courses.AddRange(courses);
         var math = courses[0];
