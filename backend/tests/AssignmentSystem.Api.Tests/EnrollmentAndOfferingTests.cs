@@ -122,33 +122,19 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
     }
 
     /// <summary>
-    /// An admin creating work on a teacher's behalf must name a teacher who actually teaches
-    /// the offering — otherwise the assignment's own author could not publish or grade it.
+    /// Coursework is read-only for admins: even though they administer the school, they may
+    /// not author assignments — only the teacher who owns the work can create, publish or grade it.
     /// </summary>
     [Fact]
-    public async Task Admin_CannotCreateAssignmentForATeacherNotMappedToTheOffering()
+    public async Task Admin_CannotCreateAssignments()
     {
         var world = await ProvisionWorldAsync("off-admin");
-        var other = await ProvisionWorldAsync("off-admin2");
         using var admin = await SignInAsAdminAsync();
 
         var response = await admin.PostAsJsonAsync("/api/v1/assignments", new CreateAssignmentRequest(
-            world.ClassCourseId, "Wrong teacher", "Nope", DateTime.UtcNow.AddDays(3), 10m, true,
-            TeacherId: other.TeacherId));
+            world.ClassCourseId, "Admin draft", "Should not be allowed.", DateTime.UtcNow.AddDays(3), 10m, true));
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
-    public async Task Admin_MustNameATeacherWhenCreatingAnAssignment()
-    {
-        var world = await ProvisionWorldAsync("off-noteach");
-        using var admin = await SignInAsAdminAsync();
-
-        var response = await admin.PostAsJsonAsync("/api/v1/assignments", new CreateAssignmentRequest(
-            world.ClassCourseId, "No author", "Nope", DateTime.UtcNow.AddDays(3), 10m, true));
-
-        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
     // ── Enrollments ───────────────────────────────────────────────────────────
@@ -223,21 +209,55 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
 
     /// <summary>
     /// Enrollment decides what a student can see, so it is exactly what a student must not be
-    /// able to change for themselves.
+    /// able to change for themselves. Writing enrollments stays admin-only. Teachers may now
+    /// read enrollments — but only for classes they teach (see
+    /// <see cref="TeacherReadsEnrollments_ScopedToTheirOwnClasses"/>).
     /// </summary>
     [Fact]
-    public async Task Enrollments_AreAdminOnly()
+    public async Task Enrollments_WritesAreAdminOnly_StudentsForbidden()
     {
         var world = await ProvisionWorldAsync("enr-role");
         using var student = await SignInAsync(world.StudentEmail);
-        using var teacher = await SignInAsync(world.TeacherEmail);
 
+        // A student can neither read nor write enrollments.
         (await student.GetAsync("/api/v1/enrollments")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await teacher.GetAsync("/api/v1/enrollments")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         var selfEnrol = await student.PostAsJsonAsync("/api/v1/enrollments",
             new CreateEnrollmentRequest(world.StudentId, world.ClassId));
         selfEnrol.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>
+    /// A teacher may read enrollments, but the server scopes them to the classes they teach:
+    /// they see their own class's students and are forbidden from naming another teacher's
+    /// class. A teacher also cannot write enrollments.
+    /// </summary>
+    [Fact]
+    public async Task TeacherReadsEnrollments_ScopedToTheirOwnClasses()
+    {
+        var mine = await ProvisionWorldAsync("enr-t-mine");
+        var theirs = await ProvisionWorldAsync("enr-t-theirs");
+        using var teacher = await SignInAsync(mine.TeacherEmail);
+
+        // Their own class: 200 and contains their student.
+        var own = await teacher.GetAsync($"/api/v1/enrollments?classId={mine.ClassId}");
+        own.StatusCode.Should().Be(HttpStatusCode.OK);
+        var (ownRows, _) = await ReadPageAsync<EnrollmentRow>(own);
+        ownRows.Should().ContainSingle().Which.StudentId.Should().Be(mine.StudentId);
+
+        // Another teacher's class: forbidden, not a silent empty page.
+        var cross = await teacher.GetAsync($"/api/v1/enrollments?classId={theirs.ClassId}");
+        cross.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // Unfiltered, they still only see their own class's student.
+        var all = await teacher.GetAsync("/api/v1/enrollments");
+        var (allRows, _) = await ReadPageAsync<EnrollmentRow>(all);
+        allRows.Should().OnlyContain(r => r.ClassId == mine.ClassId);
+
+        // Writing is still admin-only.
+        var write = await teacher.PostAsJsonAsync("/api/v1/enrollments",
+            new CreateEnrollmentRequest(mine.StudentId, mine.ClassId));
+        write.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     /// <summary>

@@ -38,15 +38,19 @@ public class AssignmentFileAuthorizationTests : IntegrationTestBase
         file.FileSizeBytes.Should().Be(PdfBytes.Length);
     }
 
+    /// <summary>
+    /// Coursework is read-only for admins: attachments are teacher-authored reference material,
+    /// so an admin may read but not add them.
+    /// </summary>
     [Fact]
-    public async Task Upload_ByAdmin_ShouldSucceed()
+    public async Task Upload_ByAdmin_ShouldBeForbidden()
     {
         var scenario = await ScenarioAsync("aup-adm");
         using var admin = await SignInAsAdminAsync();
 
         var response = await UploadAsync(admin, scenario.Assignment.Id, "handout.pdf", PdfBytes);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -222,8 +226,12 @@ public class AssignmentFileAuthorizationTests : IntegrationTestBase
         download.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    /// <summary>
+    /// Coursework is read-only for admins: an admin may read attachments but not delete
+    /// another teacher's reference material.
+    /// </summary>
     [Fact]
-    public async Task Delete_ByAdmin_ShouldSucceed()
+    public async Task Delete_ByAdmin_ShouldBeForbidden()
     {
         var scenario = await ScenarioAsync("adel-adm");
         var file = await UploadFileAsync(scenario, "handout.pdf");
@@ -231,7 +239,7 @@ public class AssignmentFileAuthorizationTests : IntegrationTestBase
 
         var response = await admin.DeleteAsync($"/api/v1/assignments/attachments/{file.Id}");
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -59,14 +59,28 @@ public class AssignmentHandlerTests
             .Setup(r => r.AnyAsync(It.IsAny<ISpecification<TeacherAssignment>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(mapped);
 
-    private static CreateAssignmentCommand Command(Guid? classCourseId = null, Guid? teacherId = null) =>
+    private static CreateAssignmentCommand Command(Guid? classCourseId = null) =>
         new(classCourseId ?? OfferingId, "Title", "Desc",
-            new DateTime(2026, 8, 9, 12, 0, 0, DateTimeKind.Utc), 100m, true, teacherId);
+            new DateTime(2026, 8, 9, 12, 0, 0, DateTimeKind.Utc), 100m, true);
 
     [Fact]
     public async Task Handle_CreateAssignment_WhenUserIsStudent_ShouldReturnForbidden()
     {
         _currentUserMock.Setup(u => u.Role).Returns(Role.Student);
+
+        var result = await _createHandler.HandleAsync(Command(), CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Type.Should().Be(ErrorType.Forbidden);
+    }
+
+    /// <summary>
+    /// Coursework is read-only for admins: they browse assignments but cannot author them.
+    /// </summary>
+    [Fact]
+    public async Task Handle_CreateAssignment_WhenUserIsAdmin_ShouldReturnForbidden()
+    {
+        _currentUserMock.Setup(u => u.Role).Returns(Role.Admin);
 
         var result = await _createHandler.HandleAsync(Command(), CancellationToken.None);
 
@@ -111,30 +125,12 @@ public class AssignmentHandlerTests
     }
 
     /// <summary>
-    /// An admin has to say who the work belongs to — there is no "current teacher" to fall
-    /// back on, and inventing one would produce an assignment nobody can publish or grade.
+    /// A teacher's own id is taken from the token — the request carries no teacher id, so
+    /// authorship cannot be spoofed to land under a colleague.
     /// </summary>
     [Fact]
-    public async Task Handle_CreateAssignment_WhenAdminOmitsTeacher_ShouldReturnValidationError()
+    public async Task Handle_CreateAssignment_WhenTeacherIsMapped_ShouldUseCallerAsAuthor()
     {
-        _currentUserMock.Setup(u => u.Role).Returns(Role.Admin);
-        _currentUserMock.Setup(u => u.UserId).Returns(Guid.NewGuid());
-        GivenOfferingExists();
-
-        var result = await _createHandler.HandleAsync(Command(teacherId: null), CancellationToken.None);
-
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Type.Should().Be(ErrorType.Validation);
-    }
-
-    /// <summary>
-    /// A teacher's own id is taken from the token, so a request naming a colleague still
-    /// creates the assignment under the caller — authorship cannot be spoofed through the body.
-    /// </summary>
-    [Fact]
-    public async Task Handle_CreateAssignment_WhenTeacherNamesAnother_ShouldUseCallerAsAuthor()
-    {
-        var someoneElse = Guid.NewGuid();
         _currentUserMock.Setup(u => u.Role).Returns(Role.Teacher);
         _currentUserMock.Setup(u => u.UserId).Returns(TeacherId);
         GivenOfferingExists();
@@ -149,7 +145,7 @@ public class AssignmentHandlerTests
         // projected from a re-read that carries the class, course and teacher names through
         // navigation properties — only a real database populates those, so the round trip is
         // covered by the integration suite. What matters here is which teacher id was persisted.
-        await _createHandler.HandleAsync(Command(teacherId: someoneElse), CancellationToken.None);
+        await _createHandler.HandleAsync(Command(), CancellationToken.None);
 
         added.Should().NotBeNull();
         added!.TeacherId.Should().Be(TeacherId);
