@@ -11,6 +11,8 @@ public sealed record UserDto(
     Guid? ClassId,
     string? ClassName,
     string? StudentId,
+    Guid? GroupId,
+    string? GroupName,
     Guid? DepartmentId,
     string? DepartmentName,
     string? TeacherId,
@@ -24,7 +26,8 @@ public sealed record CreateUserCommand(
     string Password,
     Domain.Enums.Role Role,
     Guid? ClassId,
-    Guid? DepartmentId
+    Guid? DepartmentId,
+    Guid? GroupId
 ) : ICommand<UserDto>;
 
 public sealed record UpdateUserCommand(
@@ -32,7 +35,8 @@ public sealed record UpdateUserCommand(
     string FullName,
     string? Password,
     Guid? ClassId,
-    Guid? DepartmentId
+    Guid? DepartmentId,
+    Guid? GroupId
 ) : ICommand<UserDto>;
 
 public sealed record DeleteUserCommand(Guid Id) : ICommand;

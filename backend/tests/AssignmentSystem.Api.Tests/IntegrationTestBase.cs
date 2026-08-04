@@ -120,7 +120,9 @@ public abstract class IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var @class = await PostAsync<ClassRef>(admin, "/api/v1/classes",
-            new CreateClassRequest($"Class {tag}", "X", tag));
+            // Level 8: below class IX, so its students need no group — this fixture is
+            // about authorization boundaries, not the group rule.
+            new CreateClassRequest($"Class {tag}", 8, tag));
 
         // Department codes are capped at 10 characters, so this one cannot be built from
         // the tag — "D" plus 9 hex digits is short enough and still collision-free.
@@ -133,11 +135,11 @@ public abstract class IntegrationTestBase
 
         var teacherEmail = $"teacher-{tag}@test.local";
         var teacher = await PostAsync<UserRef>(admin, "/api/v1/users",
-            new CreateUserRequest(teacherEmail, $"Teacher {tag}", TestPassword, Role.Teacher, null, department.Id));
+            new CreateUserRequest(teacherEmail, $"Teacher {tag}", TestPassword, Role.Teacher, null, department.Id, null));
 
         var studentEmail = $"student-{tag}@test.local";
         var student = await PostAsync<UserRef>(admin, "/api/v1/users",
-            new CreateUserRequest(studentEmail, $"Student {tag}", TestPassword, Role.Student, @class.Id, null));
+            new CreateUserRequest(studentEmail, $"Student {tag}", TestPassword, Role.Student, @class.Id, null, null));
 
         var teacherAssignment = await PostAsync<TeacherAssignmentRef>(admin, "/api/v1/teacher-assignments",
             new CreateTeacherAssignmentRequest(teacher.Id, course.Id, @class.Id));
@@ -210,7 +212,7 @@ public abstract class IntegrationTestBase
 
         using var admin = await SignInAsAdminAsync();
         var response = await admin.PostAsJsonAsync("/api/v1/users",
-            new CreateUserRequest(email, $"Student {tag}", TestPassword, Role.Student, classId, null));
+            new CreateUserRequest(email, $"Student {tag}", TestPassword, Role.Student, classId, null, null));
 
         response.EnsureSuccessStatusCode();
         return email;

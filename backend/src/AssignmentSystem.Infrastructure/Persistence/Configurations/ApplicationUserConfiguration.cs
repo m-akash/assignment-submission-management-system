@@ -1,6 +1,7 @@
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Domain.Departments;
+using AssignmentSystem.Domain.Groups;
 using AssignmentSystem.Domain.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -64,12 +65,23 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
 
         builder.HasIndex(u => u.ClassId);
 
-        // "G10-A-003" (G, grade, section, sequence). Null for admin/teacher — a unique
+        // "IX-A-003" (grade numeral, section, sequence). Null for admin/teacher — a unique
         // index over a nullable column still allows any number of nulls in Postgres.
         builder.Property(u => u.StudentId)
             .HasMaxLength(30);
 
         builder.HasIndex(u => u.StudentId).IsUnique();
+
+        // A student's group. Restrict rather than SetNull: silently clearing it would
+        // leave class IX+ students without the group they are required to have, so the
+        // admin has to move them first.
+        builder.Property(u => u.GroupId);
+        builder.HasOne(u => u.Group)
+            .WithMany()
+            .HasForeignKey(u => u.GroupId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(u => u.GroupId);
 
         // A teacher's department. SetNull rather than Restrict: removing a department
         // should not block deleting it outright, it just leaves the teacher unassigned.
