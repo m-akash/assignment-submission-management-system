@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSaveClass } from '@/hooks/use-admin-resources';
-import { classSchema, type ClassValues } from '@/schemas';
+import { classSchema, type ClassInput, type ClassValues } from '@/schemas';
 import type { ClassRoom } from '@/types/api';
 
 export function ClassFormDialog({
@@ -30,7 +30,9 @@ export function ClassFormDialog({
   const isEdit = !!classRoom;
   const save = useSaveClass();
 
-  const form = useForm<ClassValues>({
+  // <what the fields hold, context, what validation produces> — `level` is coerced,
+  // so the first and last are not the same type.
+  const form = useForm<ClassInput, unknown, ClassValues>({
     resolver: zodResolver(classSchema),
     defaultValues: { name: '', level: 6, section: '' },
   });

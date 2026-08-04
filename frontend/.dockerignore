@@ -1,0 +1,24 @@
+# Everything the image must build for itself. Without this, `COPY . .` overwrites the
+# lockfile-pinned `npm ci` install with whatever the host developer happens to have
+# installed, so the same commit builds differently on different machines.
+node_modules
+.next
+out
+
+.git
+.gitignore
+Dockerfile
+.dockerignore
+README.md
+
+npm-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+
+.vscode
+.idea
+.DS_Store

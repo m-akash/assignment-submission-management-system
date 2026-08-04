@@ -32,7 +32,7 @@ import {
 } from '@/hooks/use-assignments';
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
 import { formatBytes } from '@/lib/format';
-import { assignmentSchema, type AssignmentValues } from '@/schemas';
+import { assignmentSchema, type AssignmentInput, type AssignmentValues } from '@/schemas';
 import type { Assignment } from '@/types/api';
 
 /** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
@@ -73,7 +73,9 @@ export function AssignmentFormDialog({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const attachmentCount = isEdit ? files.length : pendingFiles.length;
 
-  const form = useForm<AssignmentValues>({
+  // <what the fields hold, context, what validation produces> — `maxMarks` is coerced,
+  // so the first and last are not the same type.
+  const form = useForm<AssignmentInput, unknown, AssignmentValues>({
     resolver: zodResolver(assignmentSchema),
     defaultValues: {
       teachingMappingId: '',

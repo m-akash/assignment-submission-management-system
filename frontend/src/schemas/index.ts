@@ -56,12 +56,20 @@ export type UserValues = z.infer<typeof userSchema>;
 export const classSchema = z.object({
   name: z.string().trim().min(2, 'Enter a class name').max(150, 'Name is too long'),
   level: z.coerce
-    .number({ invalid_type_error: 'Enter a grade number' })
+    .number()
     .int('Enter a whole number')
     .min(1, 'Grade must be between 1 and 12')
     .max(12, 'Grade must be between 1 and 12'),
   section: z.string().trim().max(50).optional(),
 });
+/**
+ * A coerced field is read from the form as something looser than what validation
+ * produces (a number input hands back a string), so the two sides are separate types.
+ * Forms are parameterised on both: `Input` is what `register` writes, `Values` is what
+ * the submit handler receives. Collapsing them only compiles by accident of the zod
+ * version in use — see the same pattern on assignments and reviews below.
+ */
+export type ClassInput = z.input<typeof classSchema>;
 export type ClassValues = z.infer<typeof classSchema>;
 
 export const courseSchema = z.object({
@@ -112,11 +120,12 @@ export const assignmentSchema = z.object({
     message: 'The deadline must be at least an hour from now',
   }),
   maxMarks: z.coerce
-    .number({ invalid_type_error: 'Enter a number' })
+    .number()
     .positive('Maximum marks must be greater than zero')
     .max(1000, 'That is unusually high — check the value'),
   allowResubmission: z.boolean(),
 });
+export type AssignmentInput = z.input<typeof assignmentSchema>;
 export type AssignmentValues = z.infer<typeof assignmentSchema>;
 
 function isAtLeastAnHourAhead(value: string): boolean {
@@ -134,10 +143,11 @@ export type SubmissionValues = z.infer<typeof submissionSchema>;
 export function reviewSchema(maxMarks: number) {
   return z.object({
     marks: z.coerce
-      .number({ invalid_type_error: 'Enter a number' })
+      .number()
       .min(0, 'Marks cannot be negative')
       .max(maxMarks, `Marks cannot exceed ${maxMarks}`),
     feedback: z.string().trim().max(2000, 'Feedback cannot exceed 2000 characters').optional(),
   });
 }
+export type ReviewInput = z.input<ReturnType<typeof reviewSchema>>;
 export type ReviewValues = z.infer<ReturnType<typeof reviewSchema>>;

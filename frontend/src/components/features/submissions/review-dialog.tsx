@@ -20,7 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { SubmissionStatusBadge } from '@/components/shared/status-badge';
 import { downloadSubmissionFile, useReviewSubmission } from '@/hooks/use-submissions';
 import { formatBytes, formatDateTime } from '@/lib/format';
-import { reviewSchema, type ReviewValues } from '@/schemas';
+import { reviewSchema, type ReviewInput, type ReviewValues } from '@/schemas';
 import type { Submission } from '@/types/api';
 
 export function ReviewDialog({
@@ -35,7 +35,9 @@ export function ReviewDialog({
 }) {
   const review = useReviewSubmission();
 
-  const form = useForm<ReviewValues>({
+  // <what the fields hold, context, what validation produces> — `marks` is coerced,
+  // so the first and last are not the same type.
+  const form = useForm<ReviewInput, unknown, ReviewValues>({
     resolver: zodResolver(reviewSchema(maxMarks)),
     defaultValues: { marks: 0, feedback: '' },
   });

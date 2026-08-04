@@ -1,0 +1,25 @@
+# Host build output must never leak into the image — `dotnet restore`/`publish` inside
+# the container has to produce it, or the build depends on the developer's machine.
+**/bin
+**/obj
+**/artifacts
+**/TestResults
+
+.git
+.gitignore
+.dockerignore
+**/Dockerfile
+
+# appsettings.Development.json is committed and loaded when compose sets the
+# Development environment, so it must stay in the context. Only local overrides go.
+**/appsettings.Local.json
+.env
+.env.local
+.env.*.local
+*.pfx
+*.key
+
+.vs
+.vscode
+.idea
+.DS_Store
