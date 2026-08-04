@@ -54,7 +54,7 @@ public sealed class LoginHandler : ICommandHandler<LoginCommand, AuthResult>
         }
 
         var (accessToken, accessExpires) = _jwtTokenService.GenerateAccessToken(
-            user.Id, user.EmailValue, user.FullName, user.Role, user.ClassId);
+            user.Id, user.EmailValue, user.FullName, user.Role, user.ClassId, user.GroupId);
         var (refreshToken, refreshExpires) = await _jwtTokenService.GenerateRefreshTokenAsync(user.Id, command.ClientIp, ct);
 
         Log.Information("User {UserId} ({Role}) logged in", user.Id, user.Role);

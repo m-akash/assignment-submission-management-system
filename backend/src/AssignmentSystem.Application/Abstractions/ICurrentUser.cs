@@ -14,6 +14,7 @@ public interface ICurrentUser
     string? FullName { get; }
     Role? Role { get; }
     Guid? ClassId { get; }
+    Guid? GroupId { get; }
     bool IsAuthenticated { get; }
     bool IsInRole(Role role);
 }

@@ -29,7 +29,7 @@ internal sealed class JwtTokenService : IJwtTokenService
     }
 
     public (string AccessToken, DateTime ExpiresAtUtc) GenerateAccessToken(
-        Guid userId, string email, string fullName, Role role, Guid? classId)
+        Guid userId, string email, string fullName, Role role, Guid? classId, Guid? groupId)
     {
         var now = DateTime.UtcNow;
         var expires = now.AddMinutes(_options.AccessTokenMinutes);
@@ -42,6 +42,7 @@ internal sealed class JwtTokenService : IJwtTokenService
             new(ClaimTypes.Role, role.ToString()),
             new(CustomClaims.Role, role.ToString()),
             new(CustomClaims.ClassId, classId?.ToString() ?? string.Empty),
+            new(CustomClaims.GroupId, groupId?.ToString() ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 
@@ -103,7 +104,7 @@ internal sealed class JwtTokenService : IJwtTokenService
         existing.Revoke(replacedByTokenHash: newHash);
         await _context.SaveChangesAsync(ct);
 
-        var (access, accessExpires) = GenerateAccessToken(user.Id, user.EmailValue, user.FullName, user.Role, user.ClassId);
+        var (access, accessExpires) = GenerateAccessToken(user.Id, user.EmailValue, user.FullName, user.Role, user.ClassId, user.GroupId);
         return new RefreshTokenRotation(user.Id, newPlain, newExpiresAt, access, accessExpires);
     }
 
@@ -153,4 +154,5 @@ public static class CustomClaims
 {
     public const string Role = "role";
     public const string ClassId = "class_id";
+    public const string GroupId = "group_id";
 }

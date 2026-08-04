@@ -33,6 +33,7 @@ public sealed class AppDbContextDesignTimeFactory : IDesignTimeDbContextFactory<
         public string? FullName => null;
         public AssignmentSystem.Domain.Enums.Role? Role => null;
         public Guid? ClassId => null;
+        public Guid? GroupId => null;
         public bool IsAuthenticated => false;
         public bool IsInRole(AssignmentSystem.Domain.Enums.Role role) => false;
     }
