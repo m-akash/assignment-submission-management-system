@@ -32,22 +32,22 @@ export function ClassFormDialog({
 
   const form = useForm<ClassValues>({
     resolver: zodResolver(classSchema),
-    defaultValues: { name: '', grade: '', section: '' },
+    defaultValues: { name: '', level: 6, section: '' },
   });
 
   useEffect(() => {
     if (!open) return;
     form.reset(
       classRoom
-        ? { name: classRoom.name, grade: classRoom.grade ?? '', section: classRoom.section ?? '' }
-        : { name: '', grade: '', section: '' },
+        ? { name: classRoom.name, level: classRoom.level, section: classRoom.section ?? '' }
+        : { name: '', level: 6, section: '' },
     );
   }, [open, classRoom, form]);
 
   async function onSubmit(values: ClassValues) {
     await save.mutateAsync({
       id: classRoom?.id,
-      input: { name: values.name, grade: values.grade || null, section: values.section || null },
+      input: { name: values.name, level: values.level, section: values.section || null },
     });
     onOpenChange(false);
   }
@@ -64,14 +64,18 @@ export function ClassFormDialog({
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
-            <Input id="name" placeholder="Grade 10 - Section A" {...form.register('name')} />
+            <Input id="name" placeholder="Class X - Section A" {...form.register('name')} />
             {errors.name && <p className="text-xs text-danger">{errors.name.message}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="grade">Grade</Label>
-              <Input id="grade" placeholder="10" {...form.register('grade')} />
+              <Label htmlFor="level">Grade</Label>
+              <Input id="level" type="number" min={1} max={12} placeholder="10" {...form.register('level')} />
+              <p className="text-xs text-muted-foreground">
+                1–12. Shown as a Roman numeral; groups start at 9.
+              </p>
+              {errors.level && <p className="text-xs text-danger">{errors.level.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="section">Section</Label>

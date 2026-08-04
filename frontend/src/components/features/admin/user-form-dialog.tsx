@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useClassOptions, useDepartmentOptions } from '@/hooks/use-admin-resources';
+import { useClassOptions, useDepartmentOptions, useGroupOptions } from '@/hooks/use-admin-resources';
 import { useSaveUser } from '@/hooks/use-admin-resources';
 import { userSchema, type UserValues } from '@/schemas';
 import type { Role, User } from '@/types/api';
@@ -45,6 +45,7 @@ export function UserFormDialog({
   const isEdit = !!user;
   const classes = useClassOptions();
   const departments = useDepartmentOptions();
+  const groups = useGroupOptions();
   const save = useSaveUser();
 
   const emptyValues: UserValues = {
@@ -53,8 +54,10 @@ export function UserFormDialog({
     role: defaultRole,
     classId: '',
     departmentId: '',
+    groupId: '',
     password: '',
     isEdit: false,
+    classHasGroups: false,
   };
 
   const form = useForm<UserValues>({
@@ -72,8 +75,10 @@ export function UserFormDialog({
             role: user.role,
             classId: user.classId ?? '',
             departmentId: user.departmentId ?? '',
+            groupId: user.groupId ?? '',
             password: '',
             isEdit: true,
+            classHasGroups: false, // corrected by the effect below once classes load
           }
         : { ...emptyValues },
     );
@@ -81,6 +86,21 @@ export function UserFormDialog({
   }, [open, user, defaultRole, form]);
 
   const role = form.watch('role');
+  const classId = form.watch('classId');
+
+  // Whether the picked class has groups comes from the class itself, so the threshold
+  // lives on the server and this form just follows it.
+  const selectedClass = (classes.data ?? []).find((c) => c.id === classId);
+  const classHasGroups = selectedClass?.hasGroups ?? false;
+
+  // Mirror it into the form so the schema can require a group, and drop a group that no
+  // longer applies after moving the student to a lower class.
+  useEffect(() => {
+    form.setValue('classHasGroups', classHasGroups);
+    if (!classHasGroups && form.getValues('groupId')) {
+      form.setValue('groupId', '');
+    }
+  }, [classHasGroups, form]);
 
   async function onSubmit(values: UserValues) {
     await save.mutateAsync({
@@ -93,6 +113,7 @@ export function UserFormDialog({
         // never sees a stale pairing.
         classId: values.role === 'Student' ? values.classId : null,
         departmentId: values.role === 'Teacher' ? values.departmentId : null,
+        groupId: values.role === 'Student' && classHasGroups ? values.groupId : null,
         password: values.password || undefined,
       },
     });
@@ -168,6 +189,29 @@ export function UserFormDialog({
                   </SelectContent>
                 </Select>
                 {errors.classId && <p className="text-xs text-danger">{errors.classId.message}</p>}
+              </div>
+            )}
+
+            {/* Groups only exist from class IX, so this appears once such a class is picked. */}
+            {role === 'Student' && classHasGroups && (
+              <div className="space-y-2">
+                <Label htmlFor="groupId">Group</Label>
+                <Select
+                  value={form.watch('groupId')}
+                  onValueChange={(value) => form.setValue('groupId', value, { shouldValidate: true })}
+                >
+                  <SelectTrigger id="groupId">
+                    <SelectValue placeholder="Choose a group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(groups.data ?? []).map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.groupId && <p className="text-xs text-danger">{errors.groupId.message}</p>}
               </div>
             )}
 

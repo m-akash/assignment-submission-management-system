@@ -5,6 +5,7 @@ import {
   ClipboardList,
   GraduationCap,
   Inbox,
+  Layers,
   LayoutDashboard,
   Link2,
   UserCog,
@@ -87,6 +88,7 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['Admin'],
     section: 'Administration',
   },
+  { href: '/groups', label: 'Groups', icon: Layers, roles: ['Admin'], section: 'Administration' },
   { href: '/courses', label: 'Courses', icon: BookOpen, roles: ['Admin'], section: 'Administration' },
   {
     href: '/teacher-mappings',

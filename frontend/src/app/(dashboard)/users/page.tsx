@@ -99,9 +99,9 @@ function UsersView() {
 
   const items = query.data?.items ?? [];
   const heading = HEADINGS[role];
-  // Name, email, role, actions — plus the two identity columns that only make sense for
-  // one role. On the unfiltered list a mixed table would leave most of them blank.
-  const columnCount = role === 'Student' || role === 'Teacher' ? 6 : 4;
+  // Name, email, role, actions — plus the identity columns that only make sense for one
+  // role. On the unfiltered list a mixed table would leave most of them blank.
+  const columnCount = role === 'Student' ? 7 : role === 'Teacher' ? 6 : 4;
   // The role is a heading here, not a filter the user needs telling about.
   const isFiltered = !!search || !!classId;
   const classOptions = (classes.data ?? []).map((c) => ({ value: c.id, label: c.name }));
@@ -186,6 +186,7 @@ function UsersView() {
                     {role === 'Student' && (
                       <>
                         <TableHead>Class</TableHead>
+                        <TableHead>Group</TableHead>
                         <TableHead>Student ID</TableHead>
                       </>
                     )}
@@ -246,6 +247,9 @@ function UsersView() {
                           <>
                             <TableCell className="text-muted-foreground">
                               {user.className ?? '—'}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {user.groupName ?? '—'}
                             </TableCell>
                             <TableCell className="font-mono text-sm text-muted-foreground">
                               {user.studentId ?? '—'}

@@ -46,6 +46,8 @@ export interface AuthUser {
   classId: string | null;
   className: string | null;
   studentId: string | null;
+  groupId: string | null;
+  groupName: string | null;
   departmentId: string | null;
   departmentName: string | null;
   teacherId: string | null;
@@ -68,9 +70,21 @@ export interface LoginResponse {
 export interface ClassRoom {
   id: string;
   name: string;
-  grade: string | null;
+  /** Grade as a number, 1–12. */
+  level: number;
+  /** The level as a Roman numeral ("IX") — derived server-side. */
+  gradeLabel: string;
   section: string | null;
+  /** Whether students in this class must pick a group. The server decides where the
+   *  threshold sits, so the client never hardcodes a grade number. */
+  hasGroups: boolean;
   studentCount: number;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  code: string;
 }
 
 export interface Department {

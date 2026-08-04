@@ -23,9 +23,13 @@ export const userSchema = z
     role: roleEnum,
     classId: z.string().optional(),
     departmentId: z.string().optional(),
+    groupId: z.string().optional(),
     password: z.string().optional(),
     /** Set by the form, not the user: an update may leave the password untouched. */
     isEdit: z.boolean(),
+    /** Also set by the form — mirrors `hasGroups` on the class the user picked, so the
+     *  rule below never has to guess where the grade threshold sits. */
+    classHasGroups: z.boolean(),
   })
   .superRefine((values, ctx) => {
     if (!values.isEdit && (values.password ?? '').length < 8) {
@@ -56,15 +60,38 @@ export const userSchema = z
         message: 'A teacher must belong to a department',
       });
     }
+    if (values.role === 'Student' && values.classHasGroups && !values.groupId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['groupId'],
+        message: 'Students in this class must choose a group',
+      });
+    }
   });
 export type UserValues = z.infer<typeof userSchema>;
 
 export const classSchema = z.object({
   name: z.string().trim().min(2, 'Enter a class name').max(150, 'Name is too long'),
-  grade: z.string().trim().max(50).optional(),
+  level: z.coerce
+    .number({ invalid_type_error: 'Enter a grade number' })
+    .int('Enter a whole number')
+    .min(1, 'Grade must be between 1 and 12')
+    .max(12, 'Grade must be between 1 and 12'),
   section: z.string().trim().max(50).optional(),
 });
 export type ClassValues = z.infer<typeof classSchema>;
+
+export const groupSchema = z.object({
+  name: z.string().trim().min(2, 'Enter a group name').max(150, 'Name is too long'),
+  // Short by design, like the department code.
+  code: z
+    .string()
+    .trim()
+    .min(2, 'Enter a group code')
+    .max(10, 'Code cannot exceed 10 characters')
+    .regex(/^[A-Za-z0-9-]+$/, 'Use letters, numbers and hyphens only'),
+});
+export type GroupValues = z.infer<typeof groupSchema>;
 
 export const departmentSchema = z.object({
   name: z.string().trim().min(2, 'Enter a department name').max(150, 'Name is too long'),

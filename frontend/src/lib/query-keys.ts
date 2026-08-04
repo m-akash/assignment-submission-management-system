@@ -20,6 +20,11 @@ export const queryKeys = {
     list: (filters: unknown) => ['departments', 'list', filters] as const,
     options: ['departments', 'options'] as const,
   },
+  groups: {
+    all: ['groups'] as const,
+    list: (filters: unknown) => ['groups', 'list', filters] as const,
+    options: ['groups', 'options'] as const,
+  },
   courses: {
     all: ['courses'] as const,
     list: (filters: unknown) => ['courses', 'list', filters] as const,

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { GraduationCap, MoreHorizontal, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { Layers, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -10,35 +11,33 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ClassFormDialog } from '@/components/features/admin/class-form-dialog';
-import { ClassRosterDialog } from '@/components/features/admin/class-roster-dialog';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { PageHeader } from '@/components/shared/page-header';
 import { PaginationBar } from '@/components/shared/pagination-bar';
 import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
-import { useClasses, useDeleteClass } from '@/hooks/use-admin-resources';
-import type { ClassRoom } from '@/types/api';
+import { GroupFormDialog } from '@/components/features/admin/group-form-dialog';
+import { useDeleteGroup, useGroups } from '@/hooks/use-admin-resources';
+import type { Group } from '@/types/api';
 
-export default function ClassesPage() {
+export default function GroupsPage() {
   return (
     <RoleGuard allow={['Admin']}>
-      <ClassesView />
+      <GroupsView />
     </RoleGuard>
   );
 }
 
-function ClassesView() {
+function GroupsView() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<ClassRoom | null>(null);
-  const [deleting, setDeleting] = useState<ClassRoom | null>(null);
-  const [viewingRoster, setViewingRoster] = useState<ClassRoom | null>(null);
+  const [editing, setEditing] = useState<Group | null>(null);
+  const [deleting, setDeleting] = useState<Group | null>(null);
 
-  const remove = useDeleteClass();
-  const query = useClasses({ search, page, pageSize: 10 });
+  const remove = useDeleteGroup();
+  const query = useGroups({ search, page, pageSize: 10 });
   const items = query.data?.items ?? [];
 
   function openCreate() {
@@ -49,12 +48,12 @@ function ClassesView() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Classes"
-        description="A student belongs to exactly one class. Create classes before assigning teachers to them."
+        title="Groups"
+        description="The streams a student picks from class IX — Science, Humanities, Business Studies. Students in one class can be in different groups."
         actions={
           <Button onClick={openCreate}>
             <Plus className="size-4" />
-            Create class
+            Create group
           </Button>
         }
       />
@@ -67,7 +66,7 @@ function ClassesView() {
               setSearch(value);
               setPage(1);
             }}
-            placeholder="Search classes…"
+            placeholder="Search groups…"
             className="sm:max-w-xs"
           />
         </div>
@@ -81,27 +80,29 @@ function ClassesView() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>Grade</TableHead>
-                    <TableHead>Section</TableHead>
-                    <TableHead>Students</TableHead>
+                    <TableHead>Code</TableHead>
                     <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={5} />
+                    <TableSkeleton columns={3} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="p-0">
+                      <TableCell colSpan={3} className="p-0">
                         <EmptyState
-                          icon={GraduationCap}
-                          title={search ? 'Nothing matches that search' : 'No classes yet'}
-                          description={search ? undefined : 'Create the first class to get started.'}
+                          icon={Layers}
+                          title={search ? 'Nothing matches that search' : 'No groups yet'}
+                          description={
+                            search
+                              ? undefined
+                              : 'Create the groups your class IX and above students can be placed in.'
+                          }
                           action={
                             !search && (
                               <Button size="sm" onClick={openCreate}>
                                 <Plus className="size-4" />
-                                Create class
+                                Create group
                               </Button>
                             )
                           }
@@ -109,43 +110,39 @@ function ClassesView() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    items.map((classRoom) => (
-                      <TableRow key={classRoom.id}>
-                        <TableCell className="font-medium">{classRoom.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{classRoom.gradeLabel}</TableCell>
-                        <TableCell className="text-muted-foreground">{classRoom.section ?? '—'}</TableCell>
+                    items.map((group) => (
+                      <TableRow key={group.id}>
+                        <TableCell className="font-medium">{group.name}</TableCell>
                         <TableCell>
-                          <button
-                            type="button"
-                            onClick={() => setViewingRoster(classRoom)}
-                            className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium underline-offset-4 hover:underline"
-                          >
-                            <Users className="size-3.5 text-muted-foreground" />
-                            {classRoom.studentCount}
-                          </button>
+                          <Badge variant="secondary" className="font-mono">
+                            {group.code}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label={`Actions for ${classRoom.name}`}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Actions for ${group.name}`}
+                              >
                                 <MoreHorizontal className="size-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setViewingRoster(classRoom)}>
-                                <Users className="size-4" />
-                                View students
-                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => {
-                                  setEditing(classRoom);
+                                  setEditing(group);
                                   setFormOpen(true);
                                 }}
                               >
                                 <Pencil className="size-4" />
                                 Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem variant="destructive" onClick={() => setDeleting(classRoom)}>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => setDeleting(group)}
+                              >
                                 <Trash2 className="size-4" />
                                 Delete
                               </DropdownMenuItem>
@@ -160,25 +157,23 @@ function ClassesView() {
             </div>
 
             {query.data && (
-              <PaginationBar pagination={query.data.pagination} onPageChange={setPage} itemLabel="classes" />
+              <PaginationBar
+                pagination={query.data.pagination}
+                onPageChange={setPage}
+                itemLabel="groups"
+              />
             )}
           </>
         )}
       </div>
 
-      <ClassFormDialog open={formOpen} onOpenChange={setFormOpen} classRoom={editing} />
-
-      <ClassRosterDialog
-        open={!!viewingRoster}
-        onOpenChange={(open) => !open && setViewingRoster(null)}
-        classRoom={viewingRoster}
-      />
+      <GroupFormDialog open={formOpen} onOpenChange={setFormOpen} group={editing} />
 
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(open) => !open && setDeleting(null)}
-        title="Delete this class?"
-        description={`"${deleting?.name}" can only be deleted if no students or teaching assignments reference it.`}
+        title="Delete this group?"
+        description={`"${deleting?.name}" can only be deleted once no students belong to it.`}
         pending={remove.isPending}
         onConfirm={() => {
           if (deleting) {
