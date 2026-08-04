@@ -1,7 +1,5 @@
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Enums;
-using AssignmentSystem.Domain.Departments;
-using AssignmentSystem.Domain.Groups;
 using AssignmentSystem.Domain.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -72,28 +70,7 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
 
         builder.HasIndex(u => u.StudentId).IsUnique();
 
-        // A student's group. Restrict rather than SetNull: silently clearing it would
-        // leave class IX+ students without the group they are required to have, so the
-        // admin has to move them first.
-        builder.Property(u => u.GroupId);
-        builder.HasOne(u => u.Group)
-            .WithMany()
-            .HasForeignKey(u => u.GroupId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasIndex(u => u.GroupId);
-
-        // A teacher's department. SetNull rather than Restrict: removing a department
-        // should not block deleting it outright, it just leaves the teacher unassigned.
-        builder.Property(u => u.DepartmentId);
-        builder.HasOne(u => u.Department)
-            .WithMany()
-            .HasForeignKey(u => u.DepartmentId)
-            .OnDelete(DeleteBehavior.SetNull);
-
-        builder.HasIndex(u => u.DepartmentId);
-
-        // "INS-SCI-01" (instructor - department code - sequence). Null for admin/student.
+        // "INS-01" (instructor - sequence). Null for admin/student.
         builder.Property(u => u.TeacherId)
             .HasMaxLength(30);
 

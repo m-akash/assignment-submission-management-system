@@ -2,8 +2,6 @@ using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Domain.Assignments;
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Courses;
-using AssignmentSystem.Domain.Departments;
-using AssignmentSystem.Domain.Groups;
 using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Domain.Submissions;
 using AssignmentSystem.Domain.TeacherAssignments;
@@ -85,59 +83,21 @@ public sealed class DbSeeder
         var class10A = classes[8];
         var class10B = classes[9];
 
-        // ── Departments (5) ───────────────────────────────────────────────────────
-        // One department owns many courses — Science covers Physics, Chemistry, Biology.
-        var departments = new[]
-        {
-            Department.Create("Science", "SCI"),
-            Department.Create("Mathematics", "MATH"),
-            Department.Create("Languages", "LANG"),
-            Department.Create("Humanities", "HUM"),
-            Department.Create("Business & ICT", "BUS"),
-        };
-        _context.Departments.AddRange(departments);
-        var scienceDept = departments[0];
-        var mathsDept = departments[1];
-        var languagesDept = departments[2];
-        var humanitiesDept = departments[3];
-        var businessDept = departments[4];
-
-        // ── Groups (3) ────────────────────────────────────────────────────────────
-        // The streams a student picks from class IX. Deliberately a shorter list than the
-        // departments above: "Languages" staffs teachers but is not a stream.
-        var groups = new[]
-        {
-            Group.Create("Science", "SCI"),
-            Group.Create("Humanities", "HUM"),
-            Group.Create("Business Studies", "BST"),
-        };
-        _context.Groups.AddRange(groups);
-        var scienceGroup = groups[0];
-        var humanitiesGroup = groups[1];
-        var businessGroup = groups[2];
-
         // ── Courses (12) ─────────────────────────────────────────────────────────
-        // Group-restricting a course only makes sense for a course whose every seeded
-        // teacher-assignment (below) is at a class IX+ AND whose already-scripted
-        // submissions (below) belong to a student in that same group. Physics/Chemistry
-        // are also taught to a Humanities-group student in class IX B in this seed, so
-        // they stay open rather than contradicting an already-existing submission from
-        // that student — only Biology (draft-only, no submissions yet), Higher
-        // Mathematics and Accounting satisfy that everywhere they're used here.
         var courses = new[]
         {
-            Course.Create("Mathematics", "MATH101", mathsDept.Id),
-            Course.Create("Physics", "PHY101", scienceDept.Id),
-            Course.Create("Chemistry", "CHE101", scienceDept.Id),
-            Course.Create("Biology", "BIO101", scienceDept.Id, scienceGroup.Id),
-            Course.Create("English", "ENG101", languagesDept.Id),
-            Course.Create("Bangla", "BAN101", languagesDept.Id),
-            Course.Create("ICT", "ICT101", businessDept.Id),
-            Course.Create("History", "HIS101", humanitiesDept.Id),
-            Course.Create("Geography", "GEO101", humanitiesDept.Id),
-            Course.Create("Economics", "ECO101", businessDept.Id),
-            Course.Create("Accounting", "ACC101", businessDept.Id, businessGroup.Id),
-            Course.Create("Higher Mathematics", "HMT101", mathsDept.Id, scienceGroup.Id),
+            Course.Create("Mathematics", "MATH101"),
+            Course.Create("Physics", "PHY101"),
+            Course.Create("Chemistry", "CHE101"),
+            Course.Create("Biology", "BIO101"),
+            Course.Create("English", "ENG101"),
+            Course.Create("Bangla", "BAN101"),
+            Course.Create("ICT", "ICT101"),
+            Course.Create("History", "HIS101"),
+            Course.Create("Geography", "GEO101"),
+            Course.Create("Economics", "ECO101"),
+            Course.Create("Accounting", "ACC101"),
+            Course.Create("Higher Mathematics", "HMT101"),
         };
         _context.Courses.AddRange(courses);
         var math = courses[0];
@@ -154,30 +114,25 @@ public sealed class DbSeeder
         var higherMath = courses[11];
 
         // ── Users: teachers (12, including the demo login) ──────────────────────────
-        // Mirrors the production rule in CreateUserHandler: "INS-{department code}-{sequence}",
-        // sequence numbers restarting at 1 per department.
-        var teacherSequence = new Dictionary<Guid, int>();
-        string NextTeacherId(Department department)
-        {
-            var sequence = teacherSequence.GetValueOrDefault(department.Id, 0) + 1;
-            teacherSequence[department.Id] = sequence;
-            return $"INS-{department.Code}-{sequence:D2}";
-        }
+        // Mirrors the production rule in CreateUserHandler: "INS-{sequence}", a single
+        // global sequence across all teachers.
+        var teacherSequence = 0;
+        string NextTeacherId() => $"INS-{++teacherSequence:D2}";
 
         var teachers = new[]
         {
-            ApplicationUser.Create(TeacherEmail, "John Teacher", passwordHash, Role.Teacher, departmentId: mathsDept.Id, teacherId: NextTeacherId(mathsDept)),
-            ApplicationUser.Create("teacher2@assignment.test", "Sarah Rahman", passwordHash, Role.Teacher, departmentId: languagesDept.Id, teacherId: NextTeacherId(languagesDept)),
-            ApplicationUser.Create("teacher3@assignment.test", "Kamal Hossain", passwordHash, Role.Teacher, departmentId: languagesDept.Id, teacherId: NextTeacherId(languagesDept)),
-            ApplicationUser.Create("teacher4@assignment.test", "Nusrat Jahan", passwordHash, Role.Teacher, departmentId: scienceDept.Id, teacherId: NextTeacherId(scienceDept)),
-            ApplicationUser.Create("teacher5@assignment.test", "Farhan Ahmed", passwordHash, Role.Teacher, departmentId: scienceDept.Id, teacherId: NextTeacherId(scienceDept)),
-            ApplicationUser.Create("teacher6@assignment.test", "Rima Chowdhury", passwordHash, Role.Teacher, departmentId: businessDept.Id, teacherId: NextTeacherId(businessDept)),
-            ApplicationUser.Create("teacher7@assignment.test", "Imran Khan", passwordHash, Role.Teacher, departmentId: humanitiesDept.Id, teacherId: NextTeacherId(humanitiesDept)),
-            ApplicationUser.Create("teacher8@assignment.test", "Tania Islam", passwordHash, Role.Teacher, departmentId: humanitiesDept.Id, teacherId: NextTeacherId(humanitiesDept)),
-            ApplicationUser.Create("teacher9@assignment.test", "Shakil Ahmed", passwordHash, Role.Teacher, departmentId: businessDept.Id, teacherId: NextTeacherId(businessDept)),
-            ApplicationUser.Create("teacher10@assignment.test", "Mou Akter", passwordHash, Role.Teacher, departmentId: businessDept.Id, teacherId: NextTeacherId(businessDept)),
-            ApplicationUser.Create("teacher11@assignment.test", "Rafiq Uddin", passwordHash, Role.Teacher, departmentId: mathsDept.Id, teacherId: NextTeacherId(mathsDept)),
-            ApplicationUser.Create("teacher12@assignment.test", "Sabrina Yasmin", passwordHash, Role.Teacher, departmentId: scienceDept.Id, teacherId: NextTeacherId(scienceDept)),
+            ApplicationUser.Create(TeacherEmail, "John Teacher", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            ApplicationUser.Create("teacher2@assignment.test", "Sarah Rahman", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            ApplicationUser.Create("teacher3@assignment.test", "Kamal Hossain", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            ApplicationUser.Create("teacher4@assignment.test", "Nusrat Jahan", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            ApplicationUser.Create("teacher5@assignment.test", "Farhan Ahmed", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            ApplicationUser.Create("teacher6@assignment.test", "Rima Chowdhury", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            ApplicationUser.Create("teacher7@assignment.test", "Imran Khan", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            ApplicationUser.Create("teacher8@assignment.test", "Tania Islam", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            ApplicationUser.Create("teacher9@assignment.test", "Shakil Ahmed", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            ApplicationUser.Create("teacher10@assignment.test", "Mou Akter", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            ApplicationUser.Create("teacher11@assignment.test", "Rafiq Uddin", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            ApplicationUser.Create("teacher12@assignment.test", "Sabrina Yasmin", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
         };
         _context.Users.AddRange(teachers);
         var johnTeacher = teachers[0];
@@ -208,13 +163,9 @@ public sealed class DbSeeder
             return $"{prefix}-{sequence:D3}";
         }
 
-        // Groups start at class IX, so classes VI–VIII get none — the same rule the
-        // handler enforces.
-        Guid? GroupFor(Class classRoom, Group group) => classRoom.HasGroups ? group.Id : null;
-
         var students = new[]
         {
-            ApplicationUser.Create(StudentEmail, "Jane Student", passwordHash, Role.Student, class10A.Id, NextStudentId(class10A), groupId: GroupFor(class10A, scienceGroup)),
+            ApplicationUser.Create(StudentEmail, "Jane Student", passwordHash, Role.Student, class10A.Id, NextStudentId(class10A)),
             ApplicationUser.Create("student2@assignment.test", "Arif Hasan", passwordHash, Role.Student, class6A.Id, NextStudentId(class6A)),
             ApplicationUser.Create("student3@assignment.test", "Priya Sultana", passwordHash, Role.Student, class6A.Id, NextStudentId(class6A)),
             ApplicationUser.Create("student4@assignment.test", "Tanvir Alam", passwordHash, Role.Student, class6B.Id, NextStudentId(class6B)),
@@ -223,12 +174,12 @@ public sealed class DbSeeder
             ApplicationUser.Create("student7@assignment.test", "Lamia Akter", passwordHash, Role.Student, class7B.Id, NextStudentId(class7B)),
             ApplicationUser.Create("student8@assignment.test", "Zubair Rahman", passwordHash, Role.Student, class8A.Id, NextStudentId(class8A)),
             ApplicationUser.Create("student9@assignment.test", "Rakib Hossain", passwordHash, Role.Student, class8B.Id, NextStudentId(class8B)),
-            ApplicationUser.Create("student10@assignment.test", "Sadia Islam", passwordHash, Role.Student, class9A.Id, NextStudentId(class9A), groupId: GroupFor(class9A, scienceGroup)),
-            ApplicationUser.Create("student11@assignment.test", "Mahin Khan", passwordHash, Role.Student, class9B.Id, NextStudentId(class9B), groupId: GroupFor(class9B, humanitiesGroup)),
-            ApplicationUser.Create("student12@assignment.test", "Farzana Rahman", passwordHash, Role.Student, class10A.Id, NextStudentId(class10A), groupId: GroupFor(class10A, businessGroup)),
-            ApplicationUser.Create("student13@assignment.test", "Hasib Chowdhury", passwordHash, Role.Student, class10B.Id, NextStudentId(class10B), groupId: GroupFor(class10B, humanitiesGroup)),
-            ApplicationUser.Create("student14@assignment.test", "Ayesha Siddika", passwordHash, Role.Student, class10B.Id, NextStudentId(class10B), groupId: GroupFor(class10B, businessGroup)),
-            ApplicationUser.Create("student15@assignment.test", "Kamrul Islam", passwordHash, Role.Student, class9A.Id, NextStudentId(class9A), groupId: GroupFor(class9A, scienceGroup)),
+            ApplicationUser.Create("student10@assignment.test", "Sadia Islam", passwordHash, Role.Student, class9A.Id, NextStudentId(class9A)),
+            ApplicationUser.Create("student11@assignment.test", "Mahin Khan", passwordHash, Role.Student, class9B.Id, NextStudentId(class9B)),
+            ApplicationUser.Create("student12@assignment.test", "Farzana Rahman", passwordHash, Role.Student, class10A.Id, NextStudentId(class10A)),
+            ApplicationUser.Create("student13@assignment.test", "Hasib Chowdhury", passwordHash, Role.Student, class10B.Id, NextStudentId(class10B)),
+            ApplicationUser.Create("student14@assignment.test", "Ayesha Siddika", passwordHash, Role.Student, class10B.Id, NextStudentId(class10B)),
+            ApplicationUser.Create("student15@assignment.test", "Kamrul Islam", passwordHash, Role.Student, class9A.Id, NextStudentId(class9A)),
         };
         _context.Users.AddRange(students);
         var jane = students[0];

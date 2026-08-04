@@ -10,12 +10,12 @@ internal sealed class TeacherRosterRepository : ITeacherRosterRepository
 
     public TeacherRosterRepository(AppDbContext context) => _context = context;
 
-    public async Task<int> GetNextTeacherSequenceAsync(Guid departmentId, CancellationToken ct = default)
+    public async Task<int> GetNextTeacherSequenceAsync(CancellationToken ct = default)
     {
         // IgnoreQueryFilters(): a soft-deleted teacher's number must never be reissued.
         var teacherIds = await _context.Users
             .IgnoreQueryFilters()
-            .Where(u => u.DepartmentId == departmentId && u.TeacherId != null)
+            .Where(u => u.TeacherId != null)
             .Select(u => u.TeacherId!)
             .ToListAsync(ct);
 

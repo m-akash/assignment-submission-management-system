@@ -12,23 +12,11 @@ internal sealed class CourseByCodeSpecification : Specification<Course>
     }
 }
 
-internal sealed class CourseWithDepartmentByIdSpecification : Specification<Course>
-{
-    public CourseWithDepartmentByIdSpecification(Guid id)
-    {
-        Criteria = s => s.Id == id;
-        AddInclude(s => s.Department);
-        AddInclude(s => s.Group!);
-    }
-}
-
 internal sealed class CoursesPagedSpecification : Specification<Course>
 {
-    public CoursesPagedSpecification(string? search, Guid? departmentId, int page, int pageSize)
+    public CoursesPagedSpecification(string? search, int page, int pageSize)
     {
         ApplyNoTracking();
-        AddInclude(s => s.Department);
-        AddInclude(s => s.Group!);
         ApplyOrderBy(s => s.Name);
         ApplyPaging(page, pageSize);
 
@@ -39,10 +27,9 @@ internal sealed class CoursesPagedSpecification : Specification<Course>
         // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
 #pragma warning disable CA1304, CA1311
         Criteria = s =>
-            (!departmentId.HasValue || s.DepartmentId == departmentId.Value) &&
-            (string.IsNullOrWhiteSpace(searchLower) ||
-             s.Name.ToLower().Contains(searchLower) ||
-             s.Code.ToLower().Contains(searchLower));
+            string.IsNullOrWhiteSpace(searchLower) ||
+            s.Name.ToLower().Contains(searchLower) ||
+            s.Code.ToLower().Contains(searchLower);
 #pragma warning restore CA1304, CA1311
     }
 }

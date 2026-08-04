@@ -13,9 +13,6 @@ public sealed class CreateCourseCommandValidator : AbstractValidator<CreateCours
         RuleFor(x => x.Code)
             .NotEmpty().WithMessage("Course code is required.")
             .MaximumLength(30).WithMessage("Course code cannot exceed 30 characters.");
-
-        RuleFor(x => x.DepartmentId)
-            .NotEmpty().WithMessage("A course must belong to a department.");
     }
 }
 
@@ -33,8 +30,5 @@ public sealed class UpdateCourseCommandValidator : AbstractValidator<UpdateCours
         RuleFor(x => x.Code)
             .NotEmpty().WithMessage("Course code is required.")
             .MaximumLength(30).WithMessage("Course code cannot exceed 30 characters.");
-
-        RuleFor(x => x.DepartmentId)
-            .NotEmpty().WithMessage("A course must belong to a department.");
     }
 }

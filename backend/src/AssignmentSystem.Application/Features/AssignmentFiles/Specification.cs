@@ -9,7 +9,6 @@ internal sealed class AssignmentFileByIdSpecification : Specification<Assignment
     {
         Criteria = f => f.Id == fileId;
         AddInclude(f => f.Assignment);
-        AddInclude("Assignment.Course");
     }
 }
 

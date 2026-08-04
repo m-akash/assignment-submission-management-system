@@ -1,8 +1,6 @@
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Enums;
-using AssignmentSystem.Domain.Departments;
-using AssignmentSystem.Domain.Groups;
 
 namespace AssignmentSystem.Domain.Users;
 
@@ -34,23 +32,8 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
     public string? StudentId { get; private set; }
 
     /// <summary>
-    /// The student's academic stream — Science, Humanities or Business Studies. Only
-    /// students have one, and only from class IX: below that a class has no groups, so
-    /// this stays null. The class-dependent part of that rule needs the class loaded, so
-    /// it is enforced by the handler; this entity only guards "students only".
-    /// </summary>
-    public Guid? GroupId { get; private set; }
-    public Group? Group { get; private set; }
-
-    /// <summary>The organisational unit a teacher belongs to. Only meaningful for
-    /// teachers (null for admin/student).</summary>
-    public Guid? DepartmentId { get; private set; }
-    public Department? Department { get; private set; }
-
-    /// <summary>
-    /// Human-readable staff id, e.g. "INS-PHY-01" (Instructor - department code -
-    /// sequence within that department). Only meaningful for teachers. Same shape as
-    /// <see cref="StudentId"/>: the caller computes the value.
+    /// Human-readable staff id, e.g. "INS-01" (Instructor - sequence). Only meaningful
+    /// for teachers. Same shape as <see cref="StudentId"/>: the caller computes the value.
     /// </summary>
     public string? TeacherId { get; private set; }
 
@@ -73,9 +56,7 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
         Role role,
         Guid? classId = null,
         string? studentId = null,
-        Guid? departmentId = null,
-        string? teacherId = null,
-        Guid? groupId = null)
+        string? teacherId = null)
     {
         if (string.IsNullOrWhiteSpace(fullName))
         {
@@ -110,18 +91,6 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
             throw new DomainException("Only students may have a student id.");
         }
 
-        // Same shape again: a teacher must have a department and a teacher id, and
-        // only teachers may.
-        if (role == Role.Teacher && departmentId is null)
-        {
-            throw new DomainException("A teacher must be assigned to a department.");
-        }
-
-        if (role != Role.Teacher && departmentId is not null)
-        {
-            throw new DomainException("Only teachers may be assigned to a department.");
-        }
-
         if (role == Role.Teacher && string.IsNullOrWhiteSpace(teacherId))
         {
             throw new DomainException("A teacher must have a teacher id.");
@@ -132,14 +101,6 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
             throw new DomainException("Only teachers may have a teacher id.");
         }
 
-        // Whether a student *must* have a group depends on their class level, which this
-        // entity cannot see — the handler enforces that half. Here we only rule out the
-        // case that is wrong regardless of any class.
-        if (role != Role.Student && groupId is not null)
-        {
-            throw new DomainException("Only students may be assigned to a group.");
-        }
-
         return new ApplicationUser
         {
             Email = Email.Create(email),
@@ -148,8 +109,6 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
             Role = role,
             ClassId = classId,
             StudentId = studentId?.Trim(),
-            GroupId = groupId,
-            DepartmentId = departmentId,
             TeacherId = teacherId?.Trim(),
             IsActive = true,
         };
@@ -188,37 +147,6 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
         }
 
         ClassId = classId;
-    }
-
-    /// <summary>
-    /// Sets or clears the student's group. Cleared when they move to a class below IX,
-    /// which has no groups — so null is a legitimate value here, unlike for the class.
-    /// </summary>
-    public void SetGroup(Guid? groupId)
-    {
-        if (Role != Role.Student)
-        {
-            throw new DomainException("Only students may be assigned to a group.");
-        }
-
-        GroupId = groupId == Guid.Empty ? null : groupId;
-    }
-
-    /// <summary>Reassigns a teacher's department. Does not regenerate <see cref="TeacherId"/>
-    /// — same trade-off as <see cref="AssignToClass"/> not regenerating <see cref="StudentId"/>.</summary>
-    public void AssignToDepartment(Guid departmentId)
-    {
-        if (Role != Role.Teacher)
-        {
-            throw new DomainException("Only teachers may be assigned to a department.");
-        }
-
-        if (departmentId == Guid.Empty)
-        {
-            throw new DomainException("A valid department id is required.");
-        }
-
-        DepartmentId = departmentId;
     }
 
     public void Activate() => IsActive = true;

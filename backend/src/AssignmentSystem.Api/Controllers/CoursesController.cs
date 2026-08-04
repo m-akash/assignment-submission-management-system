@@ -35,12 +35,11 @@ public sealed class CoursesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetCourses(
         [FromQuery] string? search,
-        [FromQuery] Guid? departmentId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetCoursesQuery(search, departmentId, page, pageSize);
+        var query = new GetCoursesQuery(search, page, pageSize);
         var result = await _getCoursesHandler.HandleAsync(query, ct);
         if (!result.IsSuccess)
         {
@@ -60,7 +59,7 @@ public sealed class CoursesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateCourse([FromBody] CreateCourseRequest request, CancellationToken ct)
     {
-        var command = new CreateCourseCommand(request.Name, request.Code, request.DepartmentId, request.GroupId);
+        var command = new CreateCourseCommand(request.Name, request.Code);
         var result = await _createCourseHandler.HandleAsync(command, ct);
         if (!result.IsSuccess)
         {
@@ -73,7 +72,7 @@ public sealed class CoursesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdateCourse(Guid id, [FromBody] UpdateCourseRequest request, CancellationToken ct)
     {
-        var command = new UpdateCourseCommand(id, request.Name, request.Code, request.DepartmentId, request.GroupId);
+        var command = new UpdateCourseCommand(id, request.Name, request.Code);
         var result = await _updateCourseHandler.HandleAsync(command, ct);
         return result.ToActionResult(this);
     }
@@ -87,8 +86,8 @@ public sealed class CoursesController : ControllerBase
     }
 }
 
-public sealed record CreateCourseRequest(string Name, string Code, Guid DepartmentId, Guid? GroupId);
-public sealed record UpdateCourseRequest(string Name, string Code, Guid DepartmentId, Guid? GroupId);
+public sealed record CreateCourseRequest(string Name, string Code);
+public sealed record UpdateCourseRequest(string Name, string Code);
 
 public sealed class CreateCourseRequestValidator : AbstractValidator<CreateCourseRequest>
 {
@@ -101,9 +100,6 @@ public sealed class CreateCourseRequestValidator : AbstractValidator<CreateCours
         RuleFor(x => x.Code)
             .NotEmpty().WithMessage("Course code is required.")
             .MaximumLength(30).WithMessage("Course code cannot exceed 30 characters.");
-
-        RuleFor(x => x.DepartmentId)
-            .NotEmpty().WithMessage("A course must belong to a department.");
     }
 }
 
@@ -118,8 +114,5 @@ public sealed class UpdateCourseRequestValidator : AbstractValidator<UpdateCours
         RuleFor(x => x.Code)
             .NotEmpty().WithMessage("Course code is required.")
             .MaximumLength(30).WithMessage("Course code cannot exceed 30 characters.");
-
-        RuleFor(x => x.DepartmentId)
-            .NotEmpty().WithMessage("A course must belong to a department.");
     }
 }

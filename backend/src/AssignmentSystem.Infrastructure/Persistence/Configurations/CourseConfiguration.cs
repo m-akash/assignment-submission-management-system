@@ -24,26 +24,5 @@ internal sealed class CourseConfiguration : IEntityTypeConfiguration<Course>
         builder.Property(s => s.RowVersion).IsRowVersion();
 
         builder.HasIndex(s => s.Code).IsUnique();
-
-        // Restrict: a department that still owns courses cannot be deleted — the admin
-        // must move or remove them first, rather than silently orphaning the structure.
-        builder.Property(s => s.DepartmentId).IsRequired();
-        builder.HasOne(s => s.Department)
-            .WithMany()
-            .HasForeignKey(s => s.DepartmentId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasIndex(s => s.DepartmentId);
-
-        // Restrict, not SetNull: silently opening a Science-only course to everyone the
-        // moment the Science group is deleted would be a correctness change no one asked
-        // for. The admin has to move the course to a different group (or clear it) first.
-        builder.Property(s => s.GroupId);
-        builder.HasOne(s => s.Group)
-            .WithMany()
-            .HasForeignKey(s => s.GroupId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasIndex(s => s.GroupId);
     }
 }

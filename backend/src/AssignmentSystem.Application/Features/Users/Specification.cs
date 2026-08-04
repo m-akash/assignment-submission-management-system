@@ -9,8 +9,6 @@ internal sealed class UserWithClassByIdSpecification : Specification<Application
     {
         Criteria = u => u.Id == id;
         AddInclude(u => u.Class!);
-        AddInclude(u => u.Department!);
-        AddInclude(u => u.Group!);
     }
 }
 
@@ -25,8 +23,6 @@ internal sealed class UsersPagedSpecification : Specification<ApplicationUser>
     {
         ApplyNoTracking();
         AddInclude(u => u.Class!);
-        AddInclude(u => u.Department!);
-        AddInclude(u => u.Group!);
         ApplyOrderByDescending(u => u.CreatedAtUtc);
         ApplyPaging(page, pageSize);
 

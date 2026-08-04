@@ -17,9 +17,8 @@ internal sealed class ClassConfiguration : IEntityTypeConfiguration<Class>
         builder.Property(c => c.Level).IsRequired();
         builder.Property(c => c.Section).HasMaxLength(50);
 
-        // GradeLabel and HasGroups are computed from Level — nothing to persist.
+        // GradeLabel is computed from Level — nothing to persist.
         builder.Ignore(c => c.GradeLabel);
-        builder.Ignore(c => c.HasGroups);
 
         builder.Property(c => c.CreatedAtUtc).IsRequired();
         builder.Property(c => c.UpdatedAtUtc).IsRequired();

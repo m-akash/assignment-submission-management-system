@@ -16,10 +16,6 @@ namespace AssignmentSystem.Domain.Classes;
     Justification = "'Class' is the correct domain term for a school class/course.")]
 public sealed class Class : BaseEntity
 {
-    /// <summary>Lowest grade that is split into groups — Science, Humanities and Business
-    /// Studies are chosen at class IX and carry through to XII.</summary>
-    public const int GroupStartLevel = 9;
-
     private const int MinLevel = 1;
     private const int MaxLevel = 12;
 
@@ -36,9 +32,6 @@ public sealed class Class : BaseEntity
     /// <summary>The grade in Roman numerals ("IX") — what the school calls it, and what
     /// student ids are built from.</summary>
     public string GradeLabel => RomanNumerals[Level - 1];
-
-    /// <summary>Whether students in this class pick a group. Below class IX they do not.</summary>
-    public bool HasGroups => Level >= GroupStartLevel;
 
     // Navigation collections (read-only externally; mutated through methods).
     private readonly List<Users.ApplicationUser> _students = [];

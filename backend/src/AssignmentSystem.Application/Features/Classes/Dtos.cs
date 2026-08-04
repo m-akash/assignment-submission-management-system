@@ -10,9 +10,6 @@ public sealed record ClassDto(
     /// <summary>The level as a Roman numeral ("IX") — derived, never stored.</summary>
     string GradeLabel,
     string? Section,
-    /// <summary>Whether students in this class must pick a group. Sent so the client does
-    /// not have to hardcode the grade threshold.</summary>
-    bool HasGroups,
     int StudentCount = 0
 );
 

@@ -2,8 +2,6 @@ using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Courses;
-using AssignmentSystem.Domain.Departments;
-using AssignmentSystem.Domain.Groups;
 using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Features.Courses;
@@ -11,20 +9,12 @@ namespace AssignmentSystem.Application.Features.Courses;
 public sealed class CreateCourseHandler : ICommandHandler<CreateCourseCommand, CourseDto>
 {
     private readonly IRepository<Course> _courseRepository;
-    private readonly IRepository<Department> _departmentRepository;
-    private readonly IRepository<Group> _groupRepository;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly CourseMapper Mapper = new();
 
-    public CreateCourseHandler(
-        IRepository<Course> courseRepository,
-        IRepository<Department> departmentRepository,
-        IRepository<Group> groupRepository,
-        IUnitOfWork unitOfWork)
+    public CreateCourseHandler(IRepository<Course> courseRepository, IUnitOfWork unitOfWork)
     {
         _courseRepository = courseRepository;
-        _departmentRepository = departmentRepository;
-        _groupRepository = groupRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -37,26 +27,13 @@ public sealed class CreateCourseHandler : ICommandHandler<CreateCourseCommand, C
             return Result<CourseDto>.Failure(Error.Conflict("Course.CodeAlreadyExists", "A course with this code already exists."));
         }
 
-        var department = await _departmentRepository.GetByIdAsync(command.DepartmentId, ct);
-        if (department is null)
-        {
-            return Result<CourseDto>.Failure(Error.NotFound("Department.NotFound", "The specified department was not found."));
-        }
-
-        if (command.GroupId.HasValue && await _groupRepository.GetByIdAsync(command.GroupId.Value, ct) is null)
-        {
-            return Result<CourseDto>.Failure(Error.NotFound("Group.NotFound", "The specified group was not found."));
-        }
-
         try
         {
-            var course = Course.Create(command.Name, command.Code, command.DepartmentId, command.GroupId);
+            var course = Course.Create(command.Name, command.Code);
             await _courseRepository.AddAsync(course, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
-            // Re-fetch with Department included so the DTO carries its name and code.
-            var saved = await _courseRepository.FirstOrDefaultAsync(new CourseWithDepartmentByIdSpecification(course.Id), ct);
-            return Mapper.MapToDto(saved ?? course);
+            return Mapper.MapToDto(course);
         }
         catch (DomainException ex)
         {
@@ -68,20 +45,12 @@ public sealed class CreateCourseHandler : ICommandHandler<CreateCourseCommand, C
 public sealed class UpdateCourseHandler : ICommandHandler<UpdateCourseCommand, CourseDto>
 {
     private readonly IRepository<Course> _courseRepository;
-    private readonly IRepository<Department> _departmentRepository;
-    private readonly IRepository<Group> _groupRepository;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly CourseMapper Mapper = new();
 
-    public UpdateCourseHandler(
-        IRepository<Course> courseRepository,
-        IRepository<Department> departmentRepository,
-        IRepository<Group> groupRepository,
-        IUnitOfWork unitOfWork)
+    public UpdateCourseHandler(IRepository<Course> courseRepository, IUnitOfWork unitOfWork)
     {
         _courseRepository = courseRepository;
-        _departmentRepository = departmentRepository;
-        _groupRepository = groupRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -104,28 +73,13 @@ public sealed class UpdateCourseHandler : ICommandHandler<UpdateCourseCommand, C
             }
         }
 
-        if (command.DepartmentId != course.DepartmentId)
-        {
-            var department = await _departmentRepository.GetByIdAsync(command.DepartmentId, ct);
-            if (department is null)
-            {
-                return Result<CourseDto>.Failure(Error.NotFound("Department.NotFound", "The specified department was not found."));
-            }
-        }
-
-        if (command.GroupId.HasValue && await _groupRepository.GetByIdAsync(command.GroupId.Value, ct) is null)
-        {
-            return Result<CourseDto>.Failure(Error.NotFound("Group.NotFound", "The specified group was not found."));
-        }
-
         try
         {
-            course.Update(command.Name, command.Code, command.DepartmentId, command.GroupId);
+            course.Update(command.Name, command.Code);
             _courseRepository.Update(course);
             await _unitOfWork.SaveChangesAsync(ct);
 
-            var saved = await _courseRepository.FirstOrDefaultAsync(new CourseWithDepartmentByIdSpecification(course.Id), ct);
-            return Mapper.MapToDto(saved ?? course);
+            return Mapper.MapToDto(course);
         }
         catch (DomainException ex)
         {
@@ -172,7 +126,7 @@ public sealed class GetCourseByIdHandler : IQueryHandler<GetCourseByIdQuery, Cou
 
     public async Task<Result<CourseDto>> HandleAsync(GetCourseByIdQuery query, CancellationToken ct = default)
     {
-        var course = await _courseRepository.FirstOrDefaultAsync(new CourseWithDepartmentByIdSpecification(query.Id), ct);
+        var course = await _courseRepository.GetByIdAsync(query.Id, ct);
         if (course is null)
         {
             return Result<CourseDto>.Failure(Error.NotFound("Course.NotFound", "The specified course was not found."));
@@ -194,7 +148,7 @@ public sealed class GetCoursesHandler : IQueryHandler<GetCoursesQuery, PageResul
 
     public async Task<Result<PageResult<CourseDto>>> HandleAsync(GetCoursesQuery query, CancellationToken ct = default)
     {
-        var spec = new CoursesPagedSpecification(query.Search, query.DepartmentId, query.Page, query.PageSize);
+        var spec = new CoursesPagedSpecification(query.Search, query.Page, query.PageSize);
         var pagedCourses = await _courseRepository.ListPagedAsync(spec, ct);
 
         var items = pagedCourses.Items.Select(Mapper.MapToDto).ToList();

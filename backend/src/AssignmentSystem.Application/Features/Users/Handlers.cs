@@ -4,8 +4,6 @@ using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Enums;
-using AssignmentSystem.Domain.Departments;
-using AssignmentSystem.Domain.Groups;
 using AssignmentSystem.Domain.Users;
 using AssignmentSystem.Shared.Common;
 using AssignmentSystem.Application.Features.Auth;
@@ -16,8 +14,6 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
 {
     private readonly IRepository<ApplicationUser> _userRepository;
     private readonly IRepository<Class> _classRepository;
-    private readonly IRepository<Department> _departmentRepository;
-    private readonly IRepository<Group> _groupRepository;
     private readonly IClassRosterRepository _classRosterRepository;
     private readonly ITeacherRosterRepository _teacherRosterRepository;
     private readonly IPasswordHasher _passwordHasher;
@@ -27,8 +23,6 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
     public CreateUserHandler(
         IRepository<ApplicationUser> userRepository,
         IRepository<Class> classRepository,
-        IRepository<Department> departmentRepository,
-        IRepository<Group> groupRepository,
         IClassRosterRepository classRosterRepository,
         ITeacherRosterRepository teacherRosterRepository,
         IPasswordHasher passwordHasher,
@@ -36,8 +30,6 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
     {
         _userRepository = userRepository;
         _classRepository = classRepository;
-        _departmentRepository = departmentRepository;
-        _groupRepository = groupRepository;
         _classRosterRepository = classRosterRepository;
         _teacherRosterRepository = teacherRosterRepository;
         _passwordHasher = passwordHasher;
@@ -64,13 +56,6 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
 
             if (command.Role == Role.Student)
             {
-                var groupCheck = await GroupAssignmentRule.ValidateAsync(
-                    classObj, command.GroupId, _groupRepository, ct);
-                if (groupCheck is not null)
-                {
-                    return Result<UserDto>.Failure(groupCheck);
-                }
-
                 var prefix = StudentIdPrefix(classObj);
                 var sequence = await _classRosterRepository.GetNextStudentSequenceAsync(prefix, ct);
                 studentId = $"{prefix}-{sequence:D3}";
@@ -78,19 +63,10 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
         }
 
         string? teacherId = null;
-        if (command.DepartmentId.HasValue)
+        if (command.Role == Role.Teacher)
         {
-            var department = await _departmentRepository.GetByIdAsync(command.DepartmentId.Value, ct);
-            if (department is null)
-            {
-                return Result<UserDto>.Failure(Error.NotFound("Department.NotFound", "The specified department was not found."));
-            }
-
-            if (command.Role == Role.Teacher)
-            {
-                var sequence = await _teacherRosterRepository.GetNextTeacherSequenceAsync(command.DepartmentId.Value, ct);
-                teacherId = FormatTeacherId(department, sequence);
-            }
+            var sequence = await _teacherRosterRepository.GetNextTeacherSequenceAsync(ct);
+            teacherId = $"INS-{sequence:D3}";
         }
 
         var passwordHash = _passwordHasher.Hash(command.Password);
@@ -104,14 +80,12 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
                 command.Role,
                 command.ClassId,
                 studentId,
-                command.DepartmentId,
-                teacherId,
-                command.GroupId);
+                teacherId);
 
             await _userRepository.AddAsync(user, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
-            // Fetch again with Class/Department included for full DTO mapping
+            // Fetch again with Class included for full DTO mapping
             var fetchSpec = new UserWithClassByIdSpecification(user.Id);
             var savedUser = await _userRepository.FirstOrDefaultAsync(fetchSpec, ct);
 
@@ -133,19 +107,12 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
         !string.IsNullOrWhiteSpace(classObj.Section)
             ? $"{classObj.GradeLabel}-{classObj.Section.Trim()}"
             : classObj.Name.Trim().Replace(' ', '-');
-
-    /// <summary>"INS-SCI-01" — Instructor, department code, sequence. The department code
-    /// is already short and bounded (10 chars), so it is used verbatim.</summary>
-    private static string FormatTeacherId(Department department, int sequence) =>
-        $"INS-{department.Code}-{sequence:D2}";
 }
 
 public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand, UserDto>
 {
     private readonly IRepository<ApplicationUser> _userRepository;
     private readonly IRepository<Class> _classRepository;
-    private readonly IRepository<Department> _departmentRepository;
-    private readonly IRepository<Group> _groupRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly UserMapper Mapper = new();
@@ -153,15 +120,11 @@ public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand, UserD
     public UpdateUserHandler(
         IRepository<ApplicationUser> userRepository,
         IRepository<Class> classRepository,
-        IRepository<Department> departmentRepository,
-        IRepository<Group> groupRepository,
         IPasswordHasher passwordHasher,
         IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
         _classRepository = classRepository;
-        _departmentRepository = departmentRepository;
-        _groupRepository = groupRepository;
         _passwordHasher = passwordHasher;
         _unitOfWork = unitOfWork;
     }
@@ -179,45 +142,14 @@ public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand, UserD
         {
             user.UpdateProfile(command.FullName);
 
-            Class? effectiveClass = null;
             if (command.ClassId.HasValue && command.ClassId.Value != user.ClassId)
             {
-                effectiveClass = await _classRepository.GetByIdAsync(command.ClassId.Value, ct);
+                var effectiveClass = await _classRepository.GetByIdAsync(command.ClassId.Value, ct);
                 if (effectiveClass is null)
                 {
                     return Result<UserDto>.Failure(Error.NotFound("Class.NotFound", "The specified class was not found."));
                 }
                 user.AssignToClass(command.ClassId.Value);
-            }
-
-            // Validated against the class the student ends up in, not the one they came
-            // from: moving VIII → IX starts requiring a group, and IX → VIII clears it.
-            if (user.Role == Role.Student && user.ClassId.HasValue)
-            {
-                effectiveClass ??= await _classRepository.GetByIdAsync(user.ClassId.Value, ct);
-                if (effectiveClass is null)
-                {
-                    return Result<UserDto>.Failure(Error.NotFound("Class.NotFound", "The specified class was not found."));
-                }
-
-                var groupCheck = await GroupAssignmentRule.ValidateAsync(
-                    effectiveClass, command.GroupId, _groupRepository, ct);
-                if (groupCheck is not null)
-                {
-                    return Result<UserDto>.Failure(groupCheck);
-                }
-
-                user.SetGroup(effectiveClass.HasGroups ? command.GroupId : null);
-            }
-
-            if (command.DepartmentId.HasValue && command.DepartmentId.Value != user.DepartmentId)
-            {
-                var department = await _departmentRepository.GetByIdAsync(command.DepartmentId.Value, ct);
-                if (department is null)
-                {
-                    return Result<UserDto>.Failure(Error.NotFound("Department.NotFound", "The specified department was not found."));
-                }
-                user.AssignToDepartment(command.DepartmentId.Value);
             }
 
             if (!string.IsNullOrWhiteSpace(command.Password))

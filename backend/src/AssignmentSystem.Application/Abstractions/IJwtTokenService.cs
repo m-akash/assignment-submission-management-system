@@ -9,7 +9,7 @@ namespace AssignmentSystem.Application.Abstractions;
 public interface IJwtTokenService
 {
     /// <summary>Issues a short-lived access token for the given user.</summary>
-    (string AccessToken, DateTime ExpiresAtUtc) GenerateAccessToken(Guid userId, string email, string fullName, Role role, Guid? classId, Guid? groupId);
+    (string AccessToken, DateTime ExpiresAtUtc) GenerateAccessToken(Guid userId, string email, string fullName, Role role, Guid? classId);
 
     /// <summary>Issues a refresh token, persists its hash, returns the plaintext once.</summary>
     Task<(string RefreshToken, DateTime ExpiresAtUtc)> GenerateRefreshTokenAsync(Guid userId, string? createdByIp, CancellationToken ct = default);

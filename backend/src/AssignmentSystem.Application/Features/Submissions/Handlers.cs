@@ -3,7 +3,6 @@ using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Assignments;
 using AssignmentSystem.Domain.Common;
-using AssignmentSystem.Domain.Courses;
 using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Domain.Submissions;
 using AssignmentSystem.Shared.Common;
@@ -15,7 +14,6 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
 {
     private readonly IRepository<Submission> _submissionRepository;
     private readonly IRepository<Assignment> _assignmentRepository;
-    private readonly IRepository<Course> _courseRepository;
     private readonly ICurrentUser _currentUser;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
@@ -24,14 +22,12 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
     public SubmitAssignmentHandler(
         IRepository<Submission> submissionRepository,
         IRepository<Assignment> assignmentRepository,
-        IRepository<Course> courseRepository,
         ICurrentUser currentUser,
         IClock clock,
         IUnitOfWork unitOfWork)
     {
         _submissionRepository = submissionRepository;
         _assignmentRepository = assignmentRepository;
-        _courseRepository = courseRepository;
         _currentUser = currentUser;
         _clock = clock;
         _unitOfWork = unitOfWork;
@@ -54,14 +50,6 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
         if (assignment.ClassId != _currentUser.ClassId)
         {
             return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "You do not belong to the class for this assignment."));
-        }
-
-        // Group gate: mirrors the visibility check — a group-restricted course must
-        // not accept submissions from students outside that group either.
-        var course = await _courseRepository.GetByIdAsync(assignment.CourseId, ct);
-        if (course is not null && course.GroupId is not null && course.GroupId != _currentUser.GroupId)
-        {
-            return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "You do not belong to the group for this assignment."));
         }
 
         // X3: Cannot submit to a draft assignment
@@ -401,7 +389,6 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
     private readonly IRepository<Submission> _submissionRepository;
     private readonly IRepository<SubmissionFile> _fileRepository;
     private readonly IRepository<Assignment> _assignmentRepository;
-    private readonly IRepository<Course> _courseRepository;
     private readonly IFileStorage _fileStorage;
     private readonly IFileUploadPolicy _uploadPolicy;
     private readonly ICurrentUser _currentUser;
@@ -413,7 +400,6 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
         IRepository<Submission> submissionRepository,
         IRepository<SubmissionFile> fileRepository,
         IRepository<Assignment> assignmentRepository,
-        IRepository<Course> courseRepository,
         IFileStorage fileStorage,
         IFileUploadPolicy uploadPolicy,
         ICurrentUser currentUser,
@@ -423,7 +409,6 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
         _submissionRepository = submissionRepository;
         _fileRepository = fileRepository;
         _assignmentRepository = assignmentRepository;
-        _courseRepository = courseRepository;
         _fileStorage = fileStorage;
         _uploadPolicy = uploadPolicy;
         _currentUser = currentUser;
@@ -448,14 +433,6 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
         if (assignment.ClassId != _currentUser.ClassId)
         {
             return Result<SubmissionFileDto>.Failure(Error.Forbidden("SubmissionFile.Forbidden", "You do not belong to the class for this assignment."));
-        }
-
-        // Group gate: mirrors SubmitAssignmentHandler — uploading a file is part of
-        // submitting, so the same group restriction applies.
-        var course = await _courseRepository.GetByIdAsync(assignment.CourseId, ct);
-        if (course is not null && course.GroupId is not null && course.GroupId != _currentUser.GroupId)
-        {
-            return Result<SubmissionFileDto>.Failure(Error.Forbidden("SubmissionFile.Forbidden", "You do not belong to the group for this assignment."));
         }
 
         // X3: Publish check

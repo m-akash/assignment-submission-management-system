@@ -152,12 +152,6 @@ public sealed class DownloadAssignmentFileHandler : IQueryHandler<DownloadAssign
             {
                 return Result<AssignmentFileDownloadResult>.Failure(Error.Forbidden("AssignmentFile.Forbidden", "You do not have permission to download this file."));
             }
-
-            // Group gate: mirrors the assignment visibility check.
-            if (assignment.Course.GroupId is not null && assignment.Course.GroupId != _currentUser.GroupId)
-            {
-                return Result<AssignmentFileDownloadResult>.Failure(Error.Forbidden("AssignmentFile.Forbidden", "You do not have permission to download this file."));
-            }
         }
 
         try
