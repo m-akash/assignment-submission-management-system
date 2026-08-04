@@ -109,9 +109,9 @@ public abstract class IntegrationTestBase
     // ── Provisioning (via the Admin API, so the endpoints are exercised too) ──
 
     /// <summary>
-    /// Creates a self-contained department + class + course + teacher + student, wired
-    /// together by a teacher assignment. Two worlds give every "may user X touch resource
-    /// Y?" test a genuine boundary to cross.
+    /// Creates a self-contained class + course + teacher + student, wired together by a
+    /// teacher assignment. Two worlds give every "may user X touch resource Y?" test a
+    /// genuine boundary to cross.
     /// </summary>
     protected async Task<TestWorld> ProvisionWorldAsync(string label)
     {
@@ -120,26 +120,18 @@ public abstract class IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var @class = await PostAsync<ClassRef>(admin, "/api/v1/classes",
-            // Level 8: below class IX, so its students need no group — this fixture is
-            // about authorization boundaries, not the group rule.
             new CreateClassRequest($"Class {tag}", 8, tag));
 
-        // Department codes are capped at 10 characters, so this one cannot be built from
-        // the tag — "D" plus 9 hex digits is short enough and still collision-free.
-        var departmentCode = $"D{Guid.NewGuid():N}"[..10].ToUpperInvariant();
-        var department = await PostAsync<DepartmentRef>(admin, "/api/v1/departments",
-            new CreateDepartmentRequest($"Department {tag}", departmentCode));
-
         var course = await PostAsync<CourseRef>(admin, "/api/v1/courses",
-            new CreateCourseRequest($"Course {tag}", $"CRS-{tag}", department.Id, null));
+            new CreateCourseRequest($"Course {tag}", $"CRS-{tag}"));
 
         var teacherEmail = $"teacher-{tag}@test.local";
         var teacher = await PostAsync<UserRef>(admin, "/api/v1/users",
-            new CreateUserRequest(teacherEmail, $"Teacher {tag}", TestPassword, Role.Teacher, null, department.Id, null));
+            new CreateUserRequest(teacherEmail, $"Teacher {tag}", TestPassword, Role.Teacher, null));
 
         var studentEmail = $"student-{tag}@test.local";
         var student = await PostAsync<UserRef>(admin, "/api/v1/users",
-            new CreateUserRequest(studentEmail, $"Student {tag}", TestPassword, Role.Student, @class.Id, null, null));
+            new CreateUserRequest(studentEmail, $"Student {tag}", TestPassword, Role.Student, @class.Id));
 
         var teacherAssignment = await PostAsync<TeacherAssignmentRef>(admin, "/api/v1/teacher-assignments",
             new CreateTeacherAssignmentRequest(teacher.Id, course.Id, @class.Id));
@@ -212,7 +204,7 @@ public abstract class IntegrationTestBase
 
         using var admin = await SignInAsAdminAsync();
         var response = await admin.PostAsJsonAsync("/api/v1/users",
-            new CreateUserRequest(email, $"Student {tag}", TestPassword, Role.Student, classId, null, null));
+            new CreateUserRequest(email, $"Student {tag}", TestPassword, Role.Student, classId));
 
         response.EnsureSuccessStatusCode();
         return email;
@@ -305,7 +297,6 @@ public abstract class IntegrationTestBase
 
     private sealed record ClassRef(Guid Id);
     private sealed record UserClassRef(Guid Id, Guid? ClassId);
-    private sealed record DepartmentRef(Guid Id);
     private sealed record CourseRef(Guid Id);
     private sealed record UserRef(Guid Id);
     private sealed record TeacherAssignmentRef(Guid Id);
