@@ -131,7 +131,7 @@ public abstract class IntegrationTestBase
             new CreateDepartmentRequest($"Department {tag}", departmentCode));
 
         var course = await PostAsync<CourseRef>(admin, "/api/v1/courses",
-            new CreateCourseRequest($"Course {tag}", $"CRS-{tag}", department.Id));
+            new CreateCourseRequest($"Course {tag}", $"CRS-{tag}", department.Id, null));
 
         var teacherEmail = $"teacher-{tag}@test.local";
         var teacher = await PostAsync<UserRef>(admin, "/api/v1/users",
