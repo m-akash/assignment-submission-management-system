@@ -32,10 +32,8 @@ public sealed record AssignmentDto(
 );
 
 /// <summary>
-/// <paramref name="TeacherId"/> is only read for an admin, who has to say which teacher
-/// the work belongs to. A teacher creating their own assignment is always the author, so
-/// the value is ignored rather than trusted — otherwise it would be a way to author work
-/// under a colleague's name.
+/// A teacher creating an assignment is always its author — the identity is taken from the
+/// token rather than the request, so a colleague's id can never be named.
 /// </summary>
 public sealed record CreateAssignmentCommand(
     Guid ClassCourseId,
@@ -43,8 +41,7 @@ public sealed record CreateAssignmentCommand(
     string Description,
     DateTime DeadlineUtc,
     decimal MaxMarks,
-    bool AllowResubmission,
-    Guid? TeacherId = null
+    bool AllowResubmission
 ) : ICommand<AssignmentDto>;
 
 public sealed record UpdateAssignmentCommand(

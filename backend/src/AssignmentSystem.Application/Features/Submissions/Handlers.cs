@@ -221,9 +221,9 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
 
     public async Task<Result<SubmissionDto>> HandleAsync(ReviewSubmissionCommand command, CancellationToken ct = default)
     {
-        if (_currentUser.Role != Role.Teacher && _currentUser.Role != Role.Admin)
+        if (_currentUser.Role != Role.Teacher)
         {
-            return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "Only teachers or admins can grade submissions."));
+            return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "Only teachers can grade submissions."));
         }
 
         var spec = new SubmissionWithDetailsSpecification(command.Id);
@@ -242,7 +242,7 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
         }
 
         // B3: Teacher can only grade their own assignments
-        if (_currentUser.Role == Role.Teacher && !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (!assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
         {
             return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "You do not have permission to grade this assignment."));
         }

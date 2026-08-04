@@ -39,9 +39,9 @@ public sealed class UploadAssignmentFileHandler : ICommandHandler<UploadAssignme
 
     public async Task<Result<AssignmentFileDto>> HandleAsync(UploadAssignmentFileCommand command, CancellationToken ct = default)
     {
-        if (_currentUser.Role != Role.Teacher && _currentUser.Role != Role.Admin)
+        if (_currentUser.Role != Role.Teacher)
         {
-            return Result<AssignmentFileDto>.Failure(Error.Forbidden("AssignmentFile.Forbidden", "Only teachers or admins can attach files to an assignment."));
+            return Result<AssignmentFileDto>.Failure(Error.Forbidden("AssignmentFile.Forbidden", "Only teachers can attach files to an assignment."));
         }
 
         var assignment = await _assignmentRepository.GetByIdAsync(command.AssignmentId, ct);
@@ -50,7 +50,7 @@ public sealed class UploadAssignmentFileHandler : ICommandHandler<UploadAssignme
             return Result<AssignmentFileDto>.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        if (_currentUser.Role == Role.Teacher && !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (!assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
         {
             return Result<AssignmentFileDto>.Failure(Error.Forbidden("AssignmentFile.Forbidden", "You do not have permission to attach files to this assignment."));
         }
@@ -203,12 +203,7 @@ public sealed class DeleteAssignmentFileHandler : ICommandHandler<DeleteAssignme
             return Result.Failure(Error.NotFound("AssignmentFile.NotFound", "The specified file was not found."));
         }
 
-        if (_currentUser.Role == Role.Teacher && !file.Assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
-        {
-            return Result.Failure(Error.Forbidden("AssignmentFile.Forbidden", "You do not have permission to delete this file."));
-        }
-
-        if (_currentUser.Role == Role.Student)
+        if (_currentUser.Role != Role.Teacher || !file.Assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
         {
             return Result.Failure(Error.Forbidden("AssignmentFile.Forbidden", "You do not have permission to delete this file."));
         }

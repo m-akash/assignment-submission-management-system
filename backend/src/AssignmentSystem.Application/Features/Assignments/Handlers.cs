@@ -47,9 +47,9 @@ public sealed class CreateAssignmentHandler : ICommandHandler<CreateAssignmentCo
 
     public async Task<Result<AssignmentDto>> HandleAsync(CreateAssignmentCommand command, CancellationToken ct = default)
     {
-        if (_currentUser.Role != Role.Teacher && _currentUser.Role != Role.Admin)
+        if (_currentUser.Role != Role.Teacher)
         {
-            return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "Only teachers or admins can create assignments."));
+            return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "Only teachers can create assignments."));
         }
 
         var offering = await _classCourseRepository.GetByIdAsync(command.ClassCourseId, ct);
@@ -58,30 +58,15 @@ public sealed class CreateAssignmentHandler : ICommandHandler<CreateAssignmentCo
             return Result<AssignmentDto>.Failure(Error.NotFound("ClassCourse.NotFound", "The specified course offering was not found."));
         }
 
-        // A teacher is always the author of their own work; only an admin names one.
-        Guid teacherId;
-        if (_currentUser.Role == Role.Teacher)
-        {
-            teacherId = _currentUser.UserId.GetValueOrDefault();
-        }
-        else if (command.TeacherId is { } named && named != Guid.Empty)
-        {
-            teacherId = named;
-        }
-        else
-        {
-            return Result<AssignmentDto>.Failure(Error.Validation(
-                "Assignment.TeacherRequired", "Choose the teacher this assignment belongs to."));
-        }
+        // A teacher is always the author of their own work.
+        var teacherId = _currentUser.UserId.GetValueOrDefault();
 
         var mappingSpec = new TeacherAssignmentForOfferingSpecification(teacherId, command.ClassCourseId);
         if (!await _teacherAssignmentRepository.AnyAsync(mappingSpec, ct))
         {
             return Result<AssignmentDto>.Failure(Error.Forbidden(
                 "Assignment.Forbidden",
-                _currentUser.Role == Role.Teacher
-                    ? "You are not assigned to teach this course for this class."
-                    : "That teacher is not assigned to teach this course for this class."));
+                "You are not assigned to teach this course for this class."));
         }
 
         try
@@ -153,7 +138,7 @@ public sealed class UpdateAssignmentHandler : ICommandHandler<UpdateAssignmentCo
             return Result<AssignmentDto>.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        if (_currentUser.Role == Role.Teacher && !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (_currentUser.Role != Role.Teacher || !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
         {
             return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have permission to update this assignment."));
         }
@@ -220,7 +205,7 @@ public sealed class DeleteAssignmentHandler : ICommandHandler<DeleteAssignmentCo
             return Result.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        if (_currentUser.Role == Role.Teacher && !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (_currentUser.Role != Role.Teacher || !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
         {
             return Result.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have permission to delete this assignment."));
         }
@@ -269,7 +254,7 @@ public sealed class PublishAssignmentHandler : ICommandHandler<PublishAssignment
             return Result<AssignmentDto>.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        if (_currentUser.Role == Role.Teacher && !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (_currentUser.Role != Role.Teacher || !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
         {
             return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have permission to publish this assignment."));
         }
