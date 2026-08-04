@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { Loader2 } from 'lucide-react';
+import { Download, Loader2, Paperclip, Trash2, Upload } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,10 +24,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useSaveAssignment } from '@/hooks/use-assignments';
+import {
+  downloadAssignmentFile,
+  useDeleteAssignmentFile,
+  useSaveAssignment,
+  useUploadAssignmentFile,
+} from '@/hooks/use-assignments';
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
+import { formatBytes } from '@/lib/format';
 import { assignmentSchema, type AssignmentValues } from '@/schemas';
 import type { Assignment } from '@/types/api';
+
+/** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
+const MAX_FILES = 5;
 
 /** `datetime-local` needs "YYYY-MM-DDTHH:mm" in local time, not a UTC ISO string. */
 function toLocalInput(iso: string): string {
@@ -54,6 +64,10 @@ export function AssignmentFormDialog({
   const isEdit = !!assignment;
   const mappings = useMyTeacherMappings(open);
   const save = useSaveAssignment();
+  const upload = useUploadAssignmentFile();
+  const removeFile = useDeleteAssignmentFile();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const files = assignment?.files ?? [];
 
   const form = useForm<AssignmentValues>({
     resolver: zodResolver(assignmentSchema),
@@ -105,6 +119,14 @@ export function AssignmentFormDialog({
       },
     });
     onOpenChange(false);
+  }
+
+  async function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !assignment) return;
+
+    await upload.mutateAsync({ assignmentId: assignment.id, file });
   }
 
   const options = mappings.data ?? [];
@@ -205,6 +227,73 @@ export function AssignmentFormDialog({
               </span>
             </span>
           </label>
+
+          {isEdit && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Materials for students</Label>
+                <span className="text-xs text-muted-foreground">
+                  {files.length} of {MAX_FILES} · max 10 MB each
+                </span>
+              </div>
+
+              {files.length > 0 && (
+                <ul className="divide-y rounded-lg border">
+                  {files.map((file) => (
+                    <li key={file.id} className="flex items-center gap-3 px-3 py-2">
+                      <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm">{file.originalFileName}</p>
+                        <p className="text-xs text-muted-foreground">{formatBytes(file.fileSizeBytes)}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => downloadAssignmentFile(file.id, file.originalFileName)}
+                        aria-label={`Download ${file.originalFileName}`}
+                      >
+                        <Download className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        disabled={removeFile.isPending}
+                        onClick={() => removeFile.mutate(file.id)}
+                        aria-label={`Remove ${file.originalFileName}`}
+                      >
+                        <Trash2 className="size-4 text-danger" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <input
+                ref={fileInput}
+                type="file"
+                hidden
+                accept={ALLOWED_EXTENSIONS.join(',')}
+                onChange={onFilePicked}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={upload.isPending || files.length >= MAX_FILES}
+                onClick={() => fileInput.current?.click()}
+              >
+                {upload.isPending ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                {files.length >= MAX_FILES ? 'Attachment limit reached' : 'Attach a file'}
+              </Button>
+            </div>
+          )}
+          {!isEdit && (
+            <p className="text-xs text-muted-foreground">
+              You can attach reference material once the assignment is created.
+            </p>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

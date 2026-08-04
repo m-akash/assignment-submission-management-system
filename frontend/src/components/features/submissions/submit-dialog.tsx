@@ -23,6 +23,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { DeadlineBadge, SubmissionStatusBadge } from '@/components/shared/status-badge';
+import { downloadAssignmentFile } from '@/hooks/use-assignments';
 import {
   downloadSubmissionFile,
   useDeleteSubmissionFile,
@@ -104,6 +105,31 @@ export function SubmitDialog({
             </h3>
             <p className="text-sm whitespace-pre-wrap">{assignment.description}</p>
           </section>
+
+          {assignment.files.length > 0 && (
+            <section className="space-y-2">
+              <Label>Materials from your teacher</Label>
+              <ul className="divide-y rounded-lg border">
+                {assignment.files.map((file) => (
+                  <li key={file.id} className="flex items-center gap-3 px-3 py-2">
+                    <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{file.originalFileName}</p>
+                      <p className="text-xs text-muted-foreground">{formatBytes(file.fileSizeBytes)}</p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => downloadAssignmentFile(file.id, file.originalFileName)}
+                      aria-label={`Download ${file.originalFileName}`}
+                    >
+                      <Download className="size-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {isGraded && (
             <section className="space-y-2 rounded-lg border bg-success-muted/40 p-4">

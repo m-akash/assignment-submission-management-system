@@ -100,6 +100,9 @@ export interface Course {
   departmentId: string;
   departmentName: string | null;
   departmentCode: string | null;
+  /** Null when the course is open to every student in the class. */
+  groupId: string | null;
+  groupName: string | null;
 }
 
 export interface TeacherMapping {
@@ -112,6 +115,15 @@ export interface TeacherMapping {
   courseCode: string;
   classId: string;
   className: string;
+}
+
+export interface AssignmentFile {
+  id: string;
+  assignmentId: string;
+  originalFileName: string;
+  contentType: string;
+  fileSizeBytes: number;
+  uploadedAtUtc: string;
 }
 
 export interface Assignment {
@@ -132,6 +144,7 @@ export interface Assignment {
   allowResubmission: boolean;
   submissionCount: number;
   createdAtUtc: string;
+  files: AssignmentFile[];
 }
 
 export interface SubmissionFile {

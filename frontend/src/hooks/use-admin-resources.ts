@@ -203,6 +203,7 @@ export interface CourseInput {
   name: string;
   code: string;
   departmentId: string;
+  groupId?: string | null;
 }
 
 export function useSaveCourse() {

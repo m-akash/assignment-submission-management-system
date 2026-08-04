@@ -82,15 +82,16 @@ function CoursesView() {
                     <TableHead>Name</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Department</TableHead>
+                    <TableHead>Group</TableHead>
                     <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={4} />
+                    <TableSkeleton columns={5} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="p-0">
+                      <TableCell colSpan={5} className="p-0">
                         <EmptyState
                           icon={BookOpen}
                           title={search ? 'Nothing matches that search' : 'No courses yet'}
@@ -117,6 +118,9 @@ function CoursesView() {
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {course.departmentName ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {course.groupName ?? 'Open to everyone'}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>

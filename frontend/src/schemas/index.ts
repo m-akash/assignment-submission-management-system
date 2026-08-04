@@ -114,6 +114,8 @@ export const courseSchema = z.object({
     .max(30, 'Code cannot exceed 30 characters')
     .regex(/^[A-Za-z0-9-]+$/, 'Use letters, numbers and hyphens only'),
   departmentId: z.string().min(1, 'Choose a department'),
+  /** Empty string means "open to everyone" — coerced to null before it reaches the API. */
+  groupId: z.string().optional(),
 });
 export type CourseValues = z.infer<typeof courseSchema>;
 

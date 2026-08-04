@@ -21,9 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useDepartmentOptions, useSaveCourse } from '@/hooks/use-admin-resources';
+import { useDepartmentOptions, useGroupOptions, useSaveCourse } from '@/hooks/use-admin-resources';
 import { courseSchema, type CourseValues } from '@/schemas';
 import type { Course } from '@/types/api';
+
+/** Radix `<Select>` rejects an empty-string value, so "open to everyone" needs a sentinel. */
+const NO_GROUP = 'none';
 
 export function CourseFormDialog({
   open,
@@ -36,19 +39,25 @@ export function CourseFormDialog({
 }) {
   const isEdit = !!course;
   const departments = useDepartmentOptions();
+  const groups = useGroupOptions();
   const save = useSaveCourse();
 
   const form = useForm<CourseValues>({
     resolver: zodResolver(courseSchema),
-    defaultValues: { name: '', code: '', departmentId: '' },
+    defaultValues: { name: '', code: '', departmentId: '', groupId: NO_GROUP },
   });
 
   useEffect(() => {
     if (!open) return;
     form.reset(
       course
-        ? { name: course.name, code: course.code, departmentId: course.departmentId }
-        : { name: '', code: '', departmentId: '' },
+        ? {
+            name: course.name,
+            code: course.code,
+            departmentId: course.departmentId,
+            groupId: course.groupId ?? NO_GROUP,
+          }
+        : { name: '', code: '', departmentId: '', groupId: NO_GROUP },
     );
   }, [open, course, form]);
 
@@ -59,6 +68,7 @@ export function CourseFormDialog({
         name: values.name,
         code: values.code.toUpperCase(),
         departmentId: values.departmentId,
+        groupId: values.groupId && values.groupId !== NO_GROUP ? values.groupId : null,
       },
     });
     onOpenChange(false);
@@ -106,6 +116,27 @@ export function CourseFormDialog({
             {errors.departmentId && (
               <p className="text-xs text-danger">{errors.departmentId.message}</p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="groupId">Group</Label>
+            <Select
+              value={form.watch('groupId') || NO_GROUP}
+              onValueChange={(value) => form.setValue('groupId', value, { shouldValidate: true })}
+            >
+              <SelectTrigger id="groupId">
+                <SelectValue placeholder="Open to everyone" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_GROUP}>Open to everyone</SelectItem>
+                {(groups.data ?? []).map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.groupId && <p className="text-xs text-danger">{errors.groupId.message}</p>}
           </div>
 
           <DialogFooter>

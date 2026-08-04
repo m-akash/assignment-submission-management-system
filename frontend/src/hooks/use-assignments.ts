@@ -2,9 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiDelete, apiGetPaged, apiPost, apiPut, toQuery } from '@/lib/api';
+import { apiDelete, apiGetBlob, apiGetPaged, apiPost, apiPostForm, apiPut, toQuery } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
-import type { Assignment, AssignmentStatus } from '@/types/api';
+import type { Assignment, AssignmentFile, AssignmentStatus } from '@/types/api';
 
 export interface AssignmentFilters {
   search?: string;
@@ -82,4 +82,59 @@ export function useDeleteAssignment() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+}
+
+// ── Attachments (teacher-uploaded reference material) ─────────────────────
+// Distinct from a student's own submission files — these live on the assignment
+// itself, uploaded by its owning teacher, and are visible to anyone who can see
+// the assignment (same class, group and published-status rules apply).
+
+export function useUploadAssignmentFile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ assignmentId, file }: { assignmentId: string; file: File }) => {
+      const form = new FormData();
+      form.append('file', file);
+      return apiPostForm<AssignmentFile>(`/api/v1/assignments/${assignmentId}/attachments/upload`, form);
+    },
+    onSuccess: (file) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.assignments.all });
+      toast.success(`${file.originalFileName} attached`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useDeleteAssignmentFile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (fileId: string) => apiDelete(`/api/v1/assignments/attachments/${fileId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.assignments.all });
+      toast.success('Attachment removed');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+/**
+ * Attachments are streamed by the API after an authorization check, so they cannot be
+ * linked directly — fetch the blob, then hand it to the browser.
+ */
+export async function downloadAssignmentFile(fileId: string, fileName: string): Promise<void> {
+  try {
+    const blob = await apiGetBlob(`/api/v1/assignments/attachments/${fileId}`);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : 'Download failed');
+  }
 }
