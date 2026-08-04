@@ -15,6 +15,10 @@ public interface ISpecification<T> where T : class
     List<string> IncludeStrings { get; }
     Expression<Func<T, object>>? OrderBy { get; }
     Expression<Func<T, object>>? OrderByDescending { get; }
+
+    /// <summary>Secondary sort, applied after <see cref="OrderBy"/> or
+    /// <see cref="OrderByDescending"/>. Ignored when neither is set.</summary>
+    Expression<Func<T, object>>? ThenBy { get; }
     int? Page { get; }
     int? PageSize { get; }
     bool AsNoTracking { get; }

@@ -34,13 +34,20 @@ public static class SpecificationEvaluator
             query = query.Include(includeString);
         }
 
+        IOrderedQueryable<T>? ordered = null;
         if (spec.OrderByDescending is not null)
         {
-            query = query.OrderByDescending(spec.OrderByDescending);
+            ordered = query.OrderByDescending(spec.OrderByDescending);
         }
         else if (spec.OrderBy is not null)
         {
-            query = query.OrderBy(spec.OrderBy);
+            ordered = query.OrderBy(spec.OrderBy);
+        }
+
+        if (ordered is not null)
+        {
+            // A secondary sort only means anything once there is a primary one.
+            query = spec.ThenBy is not null ? ordered.ThenBy(spec.ThenBy) : ordered;
         }
 
         if (spec.Page is { } page && spec.PageSize is { } pageSize && page > 0 && pageSize > 0)

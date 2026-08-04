@@ -14,6 +14,7 @@ public abstract class Specification<T> : ISpecification<T> where T : class
     public List<string> IncludeStrings { get; } = [];
     public Expression<Func<T, object>>? OrderBy { get; protected set; }
     public Expression<Func<T, object>>? OrderByDescending { get; protected set; }
+    public Expression<Func<T, object>>? ThenBy { get; protected set; }
     public int? Page { get; protected set; }
     public int? PageSize { get; protected set; }
     public bool AsNoTracking { get; protected set; }
@@ -33,5 +34,6 @@ public abstract class Specification<T> : ISpecification<T> where T : class
     }
     protected void ApplyOrderBy(Expression<Func<T, object>> orderBy) => OrderBy = orderBy;
     protected void ApplyOrderByDescending(Expression<Func<T, object>> orderByDescending) => OrderByDescending = orderByDescending;
+    protected void ApplyThenBy(Expression<Func<T, object>> thenBy) => ThenBy = thenBy;
     protected void ApplyNoTracking() => AsNoTracking = true;
 }

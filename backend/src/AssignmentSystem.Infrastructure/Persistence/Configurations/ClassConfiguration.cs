@@ -14,8 +14,12 @@ internal sealed class ClassConfiguration : IEntityTypeConfiguration<Class>
         builder.Property(c => c.Id).HasDefaultValueSql("gen_random_uuid()");
 
         builder.Property(c => c.Name).HasMaxLength(150).IsRequired();
-        builder.Property(c => c.Grade).HasMaxLength(50);
+        builder.Property(c => c.Level).IsRequired();
         builder.Property(c => c.Section).HasMaxLength(50);
+
+        // GradeLabel and HasGroups are computed from Level — nothing to persist.
+        builder.Ignore(c => c.GradeLabel);
+        builder.Ignore(c => c.HasGroups);
 
         builder.Property(c => c.CreatedAtUtc).IsRequired();
         builder.Property(c => c.UpdatedAtUtc).IsRequired();

@@ -23,7 +23,7 @@ public sealed class CreateClassHandler : ICommandHandler<CreateClassCommand, Cla
     {
         try
         {
-            var classObj = Class.Create(command.Name, command.Grade, command.Section);
+            var classObj = Class.Create(command.Name, command.Level, command.Section);
             await _classRepository.AddAsync(classObj, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
@@ -58,7 +58,7 @@ public sealed class UpdateClassHandler : ICommandHandler<UpdateClassCommand, Cla
 
         try
         {
-            classObj.Update(command.Name, command.Grade, command.Section);
+            classObj.Update(command.Name, command.Level, command.Section);
             _classRepository.Update(classObj);
             await _unitOfWork.SaveChangesAsync(ct);
 

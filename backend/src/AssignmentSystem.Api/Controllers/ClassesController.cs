@@ -59,7 +59,7 @@ public sealed class ClassesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateClass([FromBody] CreateClassRequest request, CancellationToken ct)
     {
-        var command = new CreateClassCommand(request.Name, request.Grade, request.Section);
+        var command = new CreateClassCommand(request.Name, request.Level, request.Section);
         var result = await _createClassHandler.HandleAsync(command, ct);
         if (!result.IsSuccess)
         {
@@ -72,7 +72,7 @@ public sealed class ClassesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdateClass(Guid id, [FromBody] UpdateClassRequest request, CancellationToken ct)
     {
-        var command = new UpdateClassCommand(id, request.Name, request.Grade, request.Section);
+        var command = new UpdateClassCommand(id, request.Name, request.Level, request.Section);
         var result = await _updateClassHandler.HandleAsync(command, ct);
         return result.ToActionResult(this);
     }
@@ -86,8 +86,8 @@ public sealed class ClassesController : ControllerBase
     }
 }
 
-public sealed record CreateClassRequest(string Name, string? Grade, string? Section);
-public sealed record UpdateClassRequest(string Name, string? Grade, string? Section);
+public sealed record CreateClassRequest(string Name, int Level, string? Section);
+public sealed record UpdateClassRequest(string Name, int Level, string? Section);
 
 public sealed class CreateClassRequestValidator : AbstractValidator<CreateClassRequest>
 {
@@ -97,8 +97,8 @@ public sealed class CreateClassRequestValidator : AbstractValidator<CreateClassR
             .NotEmpty().WithMessage("Class name is required.")
             .MaximumLength(150).WithMessage("Class name cannot exceed 150 characters.");
 
-        RuleFor(x => x.Grade)
-            .MaximumLength(50).WithMessage("Grade cannot exceed 50 characters.");
+        RuleFor(x => x.Level)
+            .InclusiveBetween(1, 12).WithMessage("Class level must be between 1 and 12.");
 
         RuleFor(x => x.Section)
             .MaximumLength(50).WithMessage("Section cannot exceed 50 characters.");
@@ -113,8 +113,8 @@ public sealed class UpdateClassRequestValidator : AbstractValidator<UpdateClassR
             .NotEmpty().WithMessage("Class name is required.")
             .MaximumLength(150).WithMessage("Class name cannot exceed 150 characters.");
 
-        RuleFor(x => x.Grade)
-            .MaximumLength(50).WithMessage("Grade cannot exceed 50 characters.");
+        RuleFor(x => x.Level)
+            .InclusiveBetween(1, 12).WithMessage("Class level must be between 1 and 12.");
 
         RuleFor(x => x.Section)
             .MaximumLength(50).WithMessage("Section cannot exceed 50 characters.");

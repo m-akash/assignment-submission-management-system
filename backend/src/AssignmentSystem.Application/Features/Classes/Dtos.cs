@@ -6,21 +6,26 @@ namespace AssignmentSystem.Application.Features.Classes;
 public sealed record ClassDto(
     Guid Id,
     string Name,
-    string? Grade,
+    int Level,
+    /// <summary>The level as a Roman numeral ("IX") — derived, never stored.</summary>
+    string GradeLabel,
     string? Section,
+    /// <summary>Whether students in this class must pick a group. Sent so the client does
+    /// not have to hardcode the grade threshold.</summary>
+    bool HasGroups,
     int StudentCount = 0
 );
 
 public sealed record CreateClassCommand(
     string Name,
-    string? Grade,
+    int Level,
     string? Section
 ) : ICommand<ClassDto>;
 
 public sealed record UpdateClassCommand(
     Guid Id,
     string Name,
-    string? Grade,
+    int Level,
     string? Section
 ) : ICommand<ClassDto>;
 

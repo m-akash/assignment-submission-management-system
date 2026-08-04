@@ -10,8 +10,8 @@ public sealed class CreateClassCommandValidator : AbstractValidator<CreateClassC
             .NotEmpty().WithMessage("Class name is required.")
             .MaximumLength(150).WithMessage("Class name cannot exceed 150 characters.");
 
-        RuleFor(x => x.Grade)
-            .MaximumLength(50).WithMessage("Grade cannot exceed 50 characters.");
+        RuleFor(x => x.Level)
+            .InclusiveBetween(1, 12).WithMessage("Class level must be between 1 and 12.");
 
         RuleFor(x => x.Section)
             .MaximumLength(50).WithMessage("Section cannot exceed 50 characters.");
@@ -29,8 +29,8 @@ public sealed class UpdateClassCommandValidator : AbstractValidator<UpdateClassC
             .NotEmpty().WithMessage("Class name is required.")
             .MaximumLength(150).WithMessage("Class name cannot exceed 150 characters.");
 
-        RuleFor(x => x.Grade)
-            .MaximumLength(50).WithMessage("Grade cannot exceed 50 characters.");
+        RuleFor(x => x.Level)
+            .InclusiveBetween(1, 12).WithMessage("Class level must be between 1 and 12.");
 
         RuleFor(x => x.Section)
             .MaximumLength(50).WithMessage("Section cannot exceed 50 characters.");
