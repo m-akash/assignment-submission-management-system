@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { Download, Loader2, Paperclip, Trash2, Upload } from 'lucide-react';
@@ -68,6 +68,10 @@ export function AssignmentFormDialog({
   const removeFile = useDeleteAssignmentFile();
   const fileInput = useRef<HTMLInputElement>(null);
   const files = assignment?.files ?? [];
+  // Files picked before the assignment exists yet — uploaded right after creation
+  // succeeds, so a teacher never has to reopen the dialog just to attach material.
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const attachmentCount = isEdit ? files.length : pendingFiles.length;
 
   const form = useForm<AssignmentValues>({
     resolver: zodResolver(assignmentSchema),
@@ -84,6 +88,7 @@ export function AssignmentFormDialog({
   // Repopulate whenever the dialog opens so a reopened form never shows stale values.
   useEffect(() => {
     if (!open) return;
+    setPendingFiles([]);
     form.reset(
       assignment
         ? {
@@ -106,7 +111,7 @@ export function AssignmentFormDialog({
   }, [open, assignment, form]);
 
   async function onSubmit(values: AssignmentValues) {
-    await save.mutateAsync({
+    const saved = await save.mutateAsync({
       id: assignment?.id,
       input: {
         teacherAssignmentId: values.teacherAssignmentId,
@@ -118,15 +123,26 @@ export function AssignmentFormDialog({
         allowResubmission: values.allowResubmission,
       },
     });
+
+    // The assignment id only exists after creation, so files picked during creation
+    // are staged client-side and uploaded now, in the same submit action.
+    for (const file of pendingFiles) {
+      await upload.mutateAsync({ assignmentId: saved.id, file });
+    }
+
     onOpenChange(false);
   }
 
   async function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file || !assignment) return;
+    if (!file) return;
 
-    await upload.mutateAsync({ assignmentId: assignment.id, file });
+    if (isEdit && assignment) {
+      await upload.mutateAsync({ assignmentId: assignment.id, file });
+    } else {
+      setPendingFiles((prev) => [...prev, file]);
+    }
   }
 
   const options = mappings.data ?? [];
@@ -228,79 +244,100 @@ export function AssignmentFormDialog({
             </span>
           </label>
 
-          {isEdit && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Materials for students</Label>
-                <span className="text-xs text-muted-foreground">
-                  {files.length} of {MAX_FILES} · max 10 MB each
-                </span>
-              </div>
-
-              {files.length > 0 && (
-                <ul className="divide-y rounded-lg border">
-                  {files.map((file) => (
-                    <li key={file.id} className="flex items-center gap-3 px-3 py-2">
-                      <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm">{file.originalFileName}</p>
-                        <p className="text-xs text-muted-foreground">{formatBytes(file.fileSizeBytes)}</p>
-                      </div>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => downloadAssignmentFile(file.id, file.originalFileName)}
-                        aria-label={`Download ${file.originalFileName}`}
-                      >
-                        <Download className="size-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        disabled={removeFile.isPending}
-                        onClick={() => removeFile.mutate(file.id)}
-                        aria-label={`Remove ${file.originalFileName}`}
-                      >
-                        <Trash2 className="size-4 text-danger" />
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <input
-                ref={fileInput}
-                type="file"
-                hidden
-                accept={ALLOWED_EXTENSIONS.join(',')}
-                onChange={onFilePicked}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                disabled={upload.isPending || files.length >= MAX_FILES}
-                onClick={() => fileInput.current?.click()}
-              >
-                {upload.isPending ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                {files.length >= MAX_FILES ? 'Attachment limit reached' : 'Attach a file'}
-              </Button>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Materials for students</Label>
+              <span className="text-xs text-muted-foreground">
+                {attachmentCount} of {MAX_FILES} · max 10 MB each
+              </span>
             </div>
-          )}
-          {!isEdit && (
-            <p className="text-xs text-muted-foreground">
-              You can attach reference material once the assignment is created.
-            </p>
-          )}
+
+            {isEdit
+              ? files.length > 0 && (
+                  <ul className="divide-y rounded-lg border">
+                    {files.map((file) => (
+                      <li key={file.id} className="flex items-center gap-3 px-3 py-2">
+                        <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm">{file.originalFileName}</p>
+                          <p className="text-xs text-muted-foreground">{formatBytes(file.fileSizeBytes)}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => downloadAssignmentFile(file.id, file.originalFileName)}
+                          aria-label={`Download ${file.originalFileName}`}
+                        >
+                          <Download className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          disabled={removeFile.isPending}
+                          onClick={() => removeFile.mutate(file.id)}
+                          aria-label={`Remove ${file.originalFileName}`}
+                        >
+                          <Trash2 className="size-4 text-danger" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              : pendingFiles.length > 0 && (
+                  <ul className="divide-y rounded-lg border">
+                    {pendingFiles.map((file, index) => (
+                      <li key={`${file.name}-${index}`} className="flex items-center gap-3 px-3 py-2">
+                        <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm">{file.name}</p>
+                          <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+                          aria-label={`Remove ${file.name}`}
+                        >
+                          <Trash2 className="size-4 text-danger" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+            <input
+              ref={fileInput}
+              type="file"
+              hidden
+              accept={ALLOWED_EXTENSIONS.join(',')}
+              onChange={onFilePicked}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={upload.isPending || attachmentCount >= MAX_FILES}
+              onClick={() => fileInput.current?.click()}
+            >
+              {upload.isPending ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+              {attachmentCount >= MAX_FILES ? 'Attachment limit reached' : 'Attach a file'}
+            </Button>
+            {!isEdit && pendingFiles.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Attached once you create the assignment.
+              </p>
+            )}
+          </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending && <Loader2 className="size-4 animate-spin" />}
+            <Button type="submit" disabled={save.isPending || upload.isPending}>
+              {(save.isPending || upload.isPending) && <Loader2 className="size-4 animate-spin" />}
               {isEdit ? 'Save changes' : 'Create draft'}
             </Button>
           </DialogFooter>
