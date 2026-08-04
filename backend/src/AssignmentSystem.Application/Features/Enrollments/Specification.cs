@@ -32,7 +32,12 @@ internal sealed class EnrollmentsByStudentSpecification : Specification<StudentE
 internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrollment>
 {
     public EnrollmentsPagedSpecification(
-        Guid? studentId, Guid? classId, string? search, int page, int pageSize)
+        Guid? studentId,
+        Guid? classId,
+        string? search,
+        int page,
+        int pageSize,
+        IReadOnlyCollection<Guid>? allowedClassIds = null)
     {
         ApplyNoTracking();
         AddInclude(e => e.Student);
@@ -42,6 +47,14 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
+        // Captured so the EF-translated expression tree can close over it. A null set means
+        // "no class restriction" (admin); an empty HashSet means "the caller is allowed to see
+        // no classes" and so matches nothing. restrictByClass flips the null check out of the
+        // expression tree, which cannot contain an `is null` pattern.
+        var classIdSet = allowedClassIds is null || allowedClassIds.Count == 0
+            ? null
+            : new HashSet<Guid>(allowedClassIds);
+        var restrictByClass = classIdSet is not null;
 
         // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
         // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
@@ -50,6 +63,7 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
         Criteria = e =>
             (!studentId.HasValue || e.StudentId == studentId.Value) &&
             (!classId.HasValue || e.ClassId == classId.Value) &&
+            (!restrictByClass || (classIdSet != null && classIdSet.Contains(e.ClassId))) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              e.Student.FullName.ToLower().Contains(searchLower) ||
              e.Student.Email.Value.Contains(searchLower) ||

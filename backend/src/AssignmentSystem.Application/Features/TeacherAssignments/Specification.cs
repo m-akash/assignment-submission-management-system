@@ -3,6 +3,23 @@ using AssignmentSystem.Domain.TeacherAssignments;
 
 namespace AssignmentSystem.Application.Features.TeacherAssignments;
 
+/// <summary>
+/// Every <see cref="TeacherAssignment"/> row for one teacher. Reused beyond this feature
+/// (e.g. by <c>GetEnrollmentsHandler</c>) to resolve the classes a teacher may see, so it
+/// is public where the other specifications here are internal.
+/// </summary>
+public sealed class TeacherAssignmentsByTeacherSpecification : Specification<TeacherAssignment>
+{
+    public TeacherAssignmentsByTeacherSpecification(Guid teacherId)
+    {
+        ApplyNoTracking();
+        // ClassCourse is included so reuse sites (e.g. resolving the classes a teacher may
+        // see enrollments for) get the class id without a second query.
+        AddInclude(ta => ta.ClassCourse);
+        Criteria = ta => ta.TeacherId == teacherId;
+    }
+}
+
 internal sealed class TeacherAssignmentWithDetailsSpecification : Specification<TeacherAssignment>
 {
     public TeacherAssignmentWithDetailsSpecification(Guid id)

@@ -8,13 +8,14 @@ using Microsoft.AspNetCore.Mvc;
 namespace AssignmentSystem.Api.Controllers;
 
 /// <summary>
-/// Student↔class memberships. Admin-only: enrollment decides what a student can see and
-/// submit to (rule B1), so it is exactly the kind of thing a student must not be able to
-/// change for themselves.
+/// Student↔class memberships. Writing enrollments is Admin-only: enrollment decides what
+/// a student can see and submit to (rule B1), so it is exactly the kind of thing a student
+/// must not be able to change for themselves. The read endpoint is also open to Teachers,
+/// but <see cref="GetEnrollmentsHandler"/> scopes a teacher to only the classes they teach.
 /// </summary>
 [ApiController]
 [Route("api/v1/enrollments")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,Teacher")]
 public sealed class EnrollmentsController : ControllerBase
 {
     private readonly ICommandHandler<CreateEnrollmentCommand, EnrollmentDto> _createHandler;
@@ -50,6 +51,7 @@ public sealed class EnrollmentsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateEnrollment([FromBody] CreateEnrollmentRequest request, CancellationToken ct)
     {
         var command = new CreateEnrollmentCommand(request.StudentId, request.ClassId);
@@ -66,6 +68,7 @@ public sealed class EnrollmentsController : ControllerBase
     /// student, POST the new enrollment first, then DELETE the old one.
     /// </summary>
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteEnrollment(Guid id, CancellationToken ct)
     {
         var result = await _deleteHandler.HandleAsync(new DeleteEnrollmentCommand(id), ct);
