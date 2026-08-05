@@ -13,12 +13,21 @@ import type { NextRequest } from 'next/server';
  */
 const REFRESH_COOKIE = 'asm_refresh';
 
-const PUBLIC_PATHS = ['/login'];
+const PUBLIC_PATHS = ['/login', '/set-password'];
+
+/**
+ * Public paths a signed-in visitor is still allowed to reach. `/login` bounces them to
+ * the dashboard because they are already there; `/set-password` must not, since the link
+ * belongs to whoever's mailbox it arrived in — which may not be the account whose stale
+ * cookie happens to be in this browser.
+ */
+const PUBLIC_PATHS_ALLOWING_SESSION = ['/set-password'];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSession = request.cookies.has(REFRESH_COOKIE);
   const isPublic = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
+  const allowsSession = PUBLIC_PATHS_ALLOWING_SESSION.some((path) => pathname.startsWith(path));
 
   if (!hasSession && !isPublic) {
     const login = new URL('/login', request.url);
@@ -29,7 +38,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  if (hasSession && isPublic) {
+  if (hasSession && isPublic && !allowsSession) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 

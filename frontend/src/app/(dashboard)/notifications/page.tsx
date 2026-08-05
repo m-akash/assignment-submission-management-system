@@ -36,17 +36,19 @@ const STATUSES: { value: NotificationStatus; label: string }[] = [
   { value: 'Failed', label: 'Failed' },
 ];
 
-const TYPES: { value: NotificationType; label: string }[] = [
-  { value: 'AssignmentPublished', label: 'Assignment published' },
-  { value: 'SubmissionReceived', label: 'Submission received' },
-  { value: 'SubmissionGraded', label: 'Submission graded' },
-];
-
 const TYPE_LABELS: Record<NotificationType, string> = {
   AssignmentPublished: 'Assignment published',
   SubmissionReceived: 'Submission received',
   SubmissionGraded: 'Submission graded',
+  TeacherAssignedToCourse: 'Teacher assigned to course',
+  StudentEnrolled: 'Student enrolled',
+  AccountCreated: 'Account created',
 };
+
+/** Filter options, derived from the labels so the two can never drift apart. */
+const TYPES: { value: NotificationType; label: string }[] = (
+  Object.entries(TYPE_LABELS) as [NotificationType, string][]
+).map(([value, label]) => ({ value, label }));
 
 export default function NotificationsPage() {
   return (

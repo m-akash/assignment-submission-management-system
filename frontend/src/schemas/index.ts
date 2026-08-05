@@ -14,6 +14,28 @@ export const loginSchema = z.object({
 });
 export type LoginValues = z.infer<typeof loginSchema>;
 
+/**
+ * Choosing a password from an emailed setup link. Eight characters to match the bar the
+ * admin create-user form sets — the API's floor is six, and being stricter here is the
+ * safe direction. The confirmation field exists only client-side: the server has no use
+ * for it, and a typo in a password nobody can recover is worth one extra box.
+ */
+export const setPasswordSchema = z
+  .object({
+    newPassword: z.string().min(8, 'Use at least 8 characters').max(128, 'That password is too long'),
+    confirmPassword: z.string().min(1, 'Confirm your password'),
+  })
+  .superRefine((values, ctx) => {
+    if (values.newPassword !== values.confirmPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['confirmPassword'],
+        message: 'Both passwords must match',
+      });
+    }
+  });
+export type SetPasswordValues = z.infer<typeof setPasswordSchema>;
+
 const roleEnum = z.enum(['Admin', 'Teacher', 'Student']);
 
 export const userSchema = z

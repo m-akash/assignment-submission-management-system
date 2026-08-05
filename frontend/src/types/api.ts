@@ -4,7 +4,24 @@ export type Role = 'Admin' | 'Teacher' | 'Student';
 export type AssignmentStatus = 'Draft' | 'Published';
 export type SubmissionStatus = 'Pending' | 'Submitted' | 'Graded' | 'Late';
 export type NotificationStatus = 'Pending' | 'Sent' | 'Failed';
-export type NotificationType = 'AssignmentPublished' | 'SubmissionReceived' | 'SubmissionGraded';
+export type NotificationType =
+  | 'AssignmentPublished'
+  | 'SubmissionReceived'
+  | 'SubmissionGraded'
+  | 'TeacherAssignedToCourse'
+  | 'StudentEnrolled'
+  | 'AccountCreated';
+
+/**
+ * Whether an emailed password-setup link can still be used. `fullName` is present only
+ * when it can — the API withholds it otherwise so a dead token reveals nothing about the
+ * account it belonged to.
+ */
+export interface PasswordSetupStatus {
+  isUsable: boolean;
+  fullName: string | null;
+  expiresAtUtc: string | null;
+}
 
 /** Success envelope produced by `ApiResponse<T>` on the server. */
 export interface ApiEnvelope<T> {
