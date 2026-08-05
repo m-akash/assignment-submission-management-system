@@ -29,6 +29,10 @@ export const queryKeys = {
     all: ['enrollments'] as const,
     list: (filters: unknown) => ['enrollments', 'list', filters] as const,
   },
+  studentCourses: {
+    all: ['student-courses'] as const,
+    list: (filters: unknown) => ['student-courses', 'list', filters] as const,
+  },
   notifications: {
     all: ['notifications'] as const,
     list: (filters: unknown) => ['notifications', 'list', filters] as const,

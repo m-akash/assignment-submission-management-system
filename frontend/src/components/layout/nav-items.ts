@@ -65,6 +65,15 @@ export const NAV_ITEMS: NavItem[] = [
     section: 'Coursework',
   },
   {
+    // Students reach their courses through their class, not a teaching assignment, so this
+    // is a separate route rather than a role branch on /my-courses.
+    href: '/enrolled-courses',
+    label: 'My courses',
+    icon: GraduationCap,
+    roles: ['Student'],
+    section: 'Coursework',
+  },
+  {
     href: '/my-students',
     label: 'My students',
     icon: Backpack,

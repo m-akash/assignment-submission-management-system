@@ -141,6 +141,32 @@ export interface TeacherMapping {
   className: string;
 }
 
+/** One teacher on a course the student takes — `StudentCourseTeacherDto`. */
+export interface StudentCourseTeacher {
+  teacherId: string;
+  teacherName: string;
+  teacherEmail: string;
+}
+
+/**
+ * A course this student is enrolled in, with the teacher(s) for its offering —
+ * `StudentCourseDto`. Reached through the student's class: enrollment → class → offering →
+ * course, with teachers via teaching assignments.
+ */
+export interface StudentCourse {
+  /** The offering (class↔course) id — the stable row key. */
+  id: string;
+  courseId: string;
+  courseName: string;
+  courseCode: string;
+  classId: string;
+  className: string;
+  classLevel: number;
+  classSection: string | null;
+  /** Teachers mapped to this offering — empty means none assigned yet. */
+  teachers: StudentCourseTeacher[];
+}
+
 export interface AssignmentFile {
   id: string;
   assignmentId: string;

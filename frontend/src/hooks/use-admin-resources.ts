@@ -11,6 +11,7 @@ import type {
   Enrollment,
   Paged,
   Role,
+  StudentCourse,
   TeacherMapping,
   User,
 } from '@/types/api';
@@ -283,6 +284,21 @@ export function useDeleteEnrollment() {
     queryKeys.users.all,
     queryKeys.classes.all,
   );
+}
+
+// ── The signed-in student's own courses ─────────────────────────────────────
+
+/**
+ * The courses the signed-in student is enrolled in, each with its teacher(s). The server
+ * scopes this to the student's classes, so a student receives only their own regardless of
+ * query parameters. Server-side paged and searched, like the admin list endpoints.
+ */
+export function useMyStudentCourses(filters: ListFilters) {
+  return useQuery({
+    queryKey: queryKeys.studentCourses.list(filters),
+    queryFn: () =>
+      apiGetPaged<StudentCourse>(`/api/v1/enrollments/me/courses${toQuery({ ...filters })}`),
+  });
 }
 
 // ── Shared mutation factories ───────────────────────────────────────────────
