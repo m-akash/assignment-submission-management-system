@@ -132,7 +132,7 @@ public abstract class IntegrationTestBase
 
         var teacherEmail = $"teacher-{tag}@test.local";
         var teacher = await PostAsync<UserRef>(admin, "/api/v1/users",
-            new CreateUserRequest(teacherEmail, $"Teacher {tag}", TestPassword, Role.Teacher, null));
+            new CreateUserRequest(teacherEmail, $"00-Teacher {tag}", TestPassword, Role.Teacher, null));
 
         // Creating a student with a class enrols them in it, in the same transaction.
         var studentEmail = $"student-{tag}@test.local";

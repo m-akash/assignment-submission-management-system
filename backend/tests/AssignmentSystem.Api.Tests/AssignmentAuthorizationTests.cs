@@ -308,7 +308,7 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
         var (owner, outsider) = await TwoWorldsAsync();
         using var admin = await SignInAsAdminAsync();
 
-        var response = await admin.GetAsync("/api/v1/teacher-assignments?pageSize=100");
+        var response = await admin.GetAsync("/api/v1/teacher-assignments?pageSize=250");
 
         var mappings = await ReadAsync<List<TeacherAssignmentRow>>(response);
         mappings.Select(m => m.Id).Should().Contain([owner.TeacherAssignmentId, outsider.TeacherAssignmentId]);

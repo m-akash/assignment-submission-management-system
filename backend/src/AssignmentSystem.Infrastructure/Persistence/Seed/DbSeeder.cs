@@ -14,17 +14,26 @@ using Microsoft.Extensions.Logging;
 namespace AssignmentSystem.Infrastructure.Persistence.Seed;
 
 /// <summary>
-/// Idempotent database seeder. Creates the demo Admin/Teacher/Student accounts (the
-/// ones documented in the README) plus a wider sample dataset — 10 classes, 12
-/// courses, 15 course offerings, 12 teachers, 15 students with their enrollments,
-/// 15 teaching mappings, 15 assignments and 15 submissions spread across every status —
-/// so an evaluator sees a populated system immediately instead of three empty accounts.
+/// Idempotent database seeder. Builds a realistic, fully-populated sample school so an
+/// evaluator sees a living system immediately instead of a few empty accounts.
+///
+/// Volume per the seeding spec:
+///   • 7 grades (6–12) × 2 sections (A/B)              = 14 classes
+///   • 9 subjects in the catalogue, but each grade takes only what fits its stage:
+///       - grades 6–8: Bangla, English, General Math, General Science, ICT  (5 each)
+///       - grades 9–12: Bangla, English, Higher Math, Physics, Chemistry, Biology, ICT (7 each)
+///                                                      = 86 course offerings (3×2×5 + 4×2×7)
+///   • 12 teachers, round-robin across the offerings   = 84 teaching mappings
+///   • 5 students per class+section × 14               = 70 students (+ 1 admin)
+///   • a representative spread of published/draft assignments and submissions across every
+///     submission status (Pending / Submitted / Graded / Late) so the demo logins have data.
+///
 /// Skips entirely once the admin account already exists.
 ///
 /// Deliberately queues no notifications. They are a consequence of a teacher publishing or
 /// a student submitting, and manufacturing a backlog of them would mean a fresh checkout
-/// tries to email fifteen fictional addresses the moment it starts. Publish an assignment
-/// from the UI to see the outbox fill.
+/// tries to email fictional addresses the moment it starts. Publish an assignment from the
+/// UI to see the outbox fill.
 /// </summary>
 public sealed class DbSeeder
 {
@@ -34,6 +43,11 @@ public sealed class DbSeeder
 
     // Demo passwords — documented in README. These are for local/demo only.
     public const string DefaultPassword = "Password123!";
+
+    // Grades 6..12 (inclusive), two sections each.
+    private static readonly int[] Grades = [6, 7, 8, 9, 10, 11, 12];
+    private static readonly string[] Sections = ["A", "B"];
+    private const int StudentsPerSection = 5;
 
     private readonly AppDbContext _context;
     private readonly IPasswordHasher _passwordHasher;
@@ -62,103 +76,88 @@ public sealed class DbSeeder
         var now = DateTime.UtcNow;
         var passwordHash = _passwordHasher.Hash(DefaultPassword);
 
-        // ── Classes (10) ──────────────────────────────────────────────────────────
-        // Grades are Roman numerals by school convention ("Class IX"), and student ids
-        // are built straight from grade + section — so "IX-A-001".
-        var classes = new[]
+        // ── Classes (14): grade 6..12 × sections A/B ──────────────────────────────
+        // Stored flat in a grade-major map so offerings and student placement can look
+        // them up by (grade, section) without hunting through an array.
+        var classByGradeSection = new Dictionary<(int Grade, string Section), Class>();
+        foreach (var grade in Grades)
         {
-            Class.Create("Class VI - Section A", 6, "A"),
-            Class.Create("Class VI - Section B", 6, "B"),
-            Class.Create("Class VII - Section A", 7, "A"),
-            Class.Create("Class VII - Section B", 7, "B"),
-            Class.Create("Class VIII - Section A", 8, "A"),
-            Class.Create("Class VIII - Section B", 8, "B"),
-            Class.Create("Class IX - Section A", 9, "A"),
-            Class.Create("Class IX - Section B", 9, "B"),
-            Class.Create("Class X - Section A", 10, "A"),
-            Class.Create("Class X - Section B", 10, "B"),
-        };
+            foreach (var section in Sections)
+            {
+                var klass = Class.Create($"Class {grade} - Section {section}", grade, section);
+                classByGradeSection[(grade, section)] = klass;
+            }
+        }
+
+        var classes = Grades
+            .SelectMany(g => Sections.Select(s => classByGradeSection[(g, s)]))
+            .ToArray();
         _context.Classes.AddRange(classes);
-        var class6A = classes[0];
-        var class6B = classes[1];
-        var class7A = classes[2];
-        var class7B = classes[3];
-        var class8A = classes[4];
-        var class8B = classes[5];
-        var class9A = classes[6];
-        var class9B = classes[7];
-        var class10A = classes[8];
-        var class10B = classes[9];
 
-        // ── Courses (12) ─────────────────────────────────────────────────────────
-        var courses = new[]
+        // ── Courses / subjects (catalogue) ───────────────────────────────────────
+        // The catalogue holds every subject the school teaches across all grades, but a
+        // given class only studies the subset that fits its stage (see offering plan below).
+        //   • Bangla & English  — every grade
+        //   • ICT               — every grade
+        //   • General Math      — lower grades (6–8)
+        //   • General Science   — lower grades (6–8), single combined science course
+        //   • Higher Mathematics— upper grades (9–12)
+        //   • Physics / Chemistry / Biology — upper grades (9–12) only
+        var courseDefs = new (string Name, string Code)[]
         {
-            Course.Create("Mathematics", "MATH101"),
-            Course.Create("Physics", "PHY101"),
-            Course.Create("Chemistry", "CHE101"),
-            Course.Create("Biology", "BIO101"),
-            Course.Create("English", "ENG101"),
-            Course.Create("Bangla", "BAN101"),
-            Course.Create("ICT", "ICT101"),
-            Course.Create("History", "HIS101"),
-            Course.Create("Geography", "GEO101"),
-            Course.Create("Economics", "ECO101"),
-            Course.Create("Accounting", "ACC101"),
-            Course.Create("Higher Mathematics", "HMT101"),
+            ("Bangla", "BAN101"),
+            ("English", "ENG101"),
+            ("General Math", "GMATH101"),
+            ("General Science", "GSCI101"),
+            ("Higher Mathematics", "HMT101"),
+            ("Physics", "PHY101"),
+            ("Chemistry", "CHE101"),
+            ("Biology", "BIO101"),
+            ("ICT", "ICT101"),
         };
+        var courses = courseDefs.Select(d => Course.Create(d.Name, d.Code)).ToArray();
         _context.Courses.AddRange(courses);
-        var math = courses[0];
-        var physics = courses[1];
-        var chemistry = courses[2];
-        var biology = courses[3];
-        var english = courses[4];
-        var bangla = courses[5];
-        var ict = courses[6];
-        var history = courses[7];
-        var geography = courses[8];
-        var economics = courses[9];
-        var accounting = courses[10];
-        var higherMath = courses[11];
+        var bangla = courses[0];
+        var english = courses[1];
+        var generalMath = courses[2];
+        var generalScience = courses[3];
+        var higherMath = courses[4];
+        var physics = courses[5];
+        var chemistry = courses[6];
+        var biology = courses[7];
+        var ict = courses[8];
 
-        // ── Users: teachers (12, including the demo login) ──────────────────────────
+        // ── Teachers (12, including the demo login) ───────────────────────────────
         // Mirrors the production rule in CreateUserHandler: "INS-{sequence}", a single
         // global sequence across all teachers.
         var teacherSequence = 0;
-        string NextTeacherId() => $"INS-{++teacherSequence:D2}";
+        string NextTeacherId() => $"INS-{++teacherSequence:D3}";
 
-        var teachers = new[]
+        var teacherDefs = new (string Email, string Name)[]
         {
-            ApplicationUser.Create(TeacherEmail, "John Teacher", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
-            ApplicationUser.Create("teacher2@assignment.test", "Sarah Rahman", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
-            ApplicationUser.Create("teacher3@assignment.test", "Kamal Hossain", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
-            ApplicationUser.Create("teacher4@assignment.test", "Nusrat Jahan", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
-            ApplicationUser.Create("teacher5@assignment.test", "Farhan Ahmed", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
-            ApplicationUser.Create("teacher6@assignment.test", "Rima Chowdhury", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
-            ApplicationUser.Create("teacher7@assignment.test", "Imran Khan", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
-            ApplicationUser.Create("teacher8@assignment.test", "Tania Islam", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
-            ApplicationUser.Create("teacher9@assignment.test", "Shakil Ahmed", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
-            ApplicationUser.Create("teacher10@assignment.test", "Mou Akter", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
-            ApplicationUser.Create("teacher11@assignment.test", "Rafiq Uddin", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
-            ApplicationUser.Create("teacher12@assignment.test", "Sabrina Yasmin", passwordHash, Role.Teacher, teacherId: NextTeacherId()),
+            (TeacherEmail, "John Teacher"),
+            ("teacher2@assignment.test", "Sarah Rahman"),
+            ("teacher3@assignment.test", "Kamal Hossain"),
+            ("teacher4@assignment.test", "Nusrat Jahan"),
+            ("teacher5@assignment.test", "Farhan Ahmed"),
+            ("teacher6@assignment.test", "Rima Chowdhury"),
+            ("teacher7@assignment.test", "Imran Khan"),
+            ("teacher8@assignment.test", "Tania Islam"),
+            ("teacher9@assignment.test", "Shakil Ahmed"),
+            ("teacher10@assignment.test", "Mou Akter"),
+            ("teacher11@assignment.test", "Rafiq Uddin"),
+            ("teacher12@assignment.test", "Sabrina Yasmin"),
         };
+        var teachers = teacherDefs
+            .Select(t => ApplicationUser.Create(t.Email, t.Name, passwordHash, Role.Teacher, teacherId: NextTeacherId()))
+            .ToArray();
         _context.Users.AddRange(teachers);
-        var johnTeacher = teachers[0];
-        var sarah = teachers[1];
-        var kamal = teachers[2];
-        var nusrat = teachers[3];
-        var farhan = teachers[4];
-        var rima = teachers[5];
-        var imran = teachers[6];
-        var tania = teachers[7];
-        var shakil = teachers[8];
-        var mou = teachers[9];
-        var rafiq = teachers[10];
-        var sabrina = teachers[11];
 
-        // ── Users: admin + students (15, including the demo login) ──────────────────
+        // ── Admin ──────────────────────────────────────────────────────────────────
         var admin = ApplicationUser.Create(AdminEmail, "System Admin", passwordHash, Role.Admin);
         _context.Users.Add(admin);
 
+        // ── Students (5 per class+section) ─────────────────────────────────────────
         // Mirrors the production rule in CreateUserHandler: "{grade numeral}-{section}-{sequence}",
         // sequence numbers restarting at 1 per grade+section.
         var studentSequence = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -170,104 +169,117 @@ public sealed class DbSeeder
             return $"{prefix}-{sequence:D3}";
         }
 
-        // Class membership is a StudentEnrollment row now, so the class each student sits in
-        // is tracked alongside them here and turned into enrollments once ids exist.
-        var studentPlacements = new (string Email, string Name, Class Class)[]
+        // Bangladeshi sample names cycled through so each section gets plausible variety.
+        var firstNames = new[]
         {
-            (StudentEmail, "Jane Student", class10A),
-            ("student2@assignment.test", "Arif Hasan", class6A),
-            ("student3@assignment.test", "Priya Sultana", class6A),
-            ("student4@assignment.test", "Tanvir Alam", class6B),
-            ("student5@assignment.test", "Nadia Islam", class7A),
-            ("student6@assignment.test", "Omar Faruk", class7A),
-            ("student7@assignment.test", "Lamia Akter", class7B),
-            ("student8@assignment.test", "Zubair Rahman", class8A),
-            ("student9@assignment.test", "Rakib Hossain", class8B),
-            ("student10@assignment.test", "Sadia Islam", class9A),
-            ("student11@assignment.test", "Mahin Khan", class9B),
-            ("student12@assignment.test", "Farzana Rahman", class10A),
-            ("student13@assignment.test", "Hasib Chowdhury", class10B),
-            ("student14@assignment.test", "Ayesha Siddika", class10B),
-            ("student15@assignment.test", "Kamrul Islam", class9A),
+            "Arif", "Priya", "Tanvir", "Nadia", "Omar", "Lamia", "Zubair", "Rakib",
+            "Sadia", "Mahin", "Farzana", "Hasib", "Ayesha", "Kamrul", "Sumaiya",
+            "Naimur", "Tasnim", "Rifat", "Jannat", "Sabbir", "Mitu", "Shuvo",
+            "Nusrat", "Galib", "Antora", "Rashed", "Sajid", "Liza", "Mehedi", "Rupa",
+        };
+        var lastNames = new[]
+        {
+            "Hasan", "Sultana", "Alam", "Islam", "Faruk", "Akter", "Rahman", "Hossain",
+            "Chowdhury", "Khan", "Siddika", "Uddin", "Ahmed", "Jahan", "Akash",
         };
 
-        var students = studentPlacements
-            .Select(p => ApplicationUser.Create(
-                p.Email, p.Name, passwordHash, Role.Student, NextStudentId(p.Class)))
-            .ToArray();
+        // The very first student is the demo login, placed in Class 12 - Section A so the
+        // documented `student@assignment.test` account lands in the senior-most class.
+        var students = new List<ApplicationUser>();
+        var studentPlacements = new List<(ApplicationUser Student, Class Class)>();
+        var nameCursor = 0;
+
+        ApplicationUser MakeStudent(string email, string name, Class klass)
+        {
+            var student = ApplicationUser.Create(email, name, passwordHash, Role.Student, NextStudentId(klass));
+            students.Add(student);
+            studentPlacements.Add((student, klass));
+            return student;
+        }
+
+        foreach (var grade in Grades)
+        {
+            foreach (var section in Sections)
+            {
+                var klass = classByGradeSection[(grade, section)];
+
+                for (var i = 0; i < StudentsPerSection; i++)
+                {
+                    // Class 12-A's first seat is the documented demo login.
+                    var isDemo = grade == 12 && section == "A" && i == 0;
+                    var first = firstNames[nameCursor % firstNames.Length];
+                    var last = lastNames[(nameCursor * 7 + 3) % lastNames.Length];
+                    nameCursor++;
+
+                    var email = isDemo
+                        ? StudentEmail
+                        : $"student{students.Count + 1}@assignment.test";
+                    var name = isDemo ? "Jane Student" : $"{first} {last}";
+
+                    MakeStudent(email, name, klass);
+                }
+            }
+        }
+
         _context.Users.AddRange(students);
-        var jane = students[0];
-        var arif = students[1];
-        var priya = students[2];
-        var tanvir = students[3];
-        var nadia = students[4];
-        var omar = students[5];
-        var lamia = students[6];
-        var zubair = students[7];
-        var rakib = students[8];
-        var sadia = students[9];
-        var mahin = students[10];
-        var farzana = students[11];
-        var hasib = students[12];
-        var ayesha = students[13];
-        var kamrul = students[14];
-        _ = (lamia, farzana); // seeded for class/user volume; not used in a scripted submission below
+        var jane = studentPlacements[0].Student; // demo login
 
         await _context.SaveChangesAsync(ct); // persist to resolve generated IDs
 
-        // ── Enrollments (15): one class each, matching the placements above ─────────
+        // ── Enrollments: one class each, matching the placements above ─────────────
         _context.StudentEnrollments.AddRange(
-            students.Select((student, i) =>
-                StudentEnrollment.Create(student.Id, studentPlacements[i].Class.Id, now)));
+            studentPlacements.Select(p => StudentEnrollment.Create(p.Student.Id, p.Class.Id, now)));
 
-        // ── Course offerings (15): which courses each class studies ─────────────────
-        // Every teaching mapping and assignment below hangs off one of these, so the
-        // catalogue has to exist before either.
-        var offeringPlan = new (Class Class, Course Course)[]
+        // ── Course offerings: each grade studies only the subjects that fit its stage ─
+        //   • Lower grades (6–8): Bangla, English, General Math, General Science, ICT  (5)
+        //   • Upper grades (9–12): Bangla, English, Higher Math, Physics, Chemistry,
+        //                          Biology, ICT                                          (7)
+        // The pure-science trio (Physics/Chemistry/Biology) and Higher Mathematics are
+        // upper-grade-only; lower grades take General Math and the combined General Science.
+        Course[] SubjectsForGrade(int grade) => grade <= 8
+            ? [bangla, english, generalMath, generalScience, ict]
+            : [bangla, english, higherMath, physics, chemistry, biology, ict];
+
+        // Built in a stable order (grade → section → course) so the round-robin teacher
+        // assignment below is deterministic across runs.
+        var offerings = new List<ClassCourse>();
+        foreach (var grade in Grades)
         {
-            (class10A, math),
-            (class10A, physics),
-            (class10B, math),
-            (class6A, english),
-            (class6B, bangla),
-            (class9A, chemistry),
-            (class9B, biology),
-            (class8A, ict),
-            (class8B, history),
-            (class7A, geography),
-            (class7B, economics),
-            (class10B, accounting),
-            (class9A, higherMath),
-            (class9B, physics),
-            (class9B, chemistry),
-        };
+            foreach (var section in Sections)
+            {
+                var klass = classByGradeSection[(grade, section)];
+                foreach (var course in SubjectsForGrade(grade))
+                {
+                    offerings.Add(ClassCourse.Create(klass.Id, course.Id));
+                }
+            }
+        }
 
-        var offerings = offeringPlan
-            .Select(p => ClassCourse.Create(p.Class.Id, p.Course.Id))
-            .ToArray();
         _context.ClassCourses.AddRange(offerings);
         await _context.SaveChangesAsync(ct);
 
-        // ── Teaching mappings (15): who may set and grade work for each offering ────
-        var teachersByOffering = new[]
+        // ── Teaching mappings: round-robin the 12 teachers across all offerings ────
+        var teacherAssignments = new List<TeacherAssignment>();
+        for (var i = 0; i < offerings.Count; i++)
         {
-            johnTeacher, johnTeacher, johnTeacher, sarah, kamal,
-            nusrat, farhan, rima, imran, tania,
-            shakil, mou, rafiq, sabrina, nusrat,
-        };
+            var teacher = teachers[i % teachers.Length];
+            teacherAssignments.Add(TeacherAssignment.Create(teacher.Id, offerings[i].Id));
+        }
 
-        var teacherAssignments = offerings
-            .Select((offering, i) => TeacherAssignment.Create(teachersByOffering[i].Id, offering.Id))
-            .ToArray();
         _context.TeacherAssignments.AddRange(teacherAssignments);
         await _context.SaveChangesAsync(ct);
 
-        // ── Assignments (15): mostly Published, two Draft (not visible to students) ──
-        // Indexed by teaching mapping so each assignment is authored by a teacher who is
-        // actually mapped to its offering — the same rule CreateAssignmentHandler enforces.
-        Assignment MakeAssignment(int taIndex, string title, string description, TimeSpan untilDeadline, decimal maxMarks, bool publish)
+        // ── Assignments: one authored assignment per course, hosted in Class 12-A ──
+        // Authored by whichever teacher is mapped to that offering (the rule
+        // CreateAssignmentHandler enforces). Mostly Published, one Draft so students see a
+        // populated dashboard with at least one hidden assignment. Deadlines are offsets
+        // from `now`; rule X5 requires deadline ≥ now + 1h, honoured by the SeederClock.
+        var seniorClass = classByGradeSection[(12, "A")];
+        Assignment MakeAssignment(Course course, string title, string description,
+            TimeSpan untilDeadline, decimal maxMarks, bool publish)
         {
-            var ta = teacherAssignments[taIndex];
+            var offering = offerings.First(o => o.ClassId == seniorClass.Id && o.CourseId == course.Id);
+            var ta = teacherAssignments.First(t => t.ClassCourseId == offering.Id);
             var assignment = Assignment.Create(
                 teacherId: ta.TeacherId,
                 classCourseId: ta.ClassCourseId,
@@ -285,32 +297,54 @@ public sealed class DbSeeder
             return assignment;
         }
 
-        var a1 = MakeAssignment(0, "Algebra Fundamentals", "Solve the attached problems on linear equations and submit your working.", TimeSpan.FromDays(7), 100m, publish: true);
-        var a2 = MakeAssignment(1, "Newton's Laws Problem Set", "Answer the three problem sets covering Newton's first, second and third laws.", TimeSpan.FromDays(10), 50m, publish: true);
-        var a3 = MakeAssignment(2, "Quadratic Equations Practice", "Complete the worksheet on solving quadratic equations by factoring and the formula.", TimeSpan.FromDays(5), 50m, publish: true);
-        var a4 = MakeAssignment(3, "Essay: My Favourite Book", "Write a 500-word essay describing your favourite book and why you enjoyed it.", TimeSpan.FromDays(4), 20m, publish: true);
-        var a5 = MakeAssignment(4, "রচনা: আমার প্রিয় শিক্ষক", "তোমার প্রিয় শিক্ষকের উপর একটি রচনা লেখো।", TimeSpan.FromDays(6), 20m, publish: true);
-        var a6 = MakeAssignment(5, "Periodic Table Quiz", "Answer the short-answer quiz on periods, groups and element properties.", TimeSpan.FromDays(3), 30m, publish: true);
-        var a7 = MakeAssignment(6, "Cell Structure Diagram", "Label the plant and animal cell diagrams and describe each organelle's function.", TimeSpan.FromDays(8), 25m, publish: false);
-        var a8 = MakeAssignment(7, "HTML Basics Project", "Build a 3-page static website using semantic HTML.", TimeSpan.FromDays(12), 40m, publish: true);
-        var a9 = MakeAssignment(8, "World War II Summary", "Summarize the causes and key events of World War II in your own words.", TimeSpan.FromDays(9), 30m, publish: true);
-        var a10 = MakeAssignment(9, "Map Reading Exercise", "Identify the marked coordinates and physical features on the attached map.", TimeSpan.FromDays(2), 20m, publish: true);
-        var a11 = MakeAssignment(10, "Supply and Demand Case Study", "Analyse the attached case study using supply and demand curves.", TimeSpan.FromDays(14), 35m, publish: false);
-        var a12 = MakeAssignment(11, "Journal Entries Practice", "Record the given transactions as journal entries with narration.", TimeSpan.FromDays(6), 40m, publish: true);
-        var a13 = MakeAssignment(12, "Calculus Introduction", "Solve the introductory differentiation problems.", TimeSpan.FromDays(11), 50m, publish: true);
-        var a14 = MakeAssignment(13, "Kinematics Problems", "Solve the kinematics problems on the attached sheet. Due shortly — submit promptly.", TimeSpan.FromMinutes(65), 30m, publish: true);
-        var a15 = MakeAssignment(14, "Chemical Bonding Worksheet", "Complete the worksheet on ionic and covalent bonding.", TimeSpan.FromDays(15), 25m, publish: true);
+        var class12Students = studentPlacements
+            .Where(p => p.Class.Id == seniorClass.Id)
+            .Select(p => p.Student)
+            .ToList();
 
-        _context.Assignments.AddRange([a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15]);
+        var assignments = new List<Assignment>
+        {
+            MakeAssignment(bangla, "রচনা: আমার প্রিয় ঋতু", "তোমার প্রিয় ঋতুর উপর একটি ৩০০ শব্দের রচনা লেখো।", TimeSpan.FromDays(6), 20m, publish: true),
+            MakeAssignment(english, "Essay: Climate Change", "Write a 400-word essay on the causes and effects of climate change.", TimeSpan.FromDays(7), 20m, publish: true),
+            MakeAssignment(higherMath, "Calculus Introduction", "Solve the introductory differentiation problems 1 through 10.", TimeSpan.FromDays(11), 50m, publish: true),
+            MakeAssignment(physics, "Newton's Laws Problem Set", "Answer the three problem sets covering Newton's first, second and third laws.", TimeSpan.FromDays(9), 50m, publish: true),
+            MakeAssignment(chemistry, "Periodic Table Quiz", "Answer the short-answer quiz on periods, groups and element properties.", TimeSpan.FromDays(5), 30m, publish: true),
+            MakeAssignment(biology, "Cell Structure Diagram", "Label the plant and animal cell diagrams and describe each organelle's function.", TimeSpan.FromDays(10), 25m, publish: false),
+            MakeAssignment(ict, "HTML Basics Project", "Build a 3-page static website using semantic HTML and submit the source.", TimeSpan.FromDays(12), 40m, publish: true),
+        };
+
+        // One more, hosted in Class 12-B with a near deadline, to seed a Late submission.
+        var nearClass = classByGradeSection[(12, "B")];
+        var nearOffering = offerings.First(o => o.ClassId == nearClass.Id && o.CourseId == higherMath.Id);
+        var nearTa = teacherAssignments.First(t => t.ClassCourseId == nearOffering.Id);
+        var aLate = Assignment.Create(
+            teacherId: nearTa.TeacherId,
+            classCourseId: nearTa.ClassCourseId,
+            title: "Integration Practice",
+            description: "Solve the definite and indefinite integration problems on the attached sheet. Due shortly — submit promptly.",
+            deadlineUtc: now.Add(TimeSpan.FromMinutes(65)),
+            maxMarks: 30m,
+            allowResubmission: true,
+            clock: clock);
+        aLate.Publish();
+        assignments.Add(aLate);
+
+        _context.Assignments.AddRange(assignments);
         await _context.SaveChangesAsync(ct);
 
-        // ── Submissions (15): Pending / Submitted / Graded / Late, across students ──
+        // ── Submissions: a representative mix across every status ──────────────────
         // Non-Late timestamps are anchored to "now minus a few hours/days" so they read as
-        // already-submitted no matter when this seed happens to run — every assignment's own
-        // deadline is always further out than that (rule X5 requires deadlines in the future).
-        // a14 is the one exception: its deadline is only ~65 minutes out, so its Late row is
-        // dated ~75 minutes from now (10 minutes past that deadline) — briefly a "future"
-        // timestamp, but the persisted Status is fixed as Late at write time regardless.
+        // already-submitted no matter when this seed runs — every assignment's own deadline
+        // is always further out than that (rule X5 requires deadlines in the future). The
+        // late submission's deadline is only ~65 minutes out, so its row is dated ~75 minutes
+        // from now (10 minutes past that deadline) — briefly a "future" timestamp, but the
+        // persisted Status is fixed as Late at write time regardless.
+        var class12BStudents = studentPlacements
+            .Where(p => p.Class.Id == nearClass.Id)
+            .Select(p => p.Student)
+            .ToList();
+        var mahinLate = class12BStudents[0];
+
         void Submit(Assignment assignment, ApplicationUser student, string content, TimeSpan ago, bool finalize)
         {
             var submission = Submission.Create(assignment.Id, student.Id, content, hasFile: false, assignment, new FixedClock(now - ago), finalize);
@@ -326,21 +360,18 @@ public sealed class DbSeeder
             _context.Submissions.Add(submission);
         }
 
-        SubmitAndGrade(a1, jane, "Solved all 10 linear equations; attached working for each step.", TimeSpan.FromDays(2), TimeSpan.FromHours(6), 85m, "Great work overall — small arithmetic slip in problem 4, otherwise clean working.");
-        Submit(a2, jane, "In progress — completed the first-law problems, still working through the third.", TimeSpan.FromHours(3), finalize: false);
-        SubmitAndGrade(a3, hasib, "Factored all six quadratics; used the formula for the last two.", TimeSpan.FromDays(1), TimeSpan.FromHours(4), 40m, "Good attempt — double-check the sign in question 5.");
-        Submit(a4, arif, "My favourite book is Treasure Island, because of its sense of adventure and discovery.", TimeSpan.FromHours(20), finalize: true);
-        SubmitAndGrade(a4, priya, "My favourite book is Charlotte's Web. It taught me about friendship and loyalty.", TimeSpan.FromDays(1), TimeSpan.FromHours(2), 18m, "Well written and thoughtful — lovely essay!");
-        Submit(a5, tanvir, "আমার প্রিয় শিক্ষক আমাদের গণিত শিক্ষক, কারণ তিনি সবসময় সহজভাবে বুঝিয়ে দেন।", TimeSpan.FromHours(30), finalize: true);
-        SubmitAndGrade(a6, sadia, "Answered all 15 questions on periodic trends and element classification.", TimeSpan.FromHours(15), TimeSpan.FromHours(1), 27m, "Correct concepts throughout — well done.");
-        Submit(a8, zubair, "Uploaded my 3-page site covering the home, about and contact sections.", TimeSpan.FromDays(2), finalize: true);
-        SubmitAndGrade(a9, rakib, "Covered the causes, major battles, and the end of the war with a timeline.", TimeSpan.FromDays(3), TimeSpan.FromHours(5), 25m, "Detailed and well organised summary.");
-        Submit(a10, nadia, "Marked coordinates 1 through 5, still verifying the contour lines for the rest.", TimeSpan.FromHours(10), finalize: false);
-        Submit(a10, omar, "Identified all marked coordinates and physical features on the map.", TimeSpan.FromHours(8), finalize: true);
-        Submit(a12, ayesha, "Recorded all 8 transactions as journal entries with narration.", TimeSpan.FromDays(1), finalize: true);
-        Submit(a13, kamrul, "Solved the differentiation problems 1 through 10.", TimeSpan.FromHours(12), finalize: true);
-        Submit(a14, mahin, "Submitting a little late — solved all the kinematics problems.", TimeSpan.FromMinutes(-75), finalize: true);
-        SubmitAndGrade(a15, mahin, "Completed the worksheet on ionic and covalent bonding with examples.", TimeSpan.FromHours(18), TimeSpan.FromHours(2), 20m, "Solid understanding of bonding types.");
+        // Class 12-A assignments — the demo student and a couple of classmates.
+        //   [0]=Bangla(20) [1]=English(20) [2]=HigherMath(50) [3]=Physics(50)
+        //   [4]=Chemistry(30) [5]=Biology(25, DRAFT — no submissions) [6]=ICT(40)
+        SubmitAndGrade(assignments[0], jane, "আমার প্রিয় ঋতু বর্ষা — প্রকৃতি তখন সবুজে ভরে ওঠে।", TimeSpan.FromDays(2), TimeSpan.FromHours(6), 18m, "সুন্দর লেখা হয়েছে, ভাষা প্রাঞ্জল।");
+        Submit(assignments[1], jane, "In progress — outlined the causes, still writing the effects section.", TimeSpan.FromHours(3), finalize: false);
+        SubmitAndGrade(assignments[2], class12Students[1], "Differentiated problems 1 through 8; attached working for each step.", TimeSpan.FromDays(1), TimeSpan.FromHours(4), 42m, "Great work — small slip in problem 4.");
+        Submit(assignments[3], class12Students[2], "Completed the first two problem sets; stuck on the third.", TimeSpan.FromHours(20), finalize: false);
+        SubmitAndGrade(assignments[4], class12Students[3], "Answered all 15 questions on periodic trends and element classification.", TimeSpan.FromHours(8), TimeSpan.FromHours(2), 26m, "Solid grasp of periodic trends — well done.");
+        Submit(assignments[6], jane, "Uploaded my 3-page site: home, about and contact sections.", TimeSpan.FromDays(2), finalize: true);
+
+        // Class 12-B late submission.
+        Submit(aLate, mahinLate, "Submitting a little late — solved all the integration problems.", TimeSpan.FromMinutes(-75), finalize: true);
 
         await _context.SaveChangesAsync(ct);
 
@@ -349,8 +380,8 @@ public sealed class DbSeeder
             "{Students} students, {Enrollments} enrollments, {TeacherAssignments} teaching mappings, " +
             "{Assignments} assignments, {Submissions} submissions. " +
             "Demo logins — admin={Admin}, teacher={Teacher}, student={Student}",
-            classes.Length, courses.Length, offerings.Length, teachers.Length,
-            students.Length, students.Length, teacherAssignments.Length, 15, 15,
+            classes.Length, courses.Length, offerings.Count, teachers.Length,
+            students.Count, students.Count, teacherAssignments.Count, assignments.Count, 8,
             AdminEmail, TeacherEmail, StudentEmail);
     }
 
