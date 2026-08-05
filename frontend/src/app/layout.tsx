@@ -8,8 +8,8 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 
 export const metadata: Metadata = {
   title: {
-    default: 'Scholaris — Assignment & Submission Management',
-    template: '%s · Scholaris',
+    default: 'Assignment Management System',
+    template: '%s · Assignment Management System',
   },
   description:
     'Role-based coursework management: teachers publish assignments and grade work, students submit and track feedback.',

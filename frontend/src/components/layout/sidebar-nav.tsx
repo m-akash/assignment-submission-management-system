@@ -21,7 +21,7 @@ export function SidebarNav({ role, onNavigate }: { role: Role; onNavigate?: () =
           <GraduationCap className="size-5" />
         </div>
         <div className="leading-tight">
-          <p className="font-semibold tracking-tight">Scholaris</p>
+          <p className="font-semibold tracking-tight">Assignment Management System</p>
           <p className="text-[11px] text-muted-foreground">Coursework portal</p>
         </div>
       </Link>
