@@ -40,6 +40,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<SubmissionFile> SubmissionFiles => Set<SubmissionFile>();
     public DbSet<AssignmentFile> AssignmentFiles => Set<AssignmentFile>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasswordSetupToken> PasswordSetupTokens => Set<PasswordSetupToken>();
     public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

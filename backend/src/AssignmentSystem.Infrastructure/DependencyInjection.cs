@@ -52,8 +52,10 @@ public static class DependencyInjection
         // ── Identity / Auth ────────────────────────────────────────────────────
         services.AddScoped<IPasswordHasher, PasswordHasherAdapter>();
         services.Configure<JwtOptions>(configuration.GetSection("Jwt"));
+        services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
         services.Configure<FileStorageOptions>(configuration.GetSection("FileStorage"));
         services.AddScoped<IJwtTokenService, JwtTokenService>();
+        services.AddScoped<IPasswordSetupTokenService, PasswordSetupTokenService>();
 
         // ── File storage (local disk / Docker volume) + upload rules ───────────
         services.AddSingleton<IFileStorage, LocalFileStorage>();

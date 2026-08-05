@@ -20,17 +20,23 @@ public sealed class AuthController : ControllerBase
     private readonly ICommandHandler<RefreshTokenCommand, AuthResult> _refreshHandler;
     private readonly ICommandHandler<RevokeTokenCommand> _revokeHandler;
     private readonly IQueryHandler<GetCurrentUserQuery, UserDto> _currentUserHandler;
+    private readonly ICommandHandler<SetPasswordCommand> _setPasswordHandler;
+    private readonly IQueryHandler<GetPasswordSetupStatusQuery, PasswordSetupStatusDto> _setupStatusHandler;
 
     public AuthController(
         ICommandHandler<LoginCommand, AuthResult> loginHandler,
         ICommandHandler<RefreshTokenCommand, AuthResult> refreshHandler,
         ICommandHandler<RevokeTokenCommand> revokeHandler,
-        IQueryHandler<GetCurrentUserQuery, UserDto> currentUserHandler)
+        IQueryHandler<GetCurrentUserQuery, UserDto> currentUserHandler,
+        ICommandHandler<SetPasswordCommand> setPasswordHandler,
+        IQueryHandler<GetPasswordSetupStatusQuery, PasswordSetupStatusDto> setupStatusHandler)
     {
         _loginHandler = loginHandler;
         _refreshHandler = refreshHandler;
         _revokeHandler = revokeHandler;
         _currentUserHandler = currentUserHandler;
+        _setPasswordHandler = setPasswordHandler;
+        _setupStatusHandler = setupStatusHandler;
     }
 
     [HttpPost("login")]
@@ -110,6 +116,44 @@ public sealed class AuthController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Whether a password-setup link is still usable, without spending it. Exists so the
+    /// set-password page can say "this link has expired" before asking for a password rather
+    /// than after — the alternative is a user typing a password twice into a dead form.
+    ///
+    /// The token travels in the query string because that is where the emailed link puts it.
+    /// That does mean it can end up in an access log, which is why it is single-use and
+    /// short-lived, and why the password itself only ever goes in the POST body below.
+    /// </summary>
+    [HttpGet("set-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<PasswordSetupStatusDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPasswordSetupStatus([FromQuery] string token, CancellationToken ct)
+    {
+        var result = await _setupStatusHandler.HandleAsync(new GetPasswordSetupStatusQuery(token), ct);
+        return result.ToActionResult(this);
+    }
+
+    /// <summary>
+    /// Sets a password from a single-use setup link, and drops every session the account had.
+    ///
+    /// Anonymous by necessity — the caller has no password yet, which is the whole point —
+    /// with possession of the token as the authorisation. Returns 204 rather than signing the
+    /// user in: a fresh login through the normal path is one less way for this endpoint to
+    /// hand out credentials.
+    /// </summary>
+    [HttpPost("set-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> SetPassword([FromBody] SetPasswordRequest request, CancellationToken ct)
+    {
+        var result = await _setPasswordHandler.HandleAsync(
+            new SetPasswordCommand(request.Token, request.NewPassword), ct);
+
+        return result.IsSuccess ? NoContent() : result.ToActionResult(this);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
     private void SetRefreshCookie(string token)
     {
@@ -142,6 +186,12 @@ public sealed class AuthController : ControllerBase
 }
 
 public sealed record LoginRequest(string Email, string Password);
+
+/// <summary>
+/// Set-password body. The token is posted rather than left in the URL for this call, so the
+/// password and the capability that authorises it share one request and neither is logged.
+/// </summary>
+public sealed record SetPasswordRequest(string Token, string NewPassword);
 
 /// <summary>Login/refresh response body. The refresh token is NEVER included here — it lives only in the httpOnly cookie.</summary>
 public sealed record AuthResponseBody(
