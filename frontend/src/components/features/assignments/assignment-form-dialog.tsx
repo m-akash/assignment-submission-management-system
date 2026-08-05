@@ -351,7 +351,7 @@ export function AssignmentFormDialog({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm">{file.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatBytes(file.size)} · not uploaded yet
+                        {formatBytes(file.size)}
                       </p>
                     </div>
                     <Button
