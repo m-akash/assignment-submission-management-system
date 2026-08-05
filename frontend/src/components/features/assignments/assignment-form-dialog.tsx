@@ -32,6 +32,7 @@ import {
 } from '@/hooks/use-assignments';
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
 import { formatBytes } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { assignmentSchema, type AssignmentInput, type AssignmentValues } from '@/schemas';
 import type { Assignment } from '@/types/api';
 
@@ -56,10 +57,16 @@ export function AssignmentFormDialog({
   open,
   onOpenChange,
   assignment,
+  readOnly = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   assignment?: Assignment | null;
+  /**
+   * When true the dialog becomes a read-only view (used for admins): every
+   * field is disabled, file actions are hidden, and the save button is gone.
+   */
+  readOnly?: boolean;
 }) {
   const isEdit = !!assignment;
   const mappings = useMyTeacherMappings(open);
@@ -184,11 +191,15 @@ export function AssignmentFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit assignment' : 'New assignment'}</DialogTitle>
+          <DialogTitle>
+            {readOnly ? 'Assignment details' : isEdit ? 'Edit assignment' : 'New assignment'}
+          </DialogTitle>
           <DialogDescription>
-            {isEdit
-              ? 'Once a published assignment has submissions, only its description can change.'
-              : 'It is created as a draft — publish it when you are ready for students to see it.'}
+            {readOnly
+              ? 'Read-only view — only teachers can change assignments.'
+              : isEdit
+                ? 'Once a published assignment has submissions, only its description can change.'
+                : 'It is created as a draft — publish it when you are ready for students to see it.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -207,7 +218,7 @@ export function AssignmentFormDialog({
             <Select
               value={form.watch('teachingMappingId')}
               onValueChange={(value) => form.setValue('teachingMappingId', value, { shouldValidate: true })}
-              disabled={isEdit || options.length === 0}
+              disabled={readOnly || isEdit || options.length === 0}
             >
               <SelectTrigger id="teachingMappingId" className="w-full">
                 <SelectValue placeholder={mappings.isLoading ? 'Loading…' : 'Choose class and course'} />
@@ -234,7 +245,7 @@ export function AssignmentFormDialog({
 
           <div className="space-y-2">
             <Label htmlFor="title">Title</Label>
-            <Input id="title" placeholder="Algebra fundamentals" {...form.register('title')} />
+            <Input id="title" placeholder="Algebra fundamentals" disabled={readOnly} {...form.register('title')} />
             {errors.title && <p className="text-xs text-danger">{errors.title.message}</p>}
           </div>
 
@@ -244,6 +255,7 @@ export function AssignmentFormDialog({
               id="description"
               rows={4}
               placeholder="What should students do, and how will it be marked?"
+              disabled={readOnly}
               {...form.register('description')}
             />
             {errors.description && <p className="text-xs text-danger">{errors.description.message}</p>}
@@ -252,22 +264,28 @@ export function AssignmentFormDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="deadlineLocal">Deadline</Label>
-              <Input id="deadlineLocal" type="datetime-local" {...form.register('deadlineLocal')} />
+              <Input id="deadlineLocal" type="datetime-local" disabled={readOnly} {...form.register('deadlineLocal')} />
               {errors.deadlineLocal && (
                 <p className="text-xs text-danger">{errors.deadlineLocal.message}</p>
               )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="maxMarks">Maximum marks</Label>
-              <Input id="maxMarks" type="number" min={1} step="0.5" {...form.register('maxMarks')} />
+              <Input id="maxMarks" type="number" min={1} step="0.5" disabled={readOnly} {...form.register('maxMarks')} />
               {errors.maxMarks && <p className="text-xs text-danger">{errors.maxMarks.message}</p>}
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+          <label
+            className={cn(
+              'flex items-start gap-3 rounded-lg border p-3',
+              readOnly ? 'cursor-default opacity-90' : 'cursor-pointer',
+            )}
+          >
             <input
               type="checkbox"
               className="mt-0.5 size-4 accent-primary"
+              disabled={readOnly}
               {...form.register('allowResubmission')}
             />
             <span className="space-y-0.5">
@@ -305,16 +323,18 @@ export function AssignmentFormDialog({
                         >
                           <Download className="size-4" />
                         </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          disabled={removeFile.isPending}
-                          onClick={() => removeFile.mutate(file.id)}
-                          aria-label={`Remove ${file.originalFileName}`}
-                        >
-                          <Trash2 className="size-4 text-danger" />
-                        </Button>
+                        {!readOnly && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            disabled={removeFile.isPending}
+                            onClick={() => removeFile.mutate(file.id)}
+                            aria-label={`Remove ${file.originalFileName}`}
+                          >
+                            <Trash2 className="size-4 text-danger" />
+                          </Button>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -342,23 +362,27 @@ export function AssignmentFormDialog({
                   </ul>
                 )}
 
-            <input
-              ref={fileInput}
-              type="file"
-              hidden
-              accept={ALLOWED_EXTENSIONS.join(',')}
-              onChange={onFilePicked}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              disabled={upload.isPending || attachmentCount >= MAX_FILES}
-              onClick={() => fileInput.current?.click()}
-            >
-              {upload.isPending ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-              {attachmentCount >= MAX_FILES ? 'Attachment limit reached' : 'Attach a file'}
-            </Button>
+            {!readOnly && (
+              <>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  hidden
+                  accept={ALLOWED_EXTENSIONS.join(',')}
+                  onChange={onFilePicked}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={upload.isPending || attachmentCount >= MAX_FILES}
+                  onClick={() => fileInput.current?.click()}
+                >
+                  {upload.isPending ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                  {attachmentCount >= MAX_FILES ? 'Attachment limit reached' : 'Attach a file'}
+                </Button>
+              </>
+            )}
             {!isEdit && pendingFiles.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 Attached once you create the assignment.
@@ -368,12 +392,14 @@ export function AssignmentFormDialog({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              Close
             </Button>
-            <Button type="submit" disabled={save.isPending || upload.isPending}>
-              {(save.isPending || upload.isPending) && <Loader2 className="size-4 animate-spin" />}
-              {isEdit ? 'Save changes' : 'Create draft'}
-            </Button>
+            {!readOnly && (
+              <Button type="submit" disabled={save.isPending || upload.isPending}>
+                {(save.isPending || upload.isPending) && <Loader2 className="size-4 animate-spin" />}
+                {isEdit ? 'Save changes' : 'Create draft'}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

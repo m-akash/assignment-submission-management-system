@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useSyncExternalStore, useState } from 'react';
+import { useTheme } from 'next-themes';
 import { LogOut, Menu, MoonStar, Sun } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -99,22 +100,37 @@ function UserMenu({ user }: { user: AuthUser }) {
 }
 
 /**
- * Toggles the `dark` class the Tailwind theme keys off. Deliberately not persisted:
- * a stored preference would need to be applied before first paint to avoid a flash,
- * which is more machinery than this adds value for.
+ * `useSyncExternalStore` returns the server snapshot (false) during SSR and the
+ * client snapshot (true) after hydration — a mount flag without a setState-in-effect.
+ */
+function useMounted() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
+/**
+ * Toggles between light and dark. Persisted via `next-themes` so the choice
+ * survives refresh; the resolved theme is only read after mount to avoid a
+ * hydration mismatch (server can't know the stored/`<html>` class yet).
  */
 function ThemeToggle() {
-  const [dark, setDark] = useState(true);
+  const { resolvedTheme, setTheme } = useTheme();
+  const mounted = useMounted();
 
-  function toggle() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle('dark', next);
-  }
+  const dark = resolvedTheme === 'dark';
 
   return (
-    <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle colour theme">
-      {dark ? <Sun className="size-4" /> : <MoonStar className="size-4" />}
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={() => setTheme(dark ? 'light' : 'dark')}
+      aria-label="Toggle colour theme"
+    >
+      {/* Render the same icon pre-mount on both server and client to keep markup stable. */}
+      {mounted && dark ? <Sun className="size-4" /> : <MoonStar className="size-4" />}
     </Button>
   );
 }

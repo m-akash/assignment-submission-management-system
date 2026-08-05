@@ -65,6 +65,21 @@ export function TeacherAssignmentsView() {
     setFormOpen(true);
   }
 
+  /**
+   * Opens the edit dialog when a row is clicked. Skips clicks that originate
+   * inside an interactive control (button, link, or dropdown menu item) so
+   * those keep their own behaviour.
+   */
+  function openEditRow(assignment: Assignment) {
+    return (event: React.MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.closest('a, button, [role="menuitem"], [role="menu"]')) {
+        return;
+      }
+      openEdit(assignment);
+    };
+  }
+
   /** Any filter change invalidates the current page number. */
   function withPageReset<T>(setter: (value: T) => void) {
     return (value: T) => {
@@ -167,7 +182,11 @@ export function TeacherAssignmentsView() {
                     </TableRow>
                   ) : (
                     items.map((assignment) => (
-                      <TableRow key={assignment.id}>
+                      <TableRow
+                        key={assignment.id}
+                        onClick={openEditRow(assignment)}
+                        className="cursor-pointer"
+                      >
                         <TableCell className="max-w-[260px]">
                           <p className="truncate font-medium">{assignment.title}</p>
                           <p className="truncate text-xs text-muted-foreground">
@@ -270,9 +289,12 @@ export function TeacherAssignmentsView() {
         )}
       </div>
 
-      {!readOnly && (
-        <AssignmentFormDialog open={formOpen} onOpenChange={setFormOpen} assignment={editing} />
-      )}
+      <AssignmentFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        assignment={editing}
+        readOnly={readOnly}
+      />
 
       {!readOnly && (
         <ConfirmDialog
