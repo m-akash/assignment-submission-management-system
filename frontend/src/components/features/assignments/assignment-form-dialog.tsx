@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { Download, Loader2, Paperclip, Trash2, Upload } from 'lucide-react';
+import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,6 +40,8 @@ import type { Assignment } from '@/types/api';
 /** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
 const MAX_FILES = 5;
+/** UX-only mirror of FileStorage:MaxBytes — picking is deferred, so catch this early. */
+const MAX_BYTES = 10 * 1024 * 1024;
 
 /** `datetime-local` needs "YYYY-MM-DDTHH:mm" in local time, not a UTC ISO string. */
 function toLocalInput(iso: string): string {
@@ -75,10 +78,11 @@ export function AssignmentFormDialog({
   const removeFile = useDeleteAssignmentFile();
   const fileInput = useRef<HTMLInputElement>(null);
   const files = assignment?.files ?? [];
-  // Files picked before the assignment exists yet — uploaded right after creation
-  // succeeds, so a teacher never has to reopen the dialog just to attach material.
+  // Picked files wait here until the form is submitted: on create there is no
+  // assignment id to upload against yet, and on edit a pick is not a decision to
+  // change the assignment — closing without saving must leave the material alone.
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const attachmentCount = isEdit ? files.length : pendingFiles.length;
+  const attachmentCount = files.length + pendingFiles.length;
 
   // <what the fields hold, context, what validation produces> — `maxMarks` is coerced,
   // so the first and last are not the same type.
@@ -158,25 +162,28 @@ export function AssignmentFormDialog({
       },
     });
 
-    // The assignment id only exists after creation, so files picked during creation
-    // are staged client-side and uploaded now, in the same submit action.
+    // Staged picks go up now, in the same submit action — on create this is the first
+    // moment an id exists. Each file leaves the staging list as it lands, so a retry
+    // after a failure part-way through does not send the same file twice.
     for (const file of pendingFiles) {
       await upload.mutateAsync({ assignmentId: saved.id, file });
+      setPendingFiles((prev) => prev.filter((staged) => staged !== file));
     }
 
     onOpenChange(false);
   }
 
-  async function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
+  function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
 
-    if (isEdit && assignment) {
-      await upload.mutateAsync({ assignmentId: assignment.id, file });
-    } else {
-      setPendingFiles((prev) => [...prev, file]);
+    if (file.size > MAX_BYTES) {
+      toast.error(`${file.name} is larger than 10 MB.`);
+      return;
     }
+
+    setPendingFiles((prev) => [...prev, file]);
   }
 
   const options = mappings.data ?? [];
@@ -304,63 +311,63 @@ export function AssignmentFormDialog({
               </span>
             </div>
 
-            {isEdit
-              ? files.length > 0 && (
-                  <ul className="divide-y rounded-lg border">
-                    {files.map((file) => (
-                      <li key={file.id} className="flex items-center gap-3 px-3 py-2">
-                        <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm">{file.originalFileName}</p>
-                          <p className="text-xs text-muted-foreground">{formatBytes(file.fileSizeBytes)}</p>
-                        </div>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => downloadAssignmentFile(file.id, file.originalFileName)}
-                          aria-label={`Download ${file.originalFileName}`}
-                        >
-                          <Download className="size-4" />
-                        </Button>
-                        {!readOnly && (
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            disabled={removeFile.isPending}
-                            onClick={() => removeFile.mutate(file.id)}
-                            aria-label={`Remove ${file.originalFileName}`}
-                          >
-                            <Trash2 className="size-4 text-danger" />
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )
-              : pendingFiles.length > 0 && (
-                  <ul className="divide-y rounded-lg border">
-                    {pendingFiles.map((file, index) => (
-                      <li key={`${file.name}-${index}`} className="flex items-center gap-3 px-3 py-2">
-                        <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm">{file.name}</p>
-                          <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
-                        </div>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
-                          aria-label={`Remove ${file.name}`}
-                        >
-                          <Trash2 className="size-4 text-danger" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+            {attachmentCount > 0 && (
+              <ul className="divide-y rounded-lg border">
+                {files.map((file) => (
+                  <li key={file.id} className="flex items-center gap-3 px-3 py-2">
+                    <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{file.originalFileName}</p>
+                      <p className="text-xs text-muted-foreground">{formatBytes(file.fileSizeBytes)}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => downloadAssignmentFile(file.id, file.originalFileName)}
+                      aria-label={`Download ${file.originalFileName}`}
+                    >
+                      <Download className="size-4" />
+                    </Button>
+                    {!readOnly && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        disabled={removeFile.isPending}
+                        onClick={() => removeFile.mutate(file.id)}
+                        aria-label={`Remove ${file.originalFileName}`}
+                      >
+                        <Trash2 className="size-4 text-danger" />
+                      </Button>
+                    )}
+                  </li>
+                ))}
+                {/* Staged picks: no id and nothing to download yet, so they read as
+                    pending until the form is saved. */}
+                {pendingFiles.map((file, index) => (
+                  <li key={`${file.name}-${index}`} className="flex items-center gap-3 px-3 py-2">
+                    <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{file.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatBytes(file.size)} · not uploaded yet
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      disabled={save.isPending || upload.isPending}
+                      onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      <Trash2 className="size-4 text-danger" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             {!readOnly && (
               <>
@@ -375,7 +382,7 @@ export function AssignmentFormDialog({
                   type="button"
                   variant="outline"
                   className="w-full"
-                  disabled={upload.isPending || attachmentCount >= MAX_FILES}
+                  disabled={save.isPending || upload.isPending || attachmentCount >= MAX_FILES}
                   onClick={() => fileInput.current?.click()}
                 >
                   {upload.isPending ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
@@ -383,9 +390,13 @@ export function AssignmentFormDialog({
                 </Button>
               </>
             )}
-            {!isEdit && pendingFiles.length > 0 && (
+            {!readOnly && (
               <p className="text-xs text-muted-foreground">
-                Attached once you create the assignment.
+                {pendingFiles.length > 0
+                  ? isEdit
+                    ? 'Attached once you save your changes.'
+                    : 'Attached once you create the assignment.'
+                  : `Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`}
               </p>
             )}
           </div>

@@ -104,7 +104,14 @@ export function StudentAssignmentsView() {
         </div>
       )}
 
-      <SubmitDialog assignment={activeAssignment} onClose={() => setActive(null)} />
+      {/* Keyed per assignment so the draft answer and any staged attachments are
+          discarded when the dialog closes, rather than following the student to the
+          next assignment they open. */}
+      <SubmitDialog
+        key={activeAssignment?.id ?? 'none'}
+        assignment={activeAssignment}
+        onClose={() => setActive(null)}
+      />
     </div>
   );
 }

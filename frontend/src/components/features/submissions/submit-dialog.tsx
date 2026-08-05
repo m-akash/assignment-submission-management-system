@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Award,
   Download,
@@ -10,6 +10,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,6 +37,8 @@ import type { StudentAssignment } from '@/types/api';
 /** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
 const MAX_FILES = 3;
+/** UX-only mirror of FileStorage:MaxBytes — picking is deferred, so catch this early. */
+const MAX_BYTES = 10 * 1024 * 1024;
 
 export function SubmitDialog({
   assignment,
@@ -44,41 +47,63 @@ export function SubmitDialog({
   assignment: StudentAssignment | null;
   onClose: () => void;
 }) {
-  const [content, setContent] = useState('');
+  const submission = assignment?.submission ?? null;
+  const files = submission?.files ?? [];
+
+  // Seeded once: the caller keys this dialog per assignment, so a background refetch
+  // can no longer overwrite what the student is part-way through typing.
+  const [content, setContent] = useState(submission?.content ?? '');
+  // Picked files are held here and only sent when the student submits — selecting a
+  // file is not itself an answer, so nothing reaches the server until they say so.
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const submit = useSubmitAssignment();
   const upload = useUploadSubmissionFile();
   const removeFile = useDeleteSubmissionFile();
 
-  const submission = assignment?.submission ?? null;
-  const files = submission?.files ?? [];
-
-  useEffect(() => {
-    setContent(submission?.content ?? '');
-  }, [submission]);
-
   if (!assignment) return null;
 
   const urgency = deadlineUrgency(assignment.deadlineUtc);
   const isGraded = submission?.status === 'Graded';
   const readOnly = isGraded || (urgency === 'overdue' && !assignment.allowResubmission);
-  const hasSomething = content.trim().length > 0 || files.length > 0;
+  const attachmentCount = files.length + pendingFiles.length;
+  const hasSomething = content.trim().length > 0 || attachmentCount > 0;
+  const isBusy = submit.isPending || upload.isPending;
 
-  async function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
+  function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
 
-    await upload.mutateAsync({ assignmentId: assignment!.id, file });
+    if (file.size > MAX_BYTES) {
+      toast.error(`${file.name} is larger than 10 MB.`);
+      return;
+    }
+
+    setPendingFiles((prev) => [...prev, file]);
   }
 
   async function onSubmit() {
-    await submit.mutateAsync({
-      assignmentId: assignment!.id,
-      submissionId: submission?.id,
-      content: content.trim(),
-    });
+    try {
+      await submit.mutateAsync({
+        assignmentId: assignment!.id,
+        submissionId: submission?.id,
+        content: content.trim(),
+      });
+
+      // Uploads need a submission to hang off, so they follow the answer. Each file
+      // leaves the staging list as it lands, so a retry after a failure part-way
+      // through does not send the same file twice.
+      for (const file of pendingFiles) {
+        await upload.mutateAsync({ assignmentId: assignment!.id, file });
+        setPendingFiles((prev) => prev.filter((staged) => staged !== file));
+      }
+    } catch {
+      // The mutations already report the failure; stay open so nothing is lost.
+      return;
+    }
+
     onClose();
   }
 
@@ -179,11 +204,11 @@ export function SubmitDialog({
             <div className="flex items-center justify-between">
               <Label>Attachments</Label>
               <span className="text-xs text-muted-foreground">
-                {files.length} of {MAX_FILES} · max 10 MB each
+                {attachmentCount} of {MAX_FILES} · max 10 MB each
               </span>
             </div>
 
-            {files.length > 0 && (
+            {attachmentCount > 0 && (
               <ul className="divide-y rounded-lg border">
                 {files.map((file) => (
                   <li key={file.id} className="flex items-center gap-3 px-3 py-2">
@@ -213,6 +238,33 @@ export function SubmitDialog({
                     )}
                   </li>
                 ))}
+                {/* Staged picks: no id and nothing to download yet, so they read as
+                    pending until the answer is submitted. */}
+                {pendingFiles.map((file, index) => (
+                  <li
+                    key={`${file.name}-${index}`}
+                    className="flex items-center gap-3 px-3 py-2"
+                  >
+                    <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{file.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatBytes(file.size)} · not uploaded yet
+                      </p>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      disabled={isBusy}
+                      onClick={() =>
+                        setPendingFiles((prev) => prev.filter((_, i) => i !== index))
+                      }
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      <Trash2 className="size-4 text-danger" />
+                    </Button>
+                  </li>
+                ))}
               </ul>
             )}
 
@@ -229,7 +281,7 @@ export function SubmitDialog({
                   type="button"
                   variant="outline"
                   className="w-full"
-                  disabled={upload.isPending || files.length >= MAX_FILES}
+                  disabled={isBusy || attachmentCount >= MAX_FILES}
                   onClick={() => fileInput.current?.click()}
                 >
                   {upload.isPending ? (
@@ -237,10 +289,12 @@ export function SubmitDialog({
                   ) : (
                     <Upload className="size-4" />
                   )}
-                  {files.length >= MAX_FILES ? 'Attachment limit reached' : 'Attach a file'}
+                  {attachmentCount >= MAX_FILES ? 'Attachment limit reached' : 'Attach a file'}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Allowed: {ALLOWED_EXTENSIONS.join(', ')}
+                  {pendingFiles.length > 0
+                    ? 'Attached once you submit your answer.'
+                    : `Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`}
                 </p>
               </>
             )}
@@ -252,8 +306,8 @@ export function SubmitDialog({
             {readOnly ? 'Close' : 'Cancel'}
           </Button>
           {!readOnly && (
-            <Button onClick={onSubmit} disabled={submit.isPending || !hasSomething}>
-              {submit.isPending && <Loader2 className="size-4 animate-spin" />}
+            <Button onClick={onSubmit} disabled={isBusy || !hasSomething}>
+              {isBusy && <Loader2 className="size-4 animate-spin" />}
               {submission && submission.status !== 'Pending' ? 'Update answer' : 'Submit answer'}
             </Button>
           )}
