@@ -125,6 +125,20 @@ export function navItemsFor(role: Role): NavItem[] {
   return NAV_ITEMS.filter((item) => item.roles.includes(role));
 }
 
+/**
+ * The nav entry the visitor is currently on, which the header renders as a breadcrumb.
+ * Longest base path first so `/users?role=Student` wins over the bare `/users` entry.
+ */
+export function currentNavItem(
+  role: Role,
+  pathname: string,
+  roleParam: string,
+): NavItem | undefined {
+  return navItemsFor(role)
+    .filter((item) => isNavItemActive(item, pathname, roleParam))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+}
+
 /** Base paths where several links share a pathname and differ only by `?role=`. */
 const ROLE_FILTERED_BASES = new Set(
   NAV_ITEMS.filter((item) => item.roleParam).map((item) => basePathOf(item.href)),

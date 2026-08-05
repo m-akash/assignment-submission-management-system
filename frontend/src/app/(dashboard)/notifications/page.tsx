@@ -87,7 +87,9 @@ function NotificationsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Administration"
         title="Email notifications"
+        icon={Mail}
         description="Every notification is queued when it happens and sent by a background sweep, so nothing is lost if the mail server is unreachable."
         actions={
           <Button onClick={() => dispatch.mutate()} disabled={dispatch.isPending}>
@@ -127,7 +129,7 @@ function NotificationsView() {
         />
       </div>
 
-      <div className="rounded-xl border bg-card">
+      <div className="panel overflow-hidden">
         <div className="flex flex-col gap-3 border-b p-4 sm:flex-row">
           <SearchInput
             value={search}

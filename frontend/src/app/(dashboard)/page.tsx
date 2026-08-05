@@ -9,7 +9,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   if (!user) return null;
 
-  if (user.role === 'Admin') return <AdminOverview />;
+  if (user.role === 'Admin') return <AdminOverview name={user.fullName} />;
   if (user.role === 'Teacher') return <TeacherOverview name={user.fullName} />;
   return <StudentOverview name={user.fullName} classes={user.classes} />;
 }

@@ -87,15 +87,12 @@ function LoginForm() {
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
       {/* Brand panel — hidden on small screens where it would only push the form down. */}
-      <div className="relative hidden flex-col overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-800 to-indigo-950 p-10 lg:flex xl:p-14">
+      <div className="brand-surface relative hidden flex-col overflow-hidden p-10 lg:flex xl:p-14">
         {/* A dot grid, faded out towards the bottom-right so it never fights the text. */}
+        <div aria-hidden className="brand-dots pointer-events-none absolute inset-0 opacity-30" />
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-25 [background-image:radial-gradient(circle,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:26px_26px] [mask-image:radial-gradient(130%_110%_at_15%_0%,black,transparent_65%)]"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-40 -right-32 size-[36rem] rounded-full bg-indigo-400/20 blur-3xl"
+          className="pointer-events-none absolute -top-40 -right-32 size-144 rounded-full bg-white/15 blur-3xl"
         />
 
         <div className="relative flex items-center gap-3">
@@ -113,7 +110,7 @@ function LoginForm() {
         </div>
 
         <div className="relative max-w-md">
-          <p className="text-[0.7rem] font-medium tracking-[0.2em] text-indigo-200/80 uppercase">
+          <p className="text-[0.7rem] font-medium tracking-[0.2em] text-white/70 uppercase">
             Coursework, end to end
           </p>
           <h2 className="mt-3 text-[2rem] leading-[1.15] font-semibold tracking-tight text-balance text-white">
@@ -122,8 +119,8 @@ function LoginForm() {
 
           <ul className="mt-7 space-y-3.5">
             {HIGHLIGHTS.map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-center gap-3 text-sm text-indigo-100/90">
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-indigo-100 ring-1 ring-white/15">
+              <li key={text} className="flex items-center gap-3 text-sm text-white/85">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white ring-1 ring-white/20">
                   <Icon className="size-3.5" />
                 </span>
                 {text}
@@ -133,19 +130,19 @@ function LoginForm() {
         </div>
       </div>
 
-      {/* Form panel — a theme-aware tinted gradient so the right side never reads as
-          flat black (dark) or flat gray (light): indigo-soft in light, indigo-950 in dark. */}
-      <div className="relative flex items-center justify-center overflow-hidden bg-gradient-to-b from-indigo-50 to-background p-6 sm:p-10 dark:from-indigo-950/50 dark:to-background">
+      {/* Form panel — a wash of the brand colour rather than a flat surface, so the right
+          side never reads as flat grey in light or flat black in dark. */}
+      <div className="relative flex items-center justify-center overflow-hidden bg-linear-to-b from-primary/8 to-background p-6 sm:p-10 dark:from-primary/12">
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-40 right-0 size-[32rem] rounded-full bg-indigo-500/10 blur-3xl dark:bg-indigo-500/15"
+          className="pointer-events-none absolute -top-40 right-0 size-128 rounded-full bg-primary/10 blur-3xl dark:bg-primary/15"
         />
 
         <div className="relative w-full max-w-[25rem] space-y-4">
           {/* The auth card lifts the form off the tinted background in both themes. */}
-          <div className="rounded-2xl border bg-card/85 p-7 shadow-[0_28px_70px_-30px_rgba(30,27,75,0.45)] ring-1 ring-black/5 backdrop-blur sm:p-8 dark:ring-white/10">
+          <div className="rounded-2xl border bg-card/90 p-7 shadow-xl backdrop-blur sm:p-8">
             <div className="flex items-center gap-2.5 pb-5 lg:hidden">
-              <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <div className="brand-surface flex size-9 items-center justify-center rounded-xl text-white">
                 <GraduationCap className="size-5" />
               </div>
               <span className="text-base font-semibold tracking-tight">

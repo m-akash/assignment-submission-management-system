@@ -59,7 +59,9 @@ function MyStudentsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Coursework"
         title="My students"
+        icon={Backpack}
         description={
           classId
             ? 'Filtered to one class. Choose another, or clear the filter.'
@@ -77,7 +79,7 @@ function MyStudentsView() {
         }
       />
 
-      <div className="rounded-xl border bg-card">
+      <div className="panel overflow-hidden">
         <div className="border-b p-4">
           <SearchInput
             value={search}

@@ -1,8 +1,10 @@
 'use client';
 
 import { useSyncExternalStore, useState } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LogOut, Menu, MoonStar, Sun } from 'lucide-react';
+import { ChevronRight, GraduationCap, LogOut, Menu, MoonStar, Sun } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,9 +16,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { RoleBadge } from '@/components/shared/status-badge';
 import { useAuth } from '@/context/AuthContext';
 import { initials } from '@/lib/format';
+import { currentNavItem } from './nav-items';
 import { SidebarNav } from './sidebar-nav';
 import type { AuthUser } from '@/types/api';
 
@@ -26,45 +30,92 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   return (
     <div className="flex min-h-dvh">
       {/* Persistent sidebar from lg up; a sheet below that. */}
-      <aside className="hidden w-64 shrink-0 border-r bg-sidebar lg:block">
+      <aside className="hidden w-66 shrink-0 border-r bg-sidebar lg:block">
         <div className="sticky top-0 h-dvh">
-          <SidebarNav role={user.role} />
+          <SidebarNav user={user} />
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-sm">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-md sm:px-6 lg:px-8">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open navigation">
                 <Menu className="size-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0">
+            <SheetContent side="left" className="w-66 p-0">
               <SheetTitle className="sr-only">Navigation</SheetTitle>
-              <SidebarNav role={user.role} onNavigate={() => setMobileOpen(false)} />
+              <SidebarNav user={user} onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
 
-          <div className="min-w-0 flex-1">
-            {user.classes.length > 0 && (
-              <p className="truncate text-sm text-muted-foreground">
-                {/* Joined rather than showing only the first: a student enrolled in two
-                    classes needs to see both, and this is the only place it is stated. */}
-                <span className="text-foreground">
-                  {user.classes.map((enrolled) => enrolled.className).join(' · ')}
-                </span>
-              </p>
-            )}
-          </div>
+          <Breadcrumb user={user} />
 
-          <ThemeToggle />
-          <UserMenu user={user} />
+          <div className="ml-auto flex items-center gap-1.5">
+            {user.classes.length > 0 && (
+              // A student's enrolment is stated once, here: several classes are possible,
+              // so they are all listed rather than only the first.
+              <div className="hidden items-center gap-1.5 sm:flex">
+                {user.classes.map((enrolled) => (
+                  <span
+                    key={enrolled.classId}
+                    className="rounded-full border bg-card px-2.5 py-1 text-xs font-medium"
+                  >
+                    {enrolled.className}
+                  </span>
+                ))}
+              </div>
+            )}
+            <ThemeToggle />
+            {/* On lg+ the account lives in the sidebar footer; this is its small-screen home. */}
+            <div className="lg:hidden">
+              <UserMenu user={user} />
+            </div>
+          </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1400px] flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="animate-rise mx-auto w-full max-w-350">{children}</div>
+        </main>
       </div>
     </div>
+  );
+}
+
+/**
+ * Where the visitor is, derived from the same nav table the sidebar renders from — so a
+ * new page cannot appear in one and be missing from the other.
+ */
+function Breadcrumb({ user }: { user: AuthUser }) {
+  const pathname = usePathname();
+  const roleParam = useSearchParams().get('role') ?? '';
+  const current = currentNavItem(user.role, pathname, roleParam);
+  const onDashboard = pathname === '/';
+
+  return (
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
+      <Link
+        href="/"
+        className="flex shrink-0 items-center gap-2 font-medium text-muted-foreground transition-colors hover:text-foreground lg:hidden"
+      >
+        <GraduationCap className="size-4" />
+      </Link>
+      {onDashboard ? (
+        <span className="truncate font-medium">Dashboard</span>
+      ) : (
+        <>
+          <Link
+            href="/"
+            className="hidden shrink-0 text-muted-foreground transition-colors hover:text-foreground sm:inline"
+          >
+            Dashboard
+          </Link>
+          <ChevronRight aria-hidden className="hidden size-3.5 shrink-0 text-muted-foreground sm:inline" />
+          <span className="truncate font-medium">{current?.label ?? 'Page'}</span>
+        </>
+      )}
+    </nav>
   );
 }
 
@@ -74,13 +125,12 @@ function UserMenu({ user }: { user: AuthUser }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-9 gap-2 px-2">
+        <Button variant="ghost" size="icon-lg" aria-label="Account">
           <Avatar className="size-7">
-            <AvatarFallback className="text-xs">{initials(user.fullName)}</AvatarFallback>
+            <AvatarFallback className="bg-primary/10 text-[11px] font-semibold text-primary">
+              {initials(user.fullName)}
+            </AvatarFallback>
           </Avatar>
-          <span className="hidden max-w-[140px] truncate text-sm font-medium sm:inline">
-            {user.fullName}
-          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
@@ -120,17 +170,23 @@ function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   const mounted = useMounted();
 
-  const dark = resolvedTheme === 'dark';
+  const dark = mounted && resolvedTheme === 'dark';
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => setTheme(dark ? 'light' : 'dark')}
-      aria-label="Toggle colour theme"
-    >
-      {/* Render the same icon pre-mount on both server and client to keep markup stable. */}
-      {mounted && dark ? <Sun className="size-4" /> : <MoonStar className="size-4" />}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          onClick={() => setTheme(dark ? 'light' : 'dark')}
+          aria-label="Toggle colour theme"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          {/* Render the same icon pre-mount on both server and client to keep markup stable. */}
+          {dark ? <Sun className="size-4.5" /> : <MoonStar className="size-4.5" />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{dark ? 'Light theme' : 'Dark theme'}</TooltipContent>
+    </Tooltip>
   );
 }

@@ -7,11 +7,11 @@ import type { AssignmentStatus, SubmissionStatus } from '@/types/api';
  * this app, so they are defined once here rather than re-styled per screen.
  */
 const tone = {
-  neutral: 'bg-muted text-muted-foreground border-transparent',
-  info: 'bg-info-muted text-info border-info/25',
-  success: 'bg-success-muted text-success border-success/25',
-  warning: 'bg-warning-muted text-warning border-warning/25',
-  danger: 'bg-danger-muted text-danger border-danger/25',
+  neutral: 'bg-muted text-muted-foreground ring-border',
+  info: 'bg-info-muted text-info ring-info/25',
+  success: 'bg-success-muted text-success ring-success/25',
+  warning: 'bg-warning-muted text-warning ring-warning/25',
+  danger: 'bg-danger-muted text-danger ring-danger/25',
 } as const;
 
 type Tone = keyof typeof tone;
@@ -30,12 +30,12 @@ function Pill({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap',
+        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.7rem] font-semibold whitespace-nowrap ring-1 ring-inset',
         tone[variant],
         className,
       )}
     >
-      {Icon && <Icon className="size-3.5" />}
+      {Icon && <Icon className="size-3" />}
       {children}
     </span>
   );

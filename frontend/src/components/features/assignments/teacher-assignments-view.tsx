@@ -94,7 +94,9 @@ export function TeacherAssignmentsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Coursework"
         title="Assignments"
+        icon={ClipboardList}
         description={
           readOnly
             ? 'Browse assignments across the school.'
@@ -110,7 +112,7 @@ export function TeacherAssignmentsView() {
         }
       />
 
-      <div className="rounded-xl border bg-card">
+      <div className="panel overflow-hidden">
         <div className="flex flex-col gap-2 border-b p-4 sm:flex-row">
           <SearchInput
             value={search}

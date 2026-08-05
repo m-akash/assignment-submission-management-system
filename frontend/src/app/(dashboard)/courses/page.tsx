@@ -48,7 +48,9 @@ function CoursesView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Administration"
         title="Courses"
+        icon={BookOpen}
         description="Courses are linked to classes through a teaching assignment."
         actions={
           <Button onClick={openCreate}>
@@ -58,7 +60,7 @@ function CoursesView() {
         }
       />
 
-      <div className="rounded-xl border bg-card">
+      <div className="panel overflow-hidden">
         <div className="border-b p-4">
           <SearchInput
             value={search}

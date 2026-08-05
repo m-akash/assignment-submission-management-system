@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { Award, MessageSquareQuote, Paperclip } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DeadlineBadge,
@@ -10,7 +9,15 @@ import {
   SubmissionStatusBadge,
 } from '@/components/shared/status-badge';
 import { deadlineUrgency, formatDateTime, formatMarks, formatRelative } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import type { StudentAssignment } from '@/types/api';
+
+/** The card's top edge carries its urgency, so a grid can be triaged without reading. */
+const URGENCY_STRIPE = {
+  overdue: 'bg-danger',
+  'due-soon': 'bg-warning',
+  upcoming: 'bg-primary/30',
+} as const;
 
 /**
  * A student's view of one assignment: what it is, when it is due, and where their own
@@ -34,17 +41,21 @@ export function AssignmentCard({
   const actionLabel = !submission || submission.status === 'Pending' ? 'Submit' : 'Resubmit';
 
   return (
-    <article className="flex flex-col rounded-xl border bg-card transition-colors hover:border-primary/40">
+    <article className="panel-interactive flex h-full flex-col overflow-hidden">
+      <div aria-hidden className={cn('h-1 w-full', URGENCY_STRIPE[urgency])} />
+
       <div className="flex-1 space-y-3 p-5">
         <div className="flex items-start justify-between gap-2">
-          <Badge variant="secondary" className="font-mono text-[11px]">
+          <span className="rounded-md bg-muted px-2 py-1 font-mono text-[0.7rem] font-medium text-muted-foreground">
             {assignment.courseCode}
-          </Badge>
+          </span>
           {submission ? <SubmissionStatusBadge status={submission.status} /> : <NotStartedBadge />}
         </div>
 
         <div className="space-y-1">
-          <h3 className="leading-snug font-medium text-balance">{assignment.title}</h3>
+          <h3 className="text-[0.975rem] leading-snug font-semibold text-balance">
+            {assignment.title}
+          </h3>
           <p className="text-xs text-muted-foreground">
             {assignment.courseName} · {assignment.teacherName}
           </p>
@@ -53,10 +64,10 @@ export function AssignmentCard({
         <p className="line-clamp-2 text-sm text-muted-foreground">{assignment.description}</p>
 
         {isGraded && (
-          <div className="space-y-2 rounded-lg border bg-success-muted/40 p-3">
+          <div className="space-y-2 rounded-lg bg-success-muted/50 p-3 ring-1 ring-success/20 ring-inset">
             <div className="flex items-center gap-2">
               <Award className="size-4 text-success" />
-              <span className="text-sm font-medium tabular-nums">
+              <span className="text-sm font-semibold tabular-nums text-success">
                 {formatMarks(submission.marks, submission.marksOutOf)}
               </span>
             </div>
@@ -77,14 +88,18 @@ export function AssignmentCard({
         )}
       </div>
 
-      <footer className="flex items-center justify-between gap-3 border-t px-5 py-3">
+      <footer className="flex items-center justify-between gap-3 border-t bg-muted/25 px-5 py-3">
         <DeadlineBadge urgency={urgency}>
           {urgency === 'overdue' ? 'Closed ' : 'Due '}
           {formatRelative(assignment.deadlineUtc)}
         </DeadlineBadge>
 
         {onOpen ? (
-          <Button size="sm" variant={canStillEdit ? 'default' : 'outline'} onClick={() => onOpen(assignment)}>
+          <Button
+            size="sm"
+            variant={canStillEdit ? 'default' : 'outline'}
+            onClick={() => onOpen(assignment)}
+          >
             {canStillEdit ? actionLabel : 'View'}
           </Button>
         ) : (

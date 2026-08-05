@@ -49,7 +49,9 @@ function ClassesView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Administration"
         title="Classes"
+        icon={GraduationCap}
         description="A student belongs to exactly one class. Create classes before assigning teachers to them."
         actions={
           <Button onClick={openCreate}>
@@ -59,7 +61,7 @@ function ClassesView() {
         }
       />
 
-      <div className="rounded-xl border bg-card">
+      <div className="panel overflow-hidden">
         <div className="border-b p-4">
           <SearchInput
             value={search}

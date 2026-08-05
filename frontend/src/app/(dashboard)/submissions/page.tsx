@@ -42,7 +42,15 @@ function SubmissionsView() {
   const assignmentId = searchParams.get('assignmentId') ?? undefined;
 
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<SubmissionStatus | ''>('');
+  // Seeded from the URL so the dashboard tiles can deep-link into a filtered view
+  // ("Awaiting marking" → ?status=Submitted). Only the initial value comes from the
+  // query string; after that the dropdown owns it, and an unknown value is ignored.
+  const [status, setStatus] = useState<SubmissionStatus | ''>(() => {
+    const requested = searchParams.get('status');
+    return STATUS_OPTIONS.some((option) => option.value === requested)
+      ? (requested as SubmissionStatus)
+      : '';
+  });
   const [page, setPage] = useState(1);
   const [reviewing, setReviewing] = useState<Submission | null>(null);
 
@@ -60,7 +68,9 @@ function SubmissionsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Coursework"
         title="Submissions"
+        icon={Inbox}
         description={
           assignmentId
             ? 'Filtered to one assignment. Clear the filter to see everything.'
@@ -68,7 +78,7 @@ function SubmissionsView() {
         }
       />
 
-      <div className="rounded-xl border bg-card">
+      <div className="panel overflow-hidden">
         <div className="flex flex-col gap-2 border-b p-4 sm:flex-row">
           <SearchInput
             value={search}

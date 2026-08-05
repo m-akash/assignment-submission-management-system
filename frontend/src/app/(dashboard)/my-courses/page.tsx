@@ -37,11 +37,13 @@ function MyCoursesView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Coursework"
         title="My courses & classes"
+        icon={GraduationCap}
         description="The courses you teach and the students in each class."
       />
 
-      <div className="rounded-xl border bg-card">
+      <div className="panel overflow-hidden">
         <div className="border-b p-4">
           <SearchInput
             value={search}

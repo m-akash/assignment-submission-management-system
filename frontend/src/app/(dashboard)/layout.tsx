@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { GraduationCap, Loader2 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import { useAuth } from '@/context/AuthContext';
 
@@ -24,9 +24,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading || !user) {
     return (
-      <div className="flex min-h-dvh items-center justify-center gap-3 text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" />
-        <span className="text-sm">Restoring your session…</span>
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4">
+        <div className="brand-surface flex size-12 items-center justify-center rounded-2xl text-white shadow-lg">
+          <GraduationCap className="size-6" />
+        </div>
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />
+          <span className="text-sm">Restoring your session…</span>
+        </div>
       </div>
     );
   }

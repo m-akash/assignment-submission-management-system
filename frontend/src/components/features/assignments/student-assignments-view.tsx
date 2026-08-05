@@ -47,7 +47,9 @@ export function StudentAssignmentsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Coursework"
         title="Assignments"
+        icon={ClipboardList}
         description="Everything set for your class. Submit before the deadline to avoid a late mark."
       />
 
@@ -92,7 +94,7 @@ export function StudentAssignmentsView() {
               ? 'When your teacher publishes work for your class, it will appear here.'
               : 'Try a different search term, course, or tab.'
           }
-          className="rounded-xl border bg-card"
+          className="panel"
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

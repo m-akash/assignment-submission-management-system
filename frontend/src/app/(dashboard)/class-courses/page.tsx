@@ -50,7 +50,9 @@ function ClassCoursesView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Administration"
         title="Course Offerings"
+        icon={Layers}
         description="Which courses each class studies. Teachers are assigned to an offering, and assignments are created against one."
         actions={
           <Button onClick={() => setFormOpen(true)}>
@@ -60,7 +62,7 @@ function ClassCoursesView() {
         }
       />
 
-      <div className="rounded-xl border bg-card">
+      <div className="panel overflow-hidden">
         <div className="flex flex-col gap-3 border-b p-4 sm:flex-row">
           <SearchInput
             value={search}

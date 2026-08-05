@@ -20,15 +20,16 @@ export function PaginationBar({
   const to = Math.min(page * pageSize, total);
 
   return (
-    <div className="flex flex-col-reverse items-center justify-between gap-3 border-t px-4 py-3 sm:flex-row">
+    <div className="flex flex-col-reverse items-center justify-between gap-3 rounded-b-xl border-t bg-muted/25 px-4 py-3 sm:flex-row">
       <p className="text-xs text-muted-foreground">
-        Showing <span className="font-medium text-foreground">{from}</span>–
-        <span className="font-medium text-foreground">{to}</span> of{' '}
-        <span className="font-medium text-foreground">{total}</span> {itemLabel}
+        Showing <span className="font-medium tabular-nums text-foreground">{from}</span>–
+        <span className="font-medium tabular-nums text-foreground">{to}</span> of{' '}
+        <span className="font-medium tabular-nums text-foreground">{total}</span> {itemLabel}
       </p>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">
-          Page {page} of {Math.max(totalPages, 1)}
+      <div className="flex items-center gap-1.5">
+        <span className="rounded-md border bg-card px-2 py-1 text-xs text-muted-foreground tabular-nums">
+          Page <span className="font-medium text-foreground">{page}</span> of{' '}
+          {Math.max(totalPages, 1)}
         </span>
         <Button
           variant="outline"

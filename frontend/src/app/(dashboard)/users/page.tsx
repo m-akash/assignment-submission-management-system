@@ -140,7 +140,9 @@ function UsersView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Administration"
         title={heading.title}
+        icon={Users}
         description={heading.description}
         actions={
           <Button onClick={openCreate}>
@@ -150,7 +152,7 @@ function UsersView() {
         }
       />
 
-      <div className="rounded-xl border bg-card">
+      <div className="panel overflow-hidden">
         <div className="flex flex-col gap-2 border-b p-4 sm:flex-row">
           <SearchInput
             value={search}
