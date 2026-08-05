@@ -2,7 +2,7 @@
 
 A role-based **Assignment & Submission Management System** for a school/college — built for **OnnoRokom Projukti Limited**'s Assistant Software Engineer recruitment project.
 
-> Admins manage the organisation (users, classes, courses, course offerings, enrollments, teacher assignments) and can view everything. Teachers create/publish assignments for a course offering they teach and grade submissions. Students browse assignments for the classes they are enrolled in, submit answers (text and/or file), and track marks and feedback. Publishing, submitting and grading each queue an email notification.
+> Admins manage the organisation (users, classes, courses, course offerings, enrollments, teacher assignments) and can view everything. Teachers create/publish assignments for a course offering they teach and grade submissions. Students browse assignments for the classes they are enrolled in, submit answers (text and/or file), and track marks and feedback. Account creation, being assigned a course, being enrolled, publishing, submitting and grading each queue an email notification automatically — and a new account's mail carries a single-use link to choose a password, never a password.
 
 ## Contents
 
@@ -13,6 +13,7 @@ A role-based **Assignment & Submission Management System** for a school/college 
 - [Getting Started — Running Manually](#getting-started--running-manually)
 - [Data Model](#data-model)
 - [Database](#database)
+- [Account Setup](#account-setup)
 - [Email Notifications](#email-notifications)
 - [Running Tests](#running-tests)
 - [Demo Credentials](#demo-credentials)
@@ -27,7 +28,8 @@ A role-based **Assignment & Submission Management System** for a school/college 
 - **Admin** — manage users, classes, courses, **course offerings** (which courses each class studies), **student enrollments**, and teacher-to-offering assignments; view every assignment and submission, and inspect the email outbox.
 - **Teacher** — create/update/delete assignments scoped to an offering they are assigned to teach, publish or keep as draft, view submissions, grade with marks + feedback, and change submission status.
 - **Student** — see assignments for every class they are enrolled in, submit a text answer and/or file attachments before the deadline, update a submission before the deadline (if the assignment allows resubmission), and view marks/feedback once graded.
-- **Email notifications** — an assignment being published emails every student in the class, a submission arriving emails the owning teacher, and grading emails the student. Written as a transactional outbox and sent by a background sweep, so a slow or unconfigured mail server never fails the request that caused it — see [Email Notifications](#email-notifications).
+- **Email notifications** — six events mail automatically: an account being created, a teacher gaining a course, a student being enrolled, an assignment being published (to every student in the class), a submission arriving (to the owning teacher), and grading (to the student). Written as a transactional outbox and sent by a background sweep, so a slow or unconfigured mail server never fails the request that caused it — see [Email Notifications](#email-notifications).
+- **Password setup by single-use link** — a new account's welcome email carries an expiring, single-use link to choose a password rather than the password itself, and redeeming it drops any session opened with the admin-set one. See [Account Setup](#account-setup).
 - **File uploads** on submissions — allow-listed extensions, size cap, magic-byte signature validation (the actual file header is checked, not just the `Content-Type` the browser sends), sanitized filenames, and authorization-checked streamed download (no static file serving).
 - **Business rules enforced server-side**, not just in the UI — see [Business rules](#business-rules-enforced) below.
 - Pagination, sorting, filtering and free-text search on every list endpoint (users, classes, courses, offerings, enrollments, assignments, submissions, notifications).
@@ -83,7 +85,7 @@ assignment-submission-management-system/
 │       ├── lib/                    # Axios client, query keys, formatting helpers
 │       ├── schemas/                # Zod schemas mirroring backend DTOs
 │       └── proxy.ts                # Route gate (Next's renamed middleware) — redirects based on cookie presence only
-└── docker-compose.yml              # postgres + api + web, with healthchecks and named volumes
+└── docker-compose.yml              # postgres + mailpit + api + web, with healthchecks and named volumes
 ```
 
 ## Getting Started — Docker Compose (recommended)
@@ -95,11 +97,12 @@ Prerequisites: Docker and Docker Compose.
 docker compose up --build
 ```
 
-This starts three services:
+This starts four services:
 
 | Service | URL | Notes |
 |---|---|---|
 | PostgreSQL | `localhost:5432` | Data persisted in the `pgdata` named volume |
+| Mailpit | http://localhost:8025 | Every notification email lands here — a real SMTP server that delivers nothing onward |
 | API | http://localhost:5080 | Swagger at http://localhost:5080/swagger, health at http://localhost:5080/health |
 | Frontend | http://localhost:3000 | |
 
@@ -113,7 +116,9 @@ docker compose down -v
 
 ## Getting Started — Running Manually
 
-Prerequisites: .NET 10 SDK, Node.js 20+, and a PostgreSQL 17 instance (or run just the `postgres` service from Docker: `docker compose up -d postgres`).
+Prerequisites: .NET 10 SDK, Node.js 20+, and a PostgreSQL 17 instance (or run just the backing services from Docker: `docker compose up -d postgres mailpit`).
+
+Running the API outside compose means the `Email__Host=mailpit` hostname does not resolve — use `Email__Host=localhost` (with `Email__Port=1025`, `Email__UseSsl=false`) to reach the Mailpit container, or leave `Email__Host` empty to have notifications logged instead of sent.
 
 ### 1. Database
 
@@ -191,18 +196,79 @@ A few other decisions the diagram states but are worth calling out:
 - **No notifications are seeded**, deliberately: they are a consequence of publishing, submitting or grading, and a manufactured backlog would mean a fresh checkout tries to email fifteen fictional addresses the moment it starts. Publish an assignment from the UI to watch the outbox fill.
 - **The offering/enrollment migration backfills existing data.** `AddClassCoursesEnrollmentsAndNotifications` derives offerings from the (class, course) pairs already in use, repoints assignments and teaching mappings at them, and copies `users.class_id` into `student_enrollments` before dropping the column — so an existing database keeps its assignments and class rosters rather than getting a valid schema full of zero GUIDs. Its `Down` reverses the same way, with one loss it documents: a student in several classes collapses back to their earliest, because the old column could hold only one.
 
+## Account Setup
+
+An admin creates accounts, so the person who will use one is not present when it is made.
+Getting the account to them is the gap that has to be closed, and **emailing a password is
+not how to close it**: mail is plaintext through relays nobody here operates, it sits in a
+mailbox indefinitely, and it lands in logs and backups on the way. A password that has been
+emailed should be treated as public.
+
+So the account-created mail carries a **single-use link** instead:
+
+1. `CreateUserHandler` creates the user, issues a `PasswordSetupToken`, and queues the
+   welcome notification carrying the plaintext token — all in one transaction, so an account
+   can never exist with no way for its owner to reach it.
+2. Only the token's SHA-256 hash is stored, exactly as for refresh tokens. The plaintext
+   exists in the email and nowhere else, so a database dump cannot be replayed against the
+   endpoint and a lost link means issuing a new one rather than looking the old one up.
+3. The recipient opens `/set-password?token=…`. The page checks the link with
+   `GET /api/v1/auth/set-password` **before** showing the form, so a dead link says so
+   instead of being discovered after a password has been typed twice.
+4. `POST /api/v1/auth/set-password` verifies the token, sets the password, marks the token
+   consumed, and revokes every refresh token the account held. Setting a password is where
+   the account changes hands, so sessions opened with the admin's password do not survive it.
+
+Both endpoints are anonymous by necessity — the caller has no password yet, which is the
+point — with possession of the token as the authorisation. Every rejection returns the same
+error whatever the real reason (unknown, expired, spent, deactivated): distinguishing them
+would let someone trying tokens tell "not a token" from "a real token, just used".
+
+The token is single-use and short-lived (`Auth__PasswordSetupTokenHours`, default 48). The
+link is built from `Email__AppBaseUrl`, so that must point at the frontend; with it unset the
+mail says so plainly rather than shipping a broken URL.
+
+**The admin still types an initial password** — the API requires one and it remains a working
+fallback — but nothing ever transmits it, so in practice the link is how an account reaches
+its owner. Two deliberate gaps: there is no *forgot password* flow (the same token machinery
+would serve one, but nothing issues a token outside account creation), and an admin cannot
+re-send a setup link from the UI yet, so an expired link currently means recreating the
+account or an admin resetting the password directly.
+
 ## Email Notifications
 
-Three events send mail: an assignment is **published** (to every student enrolled in its
-class), a submission is **received** (to the teacher who owns the assignment), and a
-submission is **graded** (to the student).
+Six events send mail. Nobody triggers any of them by hand — each is queued by the command
+handler that performs the change, in the same transaction:
 
-**It works with no configuration at all.** With `Email__Host` empty — the default — the
-notification is still written to the `notifications` table and its full contents are written
-to the API log instead of being sent. Nothing silently does nothing, and the feature is
-demonstrable without credentials. To send for real, fill in the `Email__*` variables in
-`.env` (see `.env.example`); for Gmail use an App Password, and for a local mailbox run
-MailHog with `Host=localhost Port=1025 UseSsl=false`.
+| Event | Recipient | Queued by |
+| --- | --- | --- |
+| An account is **created** | its owner, with a link to set a password | `CreateUserHandler` |
+| A teacher is assigned to a course offering | that teacher | `CreateTeacherAssignmentHandler` |
+| A student is enrolled in a class | that student | `CreateEnrollmentHandler`, and `CreateUserHandler` for their first class |
+| An assignment is **published** | every student enrolled in its class | `PublishAssignmentHandler` |
+| A submission is **received** | the teacher who owns the assignment | `SubmitAssignmentHandler` |
+| A submission is **graded** | the student who owns it | `ReviewSubmissionHandler` |
+
+Enrollment is a class membership rather than a per-course one, so the enrollment mail is one
+message about the class, listing the courses that class studies — not one message per course.
+Creating a student with a class is two events, so it sends two mails: one that the account
+exists, one that they are in a class.
+
+**No password is ever emailed** — see [Account Setup](#account-setup) for what is sent instead.
+
+**`docker compose up` sends real mail with no credentials.** The stack includes
+[Mailpit](https://mailpit.axllent.org/) (MailHog's maintained successor) and the API's
+`Email__*` defaults point at it, so every notification goes over a genuine SMTP handshake and
+is readable at **http://localhost:8025**. Nothing leaves the machine.
+
+To send to real addresses, set the `Email__*` variables in `.env` (see `.env.example`) —
+change `Host`, `Port`, `UseSsl` and `FromAddress` together, since the defaults are Mailpit's
+plaintext ones. For Gmail use an App Password, not the account password.
+
+**It also works with no mail server at all.** With `Email__Host` empty, the notification is
+still written to the `notifications` table and its full contents written to the API log
+instead of being sent; the rows are marked `Sent` because there is nothing to retry against.
+Nothing silently does nothing — but check the log, not an inbox.
 
 **Why an outbox rather than sending inline.** The notification row is written in the *same
 transaction* as the change that caused it, and a background service (`NotificationDispatcher`,
@@ -277,7 +343,9 @@ Documented per the assignment brief's request to record assumptions where requir
 ## Known Limitations
 
 - **No virus/malware scanning on uploaded files.** Uploads are validated by extension allow-list, size cap, and magic-byte signature check, but bytes are not scanned by an AV engine (e.g. ClamAV) before being persisted.
-- **Notifications cover three events, not every useful one.** Assignment published, submission received and submission graded are implemented; a *deadline approaching* reminder is not, because it needs a scheduled job scanning for upcoming deadlines rather than a reaction to a state change, and there is no in-app notification centre for end users (only the admin outbox view).
+- **Notifications cover six events, and every one of them is a reaction to a state change.** A *deadline approaching* reminder is not implemented, because it needs a scheduled job scanning for upcoming deadlines rather than something to react to, and there is no in-app notification centre for end users (only the admin outbox view). Un-enrolling a student and removing a teacher's course mapping are also silent — the outbox announces access being granted, not withdrawn.
+- **No forgot-password flow, and no way to re-send a setup link.** The `PasswordSetupToken` machinery would serve both, but nothing issues a token outside account creation, so an expired link means an admin sets the password directly instead. See [Account Setup](#account-setup).
+- **The setup token rides in a URL query string,** so it can reach a proxy or browser-history entry. Mitigated by being single-use and short-lived rather than eliminated; the password itself only ever goes in a POST body.
 - **No email templating or localisation.** Bodies are plain text built in code — deliberately, since HTML mail needs escaping, a text fallback, and inline-CSS work to survive real clients — but that means no branding and no per-recipient language.
 - **No plagiarism detection** on submitted text answers.
 - **Pagination is API-complete but not fully surfaced in the UI** — list endpoints support `page`/`pageSize`/`search`, but the frontend currently fetches up to 100 rows per list rather than exposing page-through controls (acceptable at the current seeded data volume).
