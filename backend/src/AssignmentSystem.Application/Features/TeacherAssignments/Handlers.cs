@@ -9,11 +9,19 @@ using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Features.TeacherAssignments;
 
+/// <summary>
+/// Maps a teacher to a course offering. This is the moment the teacher gains the right to
+/// create assignments and grade for that class, so it is also the moment they are emailed —
+/// queued in the same transaction as the mapping itself (see
+/// <see cref="INotificationOutbox"/>), so there is no state where a teacher owns a course
+/// nobody told them about.
+/// </summary>
 public sealed class CreateTeacherAssignmentHandler : ICommandHandler<CreateTeacherAssignmentCommand, TeacherAssignmentDto>
 {
     private readonly IRepository<TeacherAssignment> _teacherAssignmentRepository;
     private readonly IRepository<ApplicationUser> _userRepository;
     private readonly IRepository<ClassCourse> _classCourseRepository;
+    private readonly INotificationOutbox _notifications;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly TeacherAssignmentMapper Mapper = new();
 
@@ -21,11 +29,13 @@ public sealed class CreateTeacherAssignmentHandler : ICommandHandler<CreateTeach
         IRepository<TeacherAssignment> teacherAssignmentRepository,
         IRepository<ApplicationUser> userRepository,
         IRepository<ClassCourse> classCourseRepository,
+        INotificationOutbox notifications,
         IUnitOfWork unitOfWork)
     {
         _teacherAssignmentRepository = teacherAssignmentRepository;
         _userRepository = userRepository;
         _classCourseRepository = classCourseRepository;
+        _notifications = notifications;
         _unitOfWork = unitOfWork;
     }
 
@@ -57,6 +67,11 @@ public sealed class CreateTeacherAssignmentHandler : ICommandHandler<CreateTeach
         {
             var teacherAssignment = TeacherAssignment.Create(command.TeacherId, command.ClassCourseId);
             await _teacherAssignmentRepository.AddAsync(teacherAssignment, ct);
+
+            // Before the save, not after: the notification row has to land in the same
+            // transaction as the mapping that caused it.
+            await _notifications.QueueTeacherAssignedAsync(teacherAssignment, ct);
+
             await _unitOfWork.SaveChangesAsync(ct);
 
             // Fetch with fully loaded relationships for mapping

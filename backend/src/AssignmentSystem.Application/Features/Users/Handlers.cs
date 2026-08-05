@@ -15,6 +15,17 @@ namespace AssignmentSystem.Application.Features.Users;
 /// Creates a user, and for a student their first enrollment in the same transaction —
 /// the domain cannot enforce "a student has a class" from inside the entity now that
 /// membership is a separate row, so this handler is the choke point that guarantees it.
+///
+/// That first enrollment queues the same notification as a later one does: from the
+/// student's side "you are in Class IX-A" is one event, and mailing it only when an admin
+/// adds them to a *second* class would be an arbitrary gap.
+///
+/// It also issues a single-use password-setup link and mails it. The admin still types an
+/// initial password — the API contract requires one and it stays a working fallback — but
+/// nothing ever transmits it, so the link is how the account actually reaches its owner.
+/// A new student therefore receives two mails: one that their account exists, and one that
+/// they are in a class. Two events, two messages; collapsing them would make the enrollment
+/// mail conditional on how the enrollment happened.
 /// </summary>
 public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserDto>
 {
@@ -23,6 +34,8 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
     private readonly IRepository<StudentEnrollment> _enrollmentRepository;
     private readonly IClassRosterRepository _classRosterRepository;
     private readonly ITeacherRosterRepository _teacherRosterRepository;
+    private readonly INotificationOutbox _notifications;
+    private readonly IPasswordSetupTokenService _passwordSetup;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
@@ -34,6 +47,8 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
         IRepository<StudentEnrollment> enrollmentRepository,
         IClassRosterRepository classRosterRepository,
         ITeacherRosterRepository teacherRosterRepository,
+        INotificationOutbox notifications,
+        IPasswordSetupTokenService passwordSetup,
         IPasswordHasher passwordHasher,
         IClock clock,
         IUnitOfWork unitOfWork)
@@ -43,6 +58,8 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
         _enrollmentRepository = enrollmentRepository;
         _classRosterRepository = classRosterRepository;
         _teacherRosterRepository = teacherRosterRepository;
+        _notifications = notifications;
+        _passwordSetup = passwordSetup;
         _passwordHasher = passwordHasher;
         _clock = clock;
         _unitOfWork = unitOfWork;
@@ -97,13 +114,21 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
 
             await _userRepository.AddAsync(user, ct);
 
+            // The setup link and the mail carrying it are queued here, not after the save:
+            // an account that exists without a way for its owner to get into it is the one
+            // outcome this handler must not be able to produce.
+            var setup = await _passwordSetup.IssuePasswordSetupAsync(user.Id, ct);
+            await _notifications.QueueAccountCreatedAsync(user, setup, ct);
+
             if (command.Role == Role.Student && command.ClassId is { } classId)
             {
-                await _enrollmentRepository.AddAsync(
-                    StudentEnrollment.Create(user.Id, classId, _clock.UtcNow), ct);
+                var enrollment = StudentEnrollment.Create(user.Id, classId, _clock.UtcNow);
+                await _enrollmentRepository.AddAsync(enrollment, ct);
+                await _notifications.QueueStudentEnrolledAsync(enrollment, ct);
             }
 
-            // One SaveChanges for both rows: a student is never persisted classless.
+            // One SaveChanges for the lot: a student is never persisted classless, and no
+            // account is persisted without its setup token and welcome mail beside it.
             await _unitOfWork.SaveChangesAsync(ct);
 
             // Fetch again with enrollments included for full DTO mapping

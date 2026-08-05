@@ -15,11 +15,17 @@ using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Features.Enrollments;
 
+/// <summary>
+/// Enrols an existing student in another class. Mails the student in the same transaction
+/// (see <see cref="INotificationOutbox"/>) — enrollment is what decides which assignments
+/// they can see, so being added to a class is news they need.
+/// </summary>
 public sealed class CreateEnrollmentHandler : ICommandHandler<CreateEnrollmentCommand, EnrollmentDto>
 {
     private readonly IRepository<StudentEnrollment> _enrollmentRepository;
     private readonly IRepository<ApplicationUser> _userRepository;
     private readonly IRepository<Class> _classRepository;
+    private readonly INotificationOutbox _notifications;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly EnrollmentMapper Mapper = new();
@@ -28,12 +34,14 @@ public sealed class CreateEnrollmentHandler : ICommandHandler<CreateEnrollmentCo
         IRepository<StudentEnrollment> enrollmentRepository,
         IRepository<ApplicationUser> userRepository,
         IRepository<Class> classRepository,
+        INotificationOutbox notifications,
         IClock clock,
         IUnitOfWork unitOfWork)
     {
         _enrollmentRepository = enrollmentRepository;
         _userRepository = userRepository;
         _classRepository = classRepository;
+        _notifications = notifications;
         _clock = clock;
         _unitOfWork = unitOfWork;
     }
@@ -64,6 +72,11 @@ public sealed class CreateEnrollmentHandler : ICommandHandler<CreateEnrollmentCo
         {
             var enrollment = StudentEnrollment.Create(command.StudentId, command.ClassId, _clock.UtcNow);
             await _enrollmentRepository.AddAsync(enrollment, ct);
+
+            // Before the save, not after: the notification row has to land in the same
+            // transaction as the enrollment that caused it.
+            await _notifications.QueueStudentEnrolledAsync(enrollment, ct);
+
             await _unitOfWork.SaveChangesAsync(ct);
 
             var fetchSpec = new EnrollmentWithDetailsSpecification(enrollment.Id);

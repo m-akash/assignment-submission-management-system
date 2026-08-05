@@ -18,6 +18,22 @@ internal sealed class ClassCourseWithDetailsSpecification : Specification<ClassC
     }
 }
 
+/// <summary>
+/// Every offering a class studies, course side loaded. Unpaged on purpose: this answers
+/// "what does this class study?" for the enrollment notification, and a class studies a
+/// handful of courses, not a page of them.
+/// </summary>
+internal sealed class ClassCourseOfferingsForClassSpecification : Specification<ClassCourse>
+{
+    public ClassCourseOfferingsForClassSpecification(Guid classId)
+    {
+        ApplyNoTracking();
+        AddInclude(cc => cc.Course);
+        ApplyOrderBy(cc => cc.Course.Name);
+        Criteria = cc => cc.ClassId == classId;
+    }
+}
+
 internal sealed class ClassCourseDuplicateSpecification : Specification<ClassCourse>
 {
     public ClassCourseDuplicateSpecification(Guid classId, Guid courseId)

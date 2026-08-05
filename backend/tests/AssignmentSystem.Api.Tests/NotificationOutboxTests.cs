@@ -171,6 +171,116 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
     }
 
     /// <summary>
+    /// Being given a course to teach is the moment a teacher gains the right to set and grade
+    /// work for it, so it is mailed. The body has to name the course and class — a mail saying
+    /// only "you have a new assignment to teach" would send the teacher to the UI to find out
+    /// which one.
+    /// </summary>
+    [Fact]
+    public async Task AssigningTeacherToOffering_QueuesNotificationForThatTeacher()
+    {
+        // ProvisionWorldAsync maps the teacher to the offering itself, so the mail is already
+        // queued by the time it returns — no second mapping call needed.
+        var world = await ProvisionWorldAsync("notif-ta");
+        using var admin = await SignInAsAdminAsync();
+
+        var queued = await NotificationsForRecipientAsync(admin, world.TeacherId);
+        var assigned = queued.Where(n => n.Type == NotificationType.TeacherAssignedToCourse).ToList();
+
+        assigned.Should().ContainSingle();
+        assigned[0].RecipientId.Should().Be(world.TeacherId);
+        assigned[0].Status.Should().Be(NotificationStatus.Pending);
+        assigned[0].Body.Should().Contain("Course notif-ta");
+        assigned[0].Body.Should().Contain("Class notif-ta");
+
+        // No assignment or submission exists yet — the context ids must stay null rather than
+        // being filled with something incidental.
+        assigned[0].AssignmentId.Should().BeNull();
+        assigned[0].SubmissionId.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Only the teacher who was mapped. An offering's students have no interest in who was
+    /// given it to teach, and the other world's teacher must not hear about it at all.
+    /// </summary>
+    [Fact]
+    public async Task AssigningTeacherToOffering_DoesNotNotifyAnyoneElse()
+    {
+        var world = await ProvisionWorldAsync("notif-ta2");
+        var otherWorld = await ProvisionWorldAsync("notif-ta3");
+        using var admin = await SignInAsAdminAsync();
+
+        var studentMail = await NotificationsForRecipientAsync(admin, world.StudentId);
+        studentMail.Should().NotContain(n => n.Type == NotificationType.TeacherAssignedToCourse);
+
+        var otherTeacherMail = await NotificationsForRecipientAsync(admin, otherWorld.TeacherId);
+        otherTeacherMail
+            .Where(n => n.Type == NotificationType.TeacherAssignedToCourse)
+            .Should().OnlyContain(n => !n.Body.Contains("notif-ta2", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Creating a student with a class enrols them, so it mails them — and the body lists the
+    /// courses that class studies, since "which subjects am I taking?" is the actual question.
+    /// </summary>
+    [Fact]
+    public async Task CreatingStudentWithAClass_QueuesEnrollmentNotificationListingTheCourses()
+    {
+        var world = await ProvisionWorldAsync("notif-enr");
+        using var admin = await SignInAsAdminAsync();
+
+        var queued = await NotificationsForRecipientAsync(admin, world.StudentId);
+        var enrolled = queued.Where(n => n.Type == NotificationType.StudentEnrolled).ToList();
+
+        enrolled.Should().ContainSingle();
+        enrolled[0].Subject.Should().Contain("Class notif-enr");
+        enrolled[0].Body.Should().Contain("Course notif-enr");
+        enrolled[0].AssignmentId.Should().BeNull();
+    }
+
+    /// <summary>
+    /// The other enrollment path: an existing student added to a second class. Mails once
+    /// more, about the new class — otherwise being moved between classes would be silent.
+    /// </summary>
+    [Fact]
+    public async Task EnrollingAnExistingStudentInAnotherClass_QueuesASecondNotification()
+    {
+        var world = await ProvisionWorldAsync("notif-enr2");
+        var otherWorld = await ProvisionWorldAsync("notif-enr3");
+        using var admin = await SignInAsAdminAsync();
+
+        var before = (await NotificationsForRecipientAsync(admin, world.StudentId))
+            .Count(n => n.Type == NotificationType.StudentEnrolled);
+        before.Should().Be(1, "creating the student with a class already mailed them once");
+
+        var enrol = await admin.PostAsJsonAsync("/api/v1/enrollments",
+            new CreateEnrollmentRequest(world.StudentId, otherWorld.ClassId));
+        enrol.IsSuccessStatusCode.Should().BeTrue();
+
+        var enrolled = (await NotificationsForRecipientAsync(admin, world.StudentId))
+            .Where(n => n.Type == NotificationType.StudentEnrolled)
+            .ToList();
+
+        enrolled.Should().HaveCount(2);
+        enrolled.Should().ContainSingle(n => n.Subject.Contains("notif-enr3", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A teacher is not enrolled in anything, so creating one queues no enrollment mail. The
+    /// two branches share a handler, and this is the one that must stay quiet.
+    /// </summary>
+    [Fact]
+    public async Task CreatingATeacher_QueuesNoEnrollmentNotification()
+    {
+        var world = await ProvisionWorldAsync("notif-noenr");
+        using var admin = await SignInAsAdminAsync();
+
+        var teacherMail = await NotificationsForRecipientAsync(admin, world.TeacherId);
+
+        teacherMail.Should().NotContain(n => n.Type == NotificationType.StudentEnrolled);
+    }
+
+    /// <summary>
     /// With no SMTP host configured — the default for a fresh checkout — a sweep still drains
     /// the queue, logging each message instead of sending it. Rows must end up Sent rather
     /// than accumulating forever: there is nothing to retry against.
@@ -186,14 +296,45 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
         (await NotificationsForAssignmentAsync(admin, assignment.Id))
             .Should().OnlyContain(n => n.Status == NotificationStatus.Pending);
 
-        var dispatch = await admin.PostAsync("/api/v1/notifications/dispatch?batchSize=200", null);
-        dispatch.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Swept until this assignment's rows are drained rather than once: the suite shares a
+        // database and every other test is queueing mail into the same outbox, so the batch
+        // (capped at 200 server-side, oldest-first) is not guaranteed to reach these rows in
+        // one pass. The property under test is that a sweep drains what it takes, not that one
+        // sweep happens to be big enough.
+        var afterSweep = await DrainOutboxAsync(admin, assignment.Id);
 
-        var afterSweep = await NotificationsForAssignmentAsync(admin, assignment.Id);
         afterSweep.Should().NotBeEmpty();
         afterSweep.Should().OnlyContain(n => n.Status == NotificationStatus.Sent);
         afterSweep.Should().OnlyContain(n => n.SentAtUtc != null);
         afterSweep.Should().OnlyContain(n => n.AttemptCount == 1);
+    }
+
+    /// <summary>
+    /// Sweeps until nothing for the given assignment is Pending, then returns its rows.
+    /// Bounded so a genuine failure to drain fails the test instead of looping forever.
+    /// </summary>
+    private async Task<List<NotificationRow>> DrainOutboxAsync(HttpClient admin, Guid assignmentId)
+    {
+        const int maxSweeps = 20;
+
+        for (var sweep = 0; sweep < maxSweeps; sweep++)
+        {
+            var rows = await NotificationsForAssignmentAsync(admin, assignmentId);
+            if (rows.Count > 0 && rows.TrueForAll(n => n.Status != NotificationStatus.Pending))
+            {
+                return rows;
+            }
+
+            var dispatch = await admin.PostAsync("/api/v1/notifications/dispatch?batchSize=200", null);
+            dispatch.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        var final = await NotificationsForAssignmentAsync(admin, assignmentId);
+        final.Should().NotContain(
+            n => n.Status == NotificationStatus.Pending,
+            $"the outbox should drain within {maxSweeps} sweeps");
+
+        return final;
     }
 
     /// <summary>
@@ -272,6 +413,21 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
 
         var (rows, _) = await ReadPageAsync<NotificationRow>(response);
         return rows.Where(n => n.AssignmentId == assignmentId).ToList();
+    }
+
+    /// <summary>
+    /// Notifications addressed to one user. The enrollment and teacher-assigned rows carry no
+    /// assignment id — they are about a class and an offering, neither of which the outbox
+    /// stores a context column for — so the recipient is what identifies them in a shared
+    /// database. Filtered server-side, which the admin role is allowed to do.
+    /// </summary>
+    private async Task<List<NotificationRow>> NotificationsForRecipientAsync(HttpClient admin, Guid recipientId)
+    {
+        var response = await admin.GetAsync($"/api/v1/notifications?recipientId={recipientId}&pageSize=200");
+        response.EnsureSuccessStatusCode();
+
+        var (rows, _) = await ReadPageAsync<NotificationRow>(response);
+        return rows;
     }
 
     private sealed record NotificationRow(
