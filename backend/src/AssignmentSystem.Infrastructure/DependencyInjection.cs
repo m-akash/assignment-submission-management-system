@@ -35,10 +35,7 @@ public static class DependencyInjection
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName));
         });
 
-        services.AddScoped<IUnitOfWork>(sp =>
-            new UnitOfWork(
-                sp.GetRequiredService<AppDbContext>(),
-                sp.GetService<IDomainEventDispatcher>()));
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // Open generic repository registered as concrete generic via factory.
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
@@ -69,9 +66,6 @@ public static class DependencyInjection
         services.AddSingleton<INotificationSettings, NotificationSettings>();
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
-
-        // No-op domain event dispatcher until concrete handlers are added.
-        services.AddScoped<IDomainEventDispatcher, NullDomainEventDispatcher>();
 
         // Database seeder (demo accounts + sample data).
         services.AddScoped<DbSeeder>();

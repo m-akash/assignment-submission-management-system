@@ -20,13 +20,13 @@ public abstract class BaseEntity
     // ── Optimistic concurrency ───────────────────────────────────────────────
     // Mapped to Postgres row version (xmin) per-entity where concurrency matters.
     public uint RowVersion { get; set; }
-
-    // ── Domain events ────────────────────────────────────────────────────────
-    // Cleared by the UnitOfWork after SaveChanges succeeds.
-    private readonly List<IDomainEvent> _domainEvents = [];
-    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
-
-    protected void Raise(IDomainEvent domainEvent) => _domainEvents.Add(domainEvent);
-
-    public void ClearDomainEvents() => _domainEvents.Clear();
 }
+
+// A domain-event mechanism used to live here — a collection on every entity, dispatch after
+// commit in the UnitOfWork, the lot. No entity ever raised one, and the obvious consumer
+// (notifications) goes through the transactional outbox instead, which gives a stronger
+// guarantee than in-process events could: the message is committed with the change that
+// caused it and survives a crash. Rather than leave the scaffolding standing, it was removed
+// — the UnitOfWork no longer walks the ChangeTracker on every save looking for events that
+// could not exist. If this system ever needs decoupled in-process reactions, the outbox is
+// the pattern to extend; see INotificationOutbox.
