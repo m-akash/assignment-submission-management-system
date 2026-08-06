@@ -3,7 +3,8 @@
 export type Role = 'Admin' | 'Teacher' | 'Student';
 export type AssignmentStatus = 'Draft' | 'Published';
 export type SubmissionStatus = 'Pending' | 'Submitted' | 'Graded' | 'Late';
-export type NotificationStatus = 'Pending' | 'Sent' | 'Failed';
+// 'Processing' is transient — a dispatcher is holding the row for delivery right now.
+export type NotificationStatus = 'Pending' | 'Processing' | 'Sent' | 'Failed';
 export type NotificationType =
   | 'AssignmentPublished'
   | 'SubmissionReceived'

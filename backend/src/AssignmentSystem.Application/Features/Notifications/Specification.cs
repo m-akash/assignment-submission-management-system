@@ -21,6 +21,17 @@ internal sealed class NotificationsByStatusSpecification : Specification<Notific
     }
 }
 
+/// <summary>
+/// Everything still owed a delivery — queued, plus whatever a dispatcher currently holds.
+/// </summary>
+internal sealed class NotificationsAwaitingDeliverySpecification : Specification<Notification>
+{
+    public NotificationsAwaitingDeliverySpecification()
+    {
+        Criteria = n => n.Status == NotificationStatus.Pending || n.Status == NotificationStatus.Processing;
+    }
+}
+
 internal sealed class NotificationsPagedSpecification : Specification<Notification>
 {
     /// <summary>Columns this endpoint may be sorted by. See <see cref="SortMap{T}"/>.</summary>

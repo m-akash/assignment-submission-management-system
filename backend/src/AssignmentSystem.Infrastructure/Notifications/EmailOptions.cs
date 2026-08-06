@@ -45,6 +45,22 @@ public sealed class EmailOptions
     /// </summary>
     public int MaxDeliveryAttempts { get; set; } = 3;
 
+    /// <summary>
+    /// Base delay before a failed notification is retried; it doubles with each further
+    /// failure. Thirty seconds means a transient blip costs the recipient almost nothing,
+    /// while a server that is genuinely down is not hit once per sweep until the attempt
+    /// budget is gone.
+    /// </summary>
+    public int RetryBackoffSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// How long a claimed row may stay claimed before another sweep may take it back. This
+    /// is the recovery window after a dispatcher is killed mid-batch: the rows it held are
+    /// stuck until this elapses, so it wants to be comfortably longer than a sweep can
+    /// legitimately take, and short enough that a restart is not visibly delayed.
+    /// </summary>
+    public int ClaimTimeoutSeconds { get; set; } = 300;
+
     /// <summary>Frontend base URL used for the "open it here" link in email bodies.</summary>
     public string AppBaseUrl { get; set; } = string.Empty;
 

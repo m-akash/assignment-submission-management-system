@@ -40,6 +40,20 @@ public sealed class Notification : BaseEntity
     public DateTime? LastAttemptAtUtc { get; private set; }
     public DateTime? SentAtUtc { get; private set; }
 
+    /// <summary>
+    /// Earliest time this row may be attempted again, set by the backoff after a failure.
+    /// Null means "eligible now". Without it a failing row is retried at the full sweep
+    /// cadence, which turns one unreachable mail server into a tight loop against it.
+    /// </summary>
+    public DateTime? NextAttemptAtUtc { get; private set; }
+
+    /// <summary>
+    /// When a dispatcher claimed this row. Doubles as the liveness signal: a row still
+    /// claimed after the claim timeout belonged to a process that died, and the next sweep
+    /// takes it back. Cleared whenever the attempt resolves.
+    /// </summary>
+    public DateTime? ClaimedAtUtc { get; private set; }
+
     /// <summary>Why the most recent attempt failed. Kept after a later success too — it
     /// is the only record that delivery was ever shaky.</summary>
     public string? LastError { get; private set; }
@@ -102,24 +116,61 @@ public sealed class Notification : BaseEntity
         SentAtUtc = sentAtUtc;
         LastAttemptAtUtc = sentAtUtc;
         AttemptCount++;
+        ClaimedAtUtc = null;
+        NextAttemptAtUtc = null;
     }
 
     /// <summary>
-    /// An attempt failed. Stays <c>Pending</c> while retries remain so the dispatcher
-    /// picks it up again, and only becomes <c>Failed</c> once <paramref name="maxAttempts"/>
-    /// is used up — the terminal state means "given up", not "one attempt missed".
+    /// An attempt failed. Returns to <c>Pending</c> behind a backoff while retries remain so
+    /// the dispatcher picks it up again later, and only becomes <c>Failed</c> once
+    /// <paramref name="maxAttempts"/> is used up — the terminal state means "given up", not
+    /// "one attempt missed".
     /// </summary>
-    public void MarkAttemptFailed(DateTime attemptedAtUtc, string error, int maxAttempts)
+    public void MarkAttemptFailed(DateTime attemptedAtUtc, string error, int maxAttempts, TimeSpan retryBaseDelay)
     {
         AttemptCount++;
         LastAttemptAtUtc = attemptedAtUtc;
         LastError = Truncate(error, 2000);
-        Status = AttemptCount >= maxAttempts ? NotificationStatus.Failed : NotificationStatus.Pending;
+        ClaimedAtUtc = null;
+
+        if (AttemptCount >= maxAttempts)
+        {
+            Status = NotificationStatus.Failed;
+            NextAttemptAtUtc = null;
+            return;
+        }
+
+        Status = NotificationStatus.Pending;
+        NextAttemptAtUtc = attemptedAtUtc.Add(BackoffFor(AttemptCount, retryBaseDelay));
     }
 
     /// <summary>
-    /// Puts a <c>Failed</c> row back in the queue with its attempt count reset, for the
-    /// admin "retry" action once the underlying mail problem is fixed.
+    /// Exponential: the delay doubles with each failure. A mail server that is briefly busy
+    /// is retried almost immediately, while one that is genuinely down is backed away from
+    /// instead of being hit once per sweep until the attempt budget runs out.
+    /// </summary>
+    public static TimeSpan BackoffFor(int attemptCount, TimeSpan baseDelay)
+    {
+        // Capped before shifting: 2^31 ticks of delay is not a meaningful schedule, and the
+        // multiplication would overflow long before it got there.
+        var exponent = Math.Min(attemptCount - 1, 10);
+        return baseDelay * Math.Pow(2, exponent);
+    }
+
+    /// <summary>
+    /// Taken by a dispatcher for delivery. The state change is what hides the row from every
+    /// other dispatcher; committing it before the send is what makes running more than one
+    /// instance safe.
+    /// </summary>
+    public void MarkClaimed(DateTime claimedAtUtc)
+    {
+        Status = NotificationStatus.Processing;
+        ClaimedAtUtc = claimedAtUtc;
+    }
+
+    /// <summary>
+    /// Puts a <c>Failed</c> row back in the queue with its attempt count and backoff reset,
+    /// for the admin "retry" action once the underlying mail problem is fixed.
     /// </summary>
     public void RequeueForRetry()
     {
@@ -130,11 +181,15 @@ public sealed class Notification : BaseEntity
 
         Status = NotificationStatus.Pending;
         AttemptCount = 0;
+        NextAttemptAtUtc = null;
+        ClaimedAtUtc = null;
     }
 
-    /// <summary>Whether the dispatcher should try this row (used by the retry budget).</summary>
-    public bool IsDeliverable(int maxAttempts) =>
-        Status == NotificationStatus.Pending && AttemptCount < maxAttempts;
+    /// <summary>Whether the dispatcher should try this row now (retry budget and backoff).</summary>
+    public bool IsDeliverable(int maxAttempts, DateTime utcNow) =>
+        Status == NotificationStatus.Pending
+        && AttemptCount < maxAttempts
+        && (NextAttemptAtUtc is null || NextAttemptAtUtc <= utcNow);
 
     private static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];

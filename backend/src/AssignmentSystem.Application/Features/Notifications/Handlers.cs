@@ -51,7 +51,10 @@ public sealed class GetNotificationSummaryHandler : IQueryHandler<GetNotificatio
 
     public async Task<Result<NotificationSummaryDto>> HandleAsync(GetNotificationSummaryQuery query, CancellationToken ct = default)
     {
-        var pending = await _notifications.CountAsync(new NotificationsByStatusSpecification(NotificationStatus.Pending), ct);
+        // Processing counts as pending: a row a dispatcher is holding is still queued as far
+        // as an admin reading this screen is concerned, and leaving it out of every bucket
+        // would make the three counts silently fail to add up to the outbox.
+        var pending = await _notifications.CountAsync(new NotificationsAwaitingDeliverySpecification(), ct);
         var sent = await _notifications.CountAsync(new NotificationsByStatusSpecification(NotificationStatus.Sent), ct);
         var failed = await _notifications.CountAsync(new NotificationsByStatusSpecification(NotificationStatus.Failed), ct);
 

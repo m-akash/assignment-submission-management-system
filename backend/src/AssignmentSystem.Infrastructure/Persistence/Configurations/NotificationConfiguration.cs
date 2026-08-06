@@ -38,6 +38,8 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
         builder.Property(n => n.AttemptCount).IsRequired().HasDefaultValue(0);
         builder.Property(n => n.LastAttemptAtUtc);
         builder.Property(n => n.SentAtUtc);
+        builder.Property(n => n.NextAttemptAtUtc);
+        builder.Property(n => n.ClaimedAtUtc);
         builder.Property(n => n.LastError).HasMaxLength(2000);
 
         // Context ids only, with no FK — see Notification's remarks: the outbox is a record
@@ -57,10 +59,12 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
             .HasForeignKey(n => n.RecipientId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // The dispatcher's only query: oldest pending first. A filtered index keeps it
-        // proportional to the backlog rather than to the whole (ever-growing) outbox.
+        // The dispatcher's claim query: oldest eligible first. The filter keeps the index
+        // proportional to the backlog rather than to the whole (ever-growing) outbox, and
+        // covers Processing (3) as well as Pending (0) because a sweep also reclaims rows
+        // stranded by a dispatcher that died mid-batch.
         builder.HasIndex(n => new { n.Status, n.CreatedAtUtc })
-            .HasFilter("status = 0");
+            .HasFilter("status IN (0, 3)");
 
         builder.HasIndex(n => n.RecipientId);
     }
