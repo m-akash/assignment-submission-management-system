@@ -4,7 +4,7 @@ namespace AssignmentSystem.Domain.Common;
 /// Marker implemented by entities that support soft delete (Assignment, User).
 /// EF Core applies a global query filter so soft-deleted rows are hidden by default.
 /// Soft delete is used only where it genuinely improves the design (restore,
-/// referential history) — see the architecture document.
+/// referential history) — see the Data Model section of the README.
 /// </summary>
 public interface ISoftDeletable
 {

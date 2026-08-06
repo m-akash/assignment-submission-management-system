@@ -1,362 +1,45 @@
 # Assignment & Submission Management System
 
-A role-based **Assignment & Submission Management System** for a school/college — built for **OnnoRokom Projukti Limited**'s Assistant Software Engineer recruitment project.
+A role-based assignment and submission system for a school or college — ASP.NET Core Web API
+over PostgreSQL, with a Next.js frontend.
 
-> Admins manage the organisation (users, classes, courses, course offerings, enrollments, teacher assignments) and can view everything. Teachers create/publish assignments for a course offering they teach and grade submissions. Students browse assignments for the classes they are enrolled in, submit answers (text and/or file), and track marks and feedback. Account creation, being assigned a course, being enrolled, publishing, submitting and grading each queue an email notification automatically — and a new account's mail carries a single-use link to choose a password, never a password.
+**Admins** manage users, classes, courses, course offerings, enrollments and teacher
+assignments, and see everything. **Teachers** create and publish assignments for an offering
+they teach, then grade submissions with marks and feedback. **Students** see assignments for
+their enrolled classes, submit text and/or files, and read their marks once graded. Six events
+queue an email automatically; a new account's mail carries a single-use link to choose a
+password, never a password.
 
-## Contents
+[Quick start](#quick-start) · [Features](#features) · [Business rules](#business-rules) ·
+[Stack & structure](#technology-stack) · [Data model](#data-model) · [API](#api) ·
+[Security](#security) · [Notifications](#notifications) · [Tests](#tests) ·
+[Config](#configuration) · [Assumptions](#assumptions) · [Limitations](#known-limitations)
 
-- [Main Features](#main-features)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Getting Started — Docker Compose (recommended)](#getting-started--docker-compose-recommended)
-- [Getting Started — Running Manually](#getting-started--running-manually)
-- [Data Model](#data-model)
-- [Database](#database)
-- [Account Setup](#account-setup)
-- [Login throttling](#login-throttling)
-- [Email Notifications](#email-notifications)
-- [Running Tests](#running-tests)
-- [Demo Credentials](#demo-credentials)
-- [API Documentation](#api-documentation)
-- [Assumptions](#assumptions)
-- [Known Limitations](#known-limitations)
-- [License](#license)
+## Quick start
 
-## Main Features
-
-- **JWT authentication** with a rotating refresh token (httpOnly cookie) and role-based authorization (Admin / Teacher / Student), enforced entirely server-side.
-- **Authorization as a pipeline, not a convention.** Every command and query declares who may send it (`[RequiresRole(...)]`, `[RequiresAuthentication]`, `[AllowAnonymous]`) and a decorator enforces that for all of them. The declaration is mandatory: `AddApplication()` refuses to build the container if any message is missing one, so a new endpoint cannot ship unguarded. Resource-level rules that need the row loaded ("is this *your* assignment?") live in `IAssignmentAccess` / `ISubmissionAccess` rather than being re-derived per handler.
-- **Brute-force resistance on sign-in** — a per-IP rate limit on the credential endpoints, plus a per-account lockout after repeated wrong passwords. A lockout is reported as an ordinary "invalid email or password", so it never confirms an address exists. See [Login throttling](#login-throttling).
-- **Admin** — manage users, classes, courses, **course offerings** (which courses each class studies), **student enrollments**, and teacher-to-offering assignments; view every assignment and submission, and inspect the email outbox.
-- **Teacher** — create/update/delete assignments scoped to an offering they are assigned to teach, publish or keep as draft, view submissions, grade with marks + feedback, and change submission status.
-- **Student** — see assignments for every class they are enrolled in, submit a text answer and/or file attachments before the deadline, update a submission before the deadline (if the assignment allows resubmission), and view marks/feedback once graded.
-- **Email notifications** — six events mail automatically: an account being created, a teacher gaining a course, a student being enrolled, an assignment being published (to every student in the class), a submission arriving (to the owning teacher), and grading (to the student). Written as a transactional outbox and sent by a background sweep, so a slow or unconfigured mail server never fails the request that caused it. Sweeps claim rows with `FOR UPDATE SKIP LOCKED`, so several API instances can run without mailing anything twice, and failures back off exponentially — see [Email Notifications](#email-notifications).
-- **Password setup by single-use link** — a new account's welcome email carries an expiring, single-use link to choose a password rather than the password itself, and redeeming it drops any session opened with the admin-set one. See [Account Setup](#account-setup).
-- **File uploads** on submissions — allow-listed extensions, size cap, magic-byte signature validation (the actual file header is checked, not just the `Content-Type` the browser sends), sanitized filenames, and authorization-checked streamed download (no static file serving).
-- **Business rules enforced server-side**, not just in the UI — see [Business rules](#business-rules-enforced) below.
-- Pagination, sorting, filtering and free-text search on every list endpoint (users, classes, courses, offerings, enrollments, assignments, submissions, notifications). Sort keys are an explicit per-endpoint allow-list (`?sortBy=name&sortDir=desc`) — an unknown key falls back to the endpoint's natural order rather than failing or being turned into a property access — and every sort carries a unique tiebreaker so paging cannot show a row twice or skip it.
-- Structured logging (Serilog), consistent error responses (RFC 7807 ProblemDetails), and a Swagger/OpenAPI document with JWT auth wired in.
-
-### Business rules enforced
-
-- A student only sees assignments for classes they are **enrolled in**. Enrollment is read per request rather than carried in the access token, so an admin moving a student between classes takes effect on their next request instead of when their token expires.
-- A submission can only be updated before the deadline, and only if the assignment allows resubmission.
-- A teacher can only manage (create/update/delete/publish/grade) assignments scoped to an offering they are assigned to teach. An admin creating work on a teacher's behalf must name a teacher who is already assigned to that offering — otherwise the assignment's own author could not publish or grade it.
-- A class can only be paired with a course once, and a teacher can only be assigned to an offering once.
-- A student cannot be removed from their only class — moving them means enrolling in the new class first.
-- Marks assigned during grading can never exceed the assignment's maximum marks.
-- An assignment moves Draft → Published only (one-way); students cannot see or submit to a Draft assignment.
-- A teacher can grade only published assignments and can change a submission's status when necessary.
-- One submission per student per assignment (enforced by a unique DB constraint); submitting after the deadline marks it `Late`.
-- An offering cannot be removed while a teacher is assigned to it or any assignment exists for it — dropping it must not silently take student work with it.
-
-## Technology Stack
-
-**Backend** — ASP.NET Core 10 (C#) · Clean Architecture (Domain / Application / Infrastructure / Api / Shared) · EF Core 10 + Npgsql · PostgreSQL · JWT (access + rotating refresh) · FluentValidation · Serilog · Swashbuckle (Swagger/OpenAPI) · Mapperly (source-generated mapping) · xUnit + FluentAssertions + Moq + Testcontainers.PostgreSql
-
-**Frontend** — Next.js (App Router) · React · TypeScript · Tailwind CSS · shadcn/ui (Radix primitives) · TanStack Query · React Hook Form + Zod · Axios
-
-**Database** — PostgreSQL, UUID primary keys, Fluent API configuration (no data annotations), soft delete via global query filters, optimistic concurrency on `Assignment`/`Submission`.
-
-## Project Structure
-
-```
-assignment-submission-management-system/
-├── backend/
-│   ├── AssignmentSystem.slnx
-│   └── src/
-│       ├── AssignmentSystem.Domain/          # Entities, value objects, enums — no external dependencies
-│       ├── AssignmentSystem.Application/     # Use-cases (commands/queries + handlers), validators, DTOs, specifications
-│       ├── AssignmentSystem.Infrastructure/  # EF Core DbContext, migrations, repositories, JWT/auth, file storage, DB seeder
-│       ├── AssignmentSystem.Api/             # Controllers, middleware, Swagger, JWT wiring, Program.cs (composition root)
-│       └── AssignmentSystem.Shared/          # Result<T>/Error, pagination, cross-cutting types shared by Application + Api
-│   └── tests/
-│       ├── AssignmentSystem.Application.Tests/  # Domain + handler + validator unit tests (Moq)
-│       └── AssignmentSystem.Api.Tests/          # Integration tests against a real Postgres container (Testcontainers)
-├── frontend/
-│   └── src/
-│       ├── app/
-│       │   ├── (auth)/login/       # Public login page
-│       │   └── (dashboard)/        # Role-gated pages: assignments, classes, courses, class-courses, notifications, submissions, teacher-mappings, users
-│       ├── components/
-│       │   ├── ui/                 # shadcn/ui primitives
-│       │   ├── layout/             # Dashboard shell, sidebar nav
-│       │   ├── shared/             # Cross-page pieces (pagination, search input, status badge, empty/error states...)
-│       │   └── features/           # Role-specific views: admin CRUD dialogs, assignment views, submission dialogs
-│       ├── hooks/                  # TanStack Query hooks per resource
-│       ├── lib/                    # Axios client, query keys, formatting helpers
-│       ├── schemas/                # Zod schemas mirroring backend DTOs
-│       └── proxy.ts                # Route gate (Next's renamed middleware) — redirects based on cookie presence only
-└── docker-compose.yml              # postgres + mailpit + api + web, with healthchecks and named volumes
-```
-
-## Getting Started — Docker Compose (recommended)
-
-Prerequisites: Docker and Docker Compose.
+Docker and Docker Compose are the only prerequisites — no .NET SDK, no Node, no local Postgres,
+no mail credentials.
 
 ```bash
-# from the repository root
 docker compose up --build
 ```
 
-This starts four services:
-
-| Service | URL | Notes |
+| Service | URL | |
 |---|---|---|
-| PostgreSQL | `localhost:5432` | Data persisted in the `pgdata` named volume |
-| Mailpit | http://localhost:8025 | Every notification email lands here — a real SMTP server that delivers nothing onward |
-| API | http://localhost:5080 | Swagger at http://localhost:5080/swagger, health at http://localhost:5080/health |
-| Frontend | http://localhost:3000 | |
+| Frontend | http://localhost:3000 | Sign in with the credentials below |
+| API | http://localhost:5080 | Swagger `/swagger`, health `/health` |
+| Mailpit | http://localhost:8025 | Every notification email lands here; nothing leaves the machine |
+| PostgreSQL | `localhost:5432` | Persisted in the `pgdata` volume |
 
-On first boot the API container applies EF Core migrations and seeds demo data automatically (`Database__AutoMigrate` / `Database__SeedOnStartup`, both `true` by default) — **no manual table creation is needed**. Uploaded submission files persist in the `submission-files` named volume, mounted at `/data/submissions` inside the API container.
+Migrations and demo data are applied automatically on first boot — **no table needs creating by
+hand**. `docker compose down -v` resets to a clean database.
 
-To reset to a clean database, stop the stack and remove the volumes:
+Copy `.env.example` to `.env` and set a real `Jwt__Key` before doing anything beyond a local
+demo; every value has a working default otherwise.
 
-```bash
-docker compose down -v
-```
+### Demo credentials
 
-## Getting Started — Running Manually
-
-Prerequisites: .NET 10 SDK, Node.js 20+, and a PostgreSQL 17 instance (or run just the backing services from Docker: `docker compose up -d postgres mailpit`).
-
-Running the API outside compose means the `Email__Host=mailpit` hostname does not resolve — use `Email__Host=localhost` (with `Email__Port=1025`, `Email__UseSsl=false`) to reach the Mailpit container, or leave `Email__Host` empty to have notifications logged instead of sent.
-
-### 1. Database
-
-Make sure a Postgres instance is reachable with a database matching the connection string below (the defaults in `appsettings.json` already assume `assignment_system` / `assignments` / `assignments` on `localhost:5432` — matching the Docker Compose Postgres service, so running that one service is the easiest path).
-
-### 2. Backend API
-
-```bash
-cd backend
-dotnet restore
-dotnet run --project src/AssignmentSystem.Api
-```
-
-The API applies migrations and seeds demo data on startup, same as under Docker. It listens on the URL printed in the console (typically `http://localhost:5080`); Swagger is at `/swagger`.
-
-To manage schema changes explicitly instead of relying on auto-migrate, install the EF Core CLI tool once (`dotnet tool install --global dotnet-ef`) and run from `backend/`:
-
-```bash
-dotnet ef database update --project src/AssignmentSystem.Infrastructure --startup-project src/AssignmentSystem.Api
-```
-
-### 3. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The repository's single `.env.example` (at the repo root) covers both apps — for the frontend, only `NEXT_PUBLIC_API_URL` is relevant. Create `frontend/.env.local` with:
-
-```
-NEXT_PUBLIC_API_URL=http://localhost:5080
-```
-
-(base origin only — **no** `/api/v1` suffix, the client appends that itself). The app runs at http://localhost:3000.
-
-## Data Model
-
-The full ERD lives in [`docs/erd.mermaid`](docs/erd.mermaid). Two junction tables carry most
-of the design weight, and they are the parts worth explaining:
-
-**`class_courses` — the course offering.** "This class studies this course," as a real row
-rather than something inferred from whichever teacher happens to be mapped. Everything
-downstream points at the offering: a `teacher_assignment` says who teaches one, and an
-`assignment` is scoped to one. That is what stops an admin mapping a teacher to a
-(class, course) pair the class does not actually study, and it means an assignment's class
-and course can never disagree with each other — there is one column, not two.
-
-**`student_enrollments` — class membership.** A row per (student, class) instead of a
-`users.class_id` column, so a student can sit in more than one class (a repeated grade, an
-elective cohort, a mid-year transfer where both memberships must stay visible) and the date
-they joined is recorded. This is the gate for the rule that a student only sees work for
-their own classes.
-
-A few other decisions the diagram states but are worth calling out:
-
-- **`uuid` primary keys, not `bigint`.** Ids travel in URLs and JWTs, so non-guessable and
-  non-enumerable matters more here than eight bytes a row.
-- **`assignments` carries its author (`teacher_id`) directly** and holds no reference to the
-  teaching mapping. "May this teacher publish or grade this?" is answered by looking the
-  mapping up, so an admin removing a mapping cannot orphan the authorship of work already set.
-- **Attachments are two tables**, not one polymorphic one: the authorization rules differ
-  completely (a teacher owns assignment material, a student owns their own attachments), and
-  a shared table would need filtering by a discriminator on every check.
-- **`notifications` has no foreign key to the assignment or submission it refers to.** The
-  outbox is a record of mail sent and must outlive what it was about; an FK would either
-  block the delete or take the history with it.
-
-## Database
-
-- **Engine:** PostgreSQL. The schema is highly relational (users ↔ classes ↔ courses ↔ offerings ↔ assignments ↔ submissions, with FK/cascade rules and several composite unique constraints), which is a better fit than a document model for the required relationships and integrity guarantees — see [Assumptions](#assumptions).
-- **Schema creation:** handled entirely by EF Core migrations under `backend/src/AssignmentSystem.Infrastructure/Migrations/`, applied automatically on API startup (or manually via `dotnet ef database update`, see above). No SQL scripts need to be run by hand.
-- **Seed data:** applied automatically and idempotently on startup (`DbSeeder`, skips if the admin account already exists). It creates the three demo accounts plus a broader sample dataset — 10 classes, 12 courses, 15 course offerings, 12 teachers, 15 students with their enrollments, 15 teaching assignments, 15 assignments (13 published, 2 draft), and 15 submissions spread across every status (Pending, Submitted, Graded, Late) — so the system looks populated immediately rather than empty.
-- **No notifications are seeded**, deliberately: they are a consequence of publishing, submitting or grading, and a manufactured backlog would mean a fresh checkout tries to email fifteen fictional addresses the moment it starts. Publish an assignment from the UI to watch the outbox fill.
-- **The offering/enrollment migration backfills existing data.** `AddClassCoursesEnrollmentsAndNotifications` derives offerings from the (class, course) pairs already in use, repoints assignments and teaching mappings at them, and copies `users.class_id` into `student_enrollments` before dropping the column — so an existing database keeps its assignments and class rosters rather than getting a valid schema full of zero GUIDs. Its `Down` reverses the same way, with one loss it documents: a student in several classes collapses back to their earliest, because the old column could hold only one.
-
-## Account Setup
-
-An admin creates accounts, so the person who will use one is not present when it is made.
-Getting the account to them is the gap that has to be closed, and **emailing a password is
-not how to close it**: mail is plaintext through relays nobody here operates, it sits in a
-mailbox indefinitely, and it lands in logs and backups on the way. A password that has been
-emailed should be treated as public.
-
-So the account-created mail carries a **single-use link** instead:
-
-1. `CreateUserHandler` creates the user, issues a `PasswordSetupToken`, and queues the
-   welcome notification carrying the plaintext token — all in one transaction, so an account
-   can never exist with no way for its owner to reach it.
-2. Only the token's SHA-256 hash is stored, exactly as for refresh tokens. The plaintext
-   exists in the email and nowhere else, so a database dump cannot be replayed against the
-   endpoint and a lost link means issuing a new one rather than looking the old one up.
-3. The recipient opens `/set-password?token=…`. The page checks the link with
-   `GET /api/v1/auth/set-password` **before** showing the form, so a dead link says so
-   instead of being discovered after a password has been typed twice.
-4. `POST /api/v1/auth/set-password` verifies the token, sets the password, marks the token
-   consumed, and revokes every refresh token the account held. Setting a password is where
-   the account changes hands, so sessions opened with the admin's password do not survive it.
-
-Both endpoints are anonymous by necessity — the caller has no password yet, which is the
-point — with possession of the token as the authorisation. Every rejection returns the same
-error whatever the real reason (unknown, expired, spent, deactivated): distinguishing them
-would let someone trying tokens tell "not a token" from "a real token, just used".
-
-The token is single-use and short-lived (`Auth__PasswordSetupTokenHours`, default 48). The
-link is built from `Email__AppBaseUrl`, so that must point at the frontend; with it unset the
-mail says so plainly rather than shipping a broken URL.
-
-**The admin still types an initial password** — the API requires one and it remains a working
-fallback — but nothing ever transmits it, so in practice the link is how an account reaches
-its owner. Two deliberate gaps: there is no *forgot password* flow (the same token machinery
-would serve one, but nothing issues a token outside account creation), and an admin cannot
-re-send a setup link from the UI yet, so an expired link currently means recreating the
-account or an admin resetting the password directly.
-
-## Login throttling
-
-Two independent defences sit in front of `POST /api/v1/auth/login`, because neither covers
-the other's gap.
-
-**Per client address — a rate limit.** The credential endpoints (`login`, `refresh`, and both
-halves of `set-password`) are capped at `RateLimiting__CredentialsPerMinute` requests per
-minute per address, partitioned so one noisy caller cannot lock the school out of signing in.
-Over the limit is `429` with a `Retry-After` header and an RFC 7807 body. Nothing else in the
-API is rate limited — a busy classroom reading assignment lists should not be throttled.
-
-**Per account — a lockout.** `Auth__MaxFailedLoginAttempts` consecutive wrong passwords locks
-the account for `Auth__LockoutMinutes`. This is what a distributed guess runs into: spreading
-attempts across a thousand addresses slips under any per-IP limit, but it still lands on one
-account. While locked, the password is not even checked, so a locked account cannot be used
-as an oracle for whether a guess was right. Any successful sign-in clears the counter, and so
-does redeeming a password-setup link — someone who has proved control of the account should
-not stay locked out by the guesses that preceded them.
-
-A lockout is reported as the same `401 Auth.InvalidCredentials` as a wrong password, byte for
-byte. Saying "this account is locked" would confirm the address exists and tell the caller
-exactly when to come back.
-
-| Setting | Default | What it does |
-|---|---|---|
-| `RateLimiting__CredentialsPerMinute` | `10` | Requests per minute per address on credential endpoints |
-| `Auth__MaxFailedLoginAttempts` | `5` | Consecutive wrong passwords before the account locks |
-| `Auth__LockoutMinutes` | `15` | How long the lock holds |
-
-Note that the rate limiter's counters are per instance and in memory — see
-[Known Limitations](#known-limitations).
-
-## Email Notifications
-
-Six events send mail. Nobody triggers any of them by hand — each is queued by the command
-handler that performs the change, in the same transaction:
-
-| Event | Recipient | Queued by |
-| --- | --- | --- |
-| An account is **created** | its owner, with a link to set a password | `CreateUserHandler` |
-| A teacher is assigned to a course offering | that teacher | `CreateTeacherAssignmentHandler` |
-| A student is enrolled in a class | that student | `CreateEnrollmentHandler`, and `CreateUserHandler` for their first class |
-| An assignment is **published** | every student enrolled in its class | `PublishAssignmentHandler` |
-| A submission is **received** | the teacher who owns the assignment | `SubmitAssignmentHandler` |
-| A submission is **graded** | the student who owns it | `ReviewSubmissionHandler` |
-
-Enrollment is a class membership rather than a per-course one, so the enrollment mail is one
-message about the class, listing the courses that class studies — not one message per course.
-Creating a student with a class is two events, so it sends two mails: one that the account
-exists, one that they are in a class.
-
-**No password is ever emailed** — see [Account Setup](#account-setup) for what is sent instead.
-
-**`docker compose up` sends real mail with no credentials.** The stack includes
-[Mailpit](https://mailpit.axllent.org/) (MailHog's maintained successor) and the API's
-`Email__*` defaults point at it, so every notification goes over a genuine SMTP handshake and
-is readable at **http://localhost:8025**. Nothing leaves the machine.
-
-To send to real addresses, set the `Email__*` variables in `.env` (see `.env.example`) —
-change `Host`, `Port`, `UseSsl` and `FromAddress` together, since the defaults are Mailpit's
-plaintext ones. For Gmail use an App Password, not the account password.
-
-**It also works with no mail server at all.** With `Email__Host` empty, the notification is
-still written to the `notifications` table and its full contents written to the API log
-instead of being sent; the rows are marked `Sent` because there is nothing to retry against.
-Nothing silently does nothing — but check the log, not an inbox.
-
-**Why an outbox rather than sending inline.** The notification row is written in the *same
-transaction* as the change that caused it, and a background service (`NotificationDispatcher`,
-swept every `Email__DispatchIntervalSeconds`) sends it afterwards. That buys four things a
-direct `SendEmailAsync` in the handler cannot:
-
-- A slow, down, or misconfigured SMTP server cannot fail the publish, submit or grade that
-  triggered it.
-- Nothing is silently lost when one is — the row is still there.
-- Retries are bounded (`Email__MaxDeliveryAttempts`, default 3) and the failure reason is
-  recorded on the row, so "why did this not arrive?" has an answer.
-- Tests assert on rows instead of intercepting mail.
-
-**Retries back off.** A failed row returns to `Pending` behind a delay that doubles with each
-attempt, starting at `Email__RetryBackoffSeconds`. Without that, an unreachable mail server is
-retried once per sweep until the attempt budget is gone — three attempts spent in ninety
-seconds against something that needed two minutes to come back.
-
-**Sweeps claim their work, so more than one instance is safe.** A sweep does not simply select
-pending rows; it moves a batch to `Processing` in a single statement using
-`FOR UPDATE SKIP LOCKED`. Concurrent dispatchers step over each other's rows and each takes a
-disjoint batch, so running several API instances mails each notification once rather than once
-per instance. A dispatcher killed mid-batch leaves rows claimed — the same query also picks up
-anything claimed longer ago than `Email__ClaimTimeoutSeconds`, so another sweep takes them
-back rather than leaving them stranded.
-
-Retrying can duplicate an email that was accepted just before a crash. That is the right
-trade here: a student receiving one notice twice is a nuisance, never receiving it is a
-missed deadline.
-
-**Admin → Notifications** shows the outbox: pending/sent/failed counts, the exact subject and
-body of each message, the error behind any failure, a **Send queued now** button that runs a
-sweep immediately, and a retry action on rows that used up their attempts. Teachers and
-students can read the same endpoint but are scoped server-side to mail addressed to them —
-including when they pass someone else's `recipientId`.
-
-## Running Tests
-
-```bash
-cd backend
-dotnet test
-```
-
-This runs both test projects:
-
-- **`AssignmentSystem.Application.Tests`** — pure unit tests (domain invariants, command/query handlers with mocked repositories, file-upload policy) — no external dependencies.
-- **`AssignmentSystem.Api.Tests`** — integration tests using `WebApplicationFactory` against a **real PostgreSQL container** spun up via Testcontainers, so foreign keys, unique constraints, and optimistic-concurrency conflicts are actually exercised. **Requires Docker to be running** — Testcontainers starts and tears down the Postgres container itself.
-
-No frontend automated tests are included (see [Known Limitations](#known-limitations)).
-
-## Demo Credentials
-
-All demo accounts share the password below.
+All seeded accounts share one password.
 
 | Role | Email | Password |
 |---|---|---|
@@ -364,46 +47,534 @@ All demo accounts share the password below.
 | Teacher | `teacher@assignment.test` | `Password123!` |
 | Student | `student@assignment.test` | `Password123!` |
 
-The seeded data also includes additional teacher (`teacher2@assignment.test` … `teacher12@assignment.test`) and student (`student2@assignment.test` … `student15@assignment.test`) accounts with the same password, useful for exploring multi-class/multi-teacher scenarios (e.g. verifying a teacher only sees their own assignments, or that two students in different classes see different assignment lists).
+The demo teacher is `INS-001`; the demo student is `XII-A-001` in *Class 12 - Section A*, where
+the seeded assignments and submissions live — so that login shows a populated dashboard at once.
+Also seeded, same password: `teacher2…teacher12@assignment.test`, and
+`student1…student60` + `student62…student70@assignment.test` (the 61st seat is the demo login).
 
-## API Documentation
+### Running manually
 
-With the API running, Swagger UI is available at `/swagger` (e.g. http://localhost:5080/swagger), including the JWT bearer scheme so requests can be authorized directly from the UI. A `/health` endpoint reports database connectivity for container orchestration.
+Prerequisites: .NET 10 SDK, Node.js 20+, PostgreSQL 17. For the backing services without
+installing anything: `docker compose up -d postgres mailpit`.
+
+```bash
+cd backend && dotnet restore && dotnet run --project src/AssignmentSystem.Api   # → http://localhost:5269
+cd frontend && npm install && npm run dev                                       # → http://localhost:3000
+```
+
+The API migrates and seeds on startup here too. Create `frontend/.env.local` with the API's
+base origin — no `/api/v1` suffix, the client appends that:
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:5269
+```
+
+Three differences from Compose when the API runs on the host:
+
+- **Port** is `5269` (`launchSettings.json`), not `5080`. Swagger is mapped in `Development`
+  only, which both `dotnet run` and the API container set.
+- **Mail** — `Email__Host=mailpit` is a container hostname and will not resolve. Use
+  `Email__Host=localhost` with `Email__Port=1025` and `Email__UseSsl=false`, or leave the host
+  empty to have notifications logged instead of sent.
+- **Uploads** land in `../_uploads` rather than the container's `/data/submissions`.
+
+To manage the schema explicitly instead of auto-migrating, from `backend/`:
+
+```bash
+dotnet ef database update --project src/AssignmentSystem.Infrastructure --startup-project src/AssignmentSystem.Api
+```
+
+## Features
+
+- **JWT auth** — short-lived access token plus a rotating refresh token in an httpOnly cookie;
+  reuse of a rotated token revokes the whole family. Role-based authorization (Admin / Teacher /
+  Student) enforced entirely server-side.
+- **Authorization as a pipeline, not a convention.** Every command and query declares who may
+  send it (`[RequiresRole]` / `[RequiresAuthentication]` / `[AllowAnonymous]`) and one decorator
+  enforces all of them. The declaration is mandatory: `AddApplication()` refuses to build the
+  container if a message is missing one, so a new endpoint cannot ship unguarded. Rules needing
+  the row loaded ("is this *your* assignment?") live in `IAssignmentAccess` / `ISubmissionAccess`.
+- **Password setup by single-use link**, never an emailed password — see [Security](#security).
+- **Brute-force resistance** — per-IP rate limit on credential endpoints plus a per-account
+  lockout, reported indistinguishably from a wrong password.
+- **File uploads** on submissions and assignments — extension allow-list, size cap, per-owner
+  count cap, magic-byte signature check (the real file header, not the browser's `Content-Type`),
+  sanitized filenames, and authorization-checked streaming download (no static file serving).
+- **Email notifications** as a transactional outbox with a background dispatcher, exponential
+  backoff, and `FOR UPDATE SKIP LOCKED` claims so several API instances never double-send.
+- **Pagination, sorting, filtering and search on every list endpoint.** Sort keys are a
+  per-endpoint allow-list, each with a unique tiebreaker so paging cannot repeat or skip a row;
+  page size is capped at 100 server-side.
+- **Operability** — Serilog (console + daily file), a correlation id on every request and error,
+  RFC 7807 ProblemDetails for every failure, Swagger with JWT wired in, `/health` covering the
+  database.
+
+Design reasoning lives in XML doc comments next to the code it explains; this README stays at
+the level of what the system does and how to run it.
+
+## Business rules
+
+Enforced server-side, and covered by tests.
+
+| | Rule |
+|---|---|
+| **Visibility** | A student sees only assignments for classes they are enrolled in — read per request, so an admin moving a student takes effect on their next call, not on token expiry. |
+| | Drafts are invisible to students; the draft check runs before the enrollment check, so a rejection never leaks which class a hidden assignment belongs to. |
+| | A teacher sees only submissions against their own assignments; a student only their own. Passing someone else's id does not widen the result. |
+| **Assignments** | Created only by a teacher **assigned to that offering**; updated, deleted, published or graded only by the **author**. |
+| | Draft → Published is one-way. Deadline must be at least an hour ahead. Max marks > 0. |
+| | Once a published assignment has submissions, only its description may change — the goalposts cannot move under work already handed in. |
+| **Submissions** | One per student per assignment (unique DB constraint); resubmitting updates that row. |
+| | Must contain text, a file, or both — never nothing. |
+| | Submitting after the deadline marks it `Late`; late and graded submissions cannot be edited. Editing after the deadline needs `allowResubmission`. |
+| | Marks are bounded by the assignment maximum and cannot be negative; feedback ≤ 2000 chars. |
+| | A teacher may change a submission's status, except to `Late` — that is derived from the deadline. |
+| | Attachments capped per owner (3 per submission, 5 per assignment); removing the last file from a submitted submission is refused. |
+| **Organisation** | A class studies a course once; an offering has at most one teacher. |
+| | An offering cannot be dropped while a teacher or any assignment still references it (`409`, with what to unwind). |
+| | A student cannot lose their only class — enrol in the new one first. A student is created together with their first enrollment in one transaction. |
+| | Unique emails and course codes; only teachers hold a staff id, only students a student id; a mapping can only name an active teacher. |
+
+## Technology stack
+
+**Backend** — ASP.NET Core 10 / C# · Clean Architecture (Domain / Application / Infrastructure /
+Api / Shared) · CQRS dispatcher with a decorator pipeline · EF Core 10 + Npgsql · PostgreSQL 17 ·
+FluentValidation · Serilog · Swashbuckle · Mapperly · MailKit · xUnit + FluentAssertions + Moq +
+Testcontainers. Warnings are errors, with code style enforced in the build.
+
+**Frontend** — Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui ·
+TanStack Query · React Hook Form + Zod · Axios.
+
+**Database** — PostgreSQL, UUID keys, Fluent API only (no data annotations in the domain), soft
+delete via global query filters, optimistic concurrency on every entity through Postgres `xmin`.
+
+```
+backend/src/
+  AssignmentSystem.Domain/          Entities, value objects, enums — no external dependencies
+  AssignmentSystem.Application/     Commands/queries + handlers, validators, DTOs, specifications,
+                                    authorization attributes and the decorator pipeline
+  AssignmentSystem.Infrastructure/  DbContext, migrations, repositories, JWT, file storage,
+                                    SMTP + outbox dispatcher, seeder
+  AssignmentSystem.Api/             Controllers, middleware, Swagger, rate limiting, Program.cs
+  AssignmentSystem.Shared/          Result<T>/Error, pagination primitives
+backend/tests/                      Application.Tests (unit) · Api.Tests (integration)
+frontend/src/
+  app/                              (auth) login + set-password · (dashboard) role-gated pages
+  components/                       ui (shadcn) · layout · shared · features (per-role views)
+  context/ hooks/ lib/ schemas/     Session, TanStack Query hooks, Axios client, Zod schemas
+  proxy.ts                          Route gate (Next 16's renamed middleware) — cookie presence only
+docker-compose.yml                  postgres + mailpit + api + web
+```
+
+## Data model
+
+Thirteen tables. Audit columns (`created_at_utc`, `updated_at_utc`, `created_by`, `updated_by`)
+and the `xmin` concurrency token exist on all of them and are omitted here; the file tables also
+carry `content_type`, `file_size_bytes` and `stored_file_name`.
+
+```mermaid
+erDiagram
+    users ||--o{ student_enrollments : "is enrolled by"
+    classes ||--o{ student_enrollments : "has roster"
+    classes ||--o{ class_courses : studies
+    courses ||--o{ class_courses : "is offered to"
+    class_courses ||--o| teacher_assignments : "is taught via"
+    users ||--o{ teacher_assignments : teaches
+    class_courses ||--o{ assignments : scopes
+    users ||--o{ assignments : authors
+    assignments ||--o{ assignment_files : "has material"
+    assignments ||--o{ submissions : "is answered by"
+    users ||--o{ submissions : submits
+    submissions ||--o{ submission_files : "has attachments"
+    users ||--o{ refresh_tokens : holds
+    users ||--o{ password_setup_tokens : "is issued"
+    users ||--o{ notifications : "is mailed"
+
+    users {
+        uuid id PK
+        varchar email UK
+        varchar full_name
+        text password_hash
+        int role "0 Admin, 1 Teacher, 2 Student"
+        varchar student_id UK "students only, like XII-A-001"
+        varchar teacher_id UK "teachers only, like INS-001"
+        boolean is_active
+        int failed_login_attempts
+        timestamptz lockout_end_utc
+        boolean is_deleted "soft delete"
+    }
+    classes {
+        uuid id PK
+        varchar name
+        int level "grade 1..12, shown as a Roman numeral"
+        varchar section
+    }
+    courses {
+        uuid id PK
+        varchar name
+        varchar code UK
+    }
+    class_courses {
+        uuid id PK
+        uuid class_id FK
+        uuid course_id FK
+    }
+    student_enrollments {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        timestamptz enrolled_at_utc
+    }
+    teacher_assignments {
+        uuid id PK
+        uuid teacher_id FK
+        uuid class_course_id FK "unique, one teacher per offering"
+    }
+    assignments {
+        uuid id PK
+        uuid class_course_id FK
+        uuid teacher_id FK "author"
+        varchar title
+        text description
+        timestamptz deadline_utc
+        numeric max_marks
+        int status "0 Draft, 1 Published"
+        boolean allow_resubmission
+        int submission_count
+        boolean is_deleted "soft delete"
+    }
+    submissions {
+        uuid id PK
+        uuid assignment_id FK
+        uuid student_id FK
+        text content "nullable, file-only allowed"
+        int status "0 Pending, 1 Submitted, 2 Graded, 3 Late"
+        timestamptz submitted_at_utc
+        numeric marks
+        numeric marks_out_of
+        text feedback
+        uuid reviewed_by_id FK
+        timestamptz reviewed_at_utc
+    }
+    assignment_files {
+        uuid id PK
+        uuid assignment_id FK
+        uuid uploaded_by_id FK
+        varchar original_file_name
+        varchar relative_path "bytes live on disk, not here"
+    }
+    submission_files {
+        uuid id PK
+        uuid submission_id FK
+        uuid uploaded_by_id FK
+        varchar original_file_name
+        varchar relative_path "bytes live on disk, not here"
+    }
+    refresh_tokens {
+        uuid id PK
+        uuid user_id FK
+        varchar token_hash UK "SHA-256, never the plaintext"
+        timestamptz expires_at_utc
+        timestamptz revoked_at_utc
+        varchar replaced_by_token_hash
+    }
+    password_setup_tokens {
+        uuid id PK
+        uuid user_id FK
+        varchar token_hash UK "SHA-256, never the plaintext"
+        timestamptz expires_at_utc
+        timestamptz consumed_at_utc "single use"
+    }
+    notifications {
+        uuid id PK
+        uuid recipient_id FK
+        varchar recipient_email "snapshotted at queue time"
+        int type "0..5, see NotificationType"
+        varchar subject
+        text body
+        int status "0 Pending, 1 Sent, 2 Failed, 3 Processing"
+        int attempt_count
+        timestamptz next_attempt_at_utc "backoff"
+        timestamptz claimed_at_utc "dispatcher claim / liveness"
+        varchar last_error
+        uuid assignment_id "context only, no FK"
+        uuid submission_id "context only, no FK"
+    }
+```
+
+Two junction tables carry the design:
+
+- **`class_courses` is the course offering** — "this class studies this course" as a real row.
+  Teaching mappings and assignments both point at it, so a teacher can never be mapped to a pair
+  the class does not study, and an assignment's class and course cannot disagree: one column, not
+  two.
+- **`student_enrollments` is class membership** — a row per (student, class) rather than a
+  `users.class_id` column, so a student can sit in more than one class and the join date is
+  recorded. This is the gate for "a student only sees their own classes".
+
+Other decisions:
+
+- **`uuid` keys, not `bigint`** — ids travel in URLs and JWTs, so non-enumerable beats compact.
+- **`assignments` stores its author directly** and holds no link to the teaching mapping, so
+  removing a mapping cannot orphan authorship of work already set.
+- **Two file tables, not one polymorphic one** — a teacher owns assignment material, a student
+  owns their own attachments; the authorization rules share nothing.
+- **`notifications` has no FK to the assignment or submission it mentions** — the outbox must
+  outlive what it was about. `recipient_email` is snapshotted for the same reason.
+- **Tokens are stored as SHA-256 hashes**, so a database dump cannot be replayed.
+- **One `users` table for all roles**, with `student_id` / `teacher_id` unique but nullable —
+  Postgres allows many nulls in a unique index, so each constraint binds only its own role.
+
+**Ten unique constraints** back the rules above: `users.email`, `users.student_id`,
+`users.teacher_id`, `courses.code`, `class_courses(class_id, course_id)`,
+`teacher_assignments.class_course_id`, `student_enrollments(student_id, class_id)`,
+`submissions(assignment_id, student_id)`, and the two token hashes.
+
+**Delete behaviour is per relationship**, not left at the default: Cascade where a row is a pure
+link or a child (`classes`→offerings, assignment→submissions/files, submission→files, user→
+enrollments/tokens/notifications); Restrict where deleting would destroy meaning
+(`courses`→offerings, offering→assignments, user→authored assignments); Set null for historical
+attribution (`reviewed_by_id`, `uploaded_by_id`). `users` and `assignments` are soft-deleted in
+practice, so the Restrict rules only guard a genuine hard delete. The `notifications` index is
+partial — `WHERE status IN (0, 3)` — so the dispatcher's claim query stays proportional to the
+backlog rather than to an ever-growing outbox.
+
+### Database and seed data
+
+Schema creation is entirely EF Core migrations (11 of them, under
+`Infrastructure/Migrations/`), applied on startup or via `dotnet ef database update`. **No SQL
+script needs running by hand.** The offering/enrollment migration backfills existing data —
+deriving offerings from the (class, course) pairs in use and copying `users.class_id` into
+`student_enrollments` before dropping the column — so an upgrade keeps its rosters instead of
+producing a valid schema full of empty GUIDs.
+
+`DbSeeder` runs idempotently on startup (skipped once the admin exists) and builds a plausible
+small school rather than three lonely accounts:
+
+| classes | courses | offerings | users | enrollments | teaching mappings | assignments | submissions |
+|---|---|---|---|---|---|---|---|
+| 14 | 9 | 86 | 83 | 70 | 86 | 8 (7 published, 1 draft) | 7 (across all four statuses) |
+
+Grades 6–12 in sections A and B; grades 6–8 study five subjects, grades 9–12 study seven; 12
+teachers round-robin across every offering; 5 students per class. **No notifications are
+seeded** — they are a consequence of publishing, submitting or grading, and a manufactured
+backlog would mean a fresh checkout emailing seventy fictional addresses on startup. Publish an
+assignment to watch the outbox fill.
+
+## API
+
+Base path `api/v1`; Swagger (`/swagger`) is the live contract. Successes are
+`{ success, data, message }` plus a `pagination` block on lists; failures are RFC 7807
+ProblemDetails carrying a `code` and the request's `traceId`. Every list endpoint takes
+`page`, `pageSize`, `search`, `sortBy`, `sortDir` and its own filters.
+
+Where the role says *Any*, the handler narrows the result to what that caller may see rather
+than returning everything.
+
+| Area | Endpoints | Role |
+|---|---|---|
+| Auth | `POST login` · `POST refresh` · `POST logout` · `GET`/`POST set-password` | Anonymous |
+| | `GET me` | Any |
+| Users | `GET`/`POST /users` · `GET`/`PUT`/`DELETE /users/{id}` | Admin (delete is soft) |
+| Classes, Courses | `GET` list and by id | Any |
+| | `POST` · `PUT` · `DELETE` | Admin |
+| Offerings | `GET /class-courses` | Admin, Teacher |
+| | `POST` · `DELETE` | Admin (delete refused while in use) |
+| Teaching mappings | `GET /teacher-assignments` | Admin, Teacher |
+| | `POST` · `DELETE` | Admin |
+| Enrollments | `GET /enrollments` | Admin, Teacher (scoped to taught classes) |
+| | `POST` · `DELETE` | Admin (never the last class) |
+| | `GET /enrollments/me/courses` | Student |
+| Assignments | `GET` list and by id | Any (students: published, own classes) |
+| | `POST` · `PUT` · `DELETE` · `POST {id}/publish` | Teacher (author; author from token) |
+| | `POST {id}/attachments/upload` · `DELETE attachments/{id}` | Teacher (author) |
+| | `GET attachments/{id}` | Any (authorized stream) |
+| Submissions | `GET` list and by id | Any (own / own assignments / all) |
+| | `POST assignments/{id}/submissions` · `PUT {id}` · `upload` · `DELETE files/{id}` | Student (owner) |
+| | `GET assignments/{id}/submissions/me` | Student |
+| | `POST {id}/review` | Teacher (author of the assignment) |
+| | `GET files/{id}` | Any (as reachable as its submission) |
+| Notifications | `GET /notifications` | Any (non-admins scoped to their own mail) |
+| | `GET summary` · `POST {id}/retry` · `POST dispatch` | Admin |
+| Health | `GET /health` | Anonymous |
+
+## Security
+
+**No password is ever emailed.** An admin creating an account cannot hand the password over in
+person, and mail is plaintext through relays nobody here operates — a password that has been
+emailed should be treated as public. So the welcome mail carries a **single-use link** instead:
+
+1. The user, a `PasswordSetupToken` and the notification are written in one transaction, so an
+   account can never exist with no way for its owner to reach it.
+2. Only the token's SHA-256 hash is stored; the plaintext exists in that email and nowhere else.
+3. `/set-password?token=…` validates the link with `GET /auth/set-password` **before** showing
+   the form, so a dead link says so rather than being discovered after typing a password twice.
+4. `POST /auth/set-password` sets the password, marks the token consumed, and revokes every
+   refresh token the account held — the account has just changed hands.
+
+Both endpoints are anonymous by necessity, with possession of the token as the authorisation, and
+every rejection returns the same error (unknown, expired, spent, deactivated alike) so nobody can
+tell "not a token" from "a real token, already used". Lifetime is
+`Auth__PasswordSetupTokenHours` (48); the link is built from `Email__AppBaseUrl`. The route gate
+deliberately lets a signed-in browser reach `/set-password` — the link belongs to whoever's
+mailbox it arrived in, not to whichever cookie is in that browser.
+
+**Sign-in has two independent defences**, because neither covers the other's gap.
+
+| Defence | Setting | Default | Stops |
+|---|---|---|---|
+| Per-IP rate limit on credential endpoints | `RateLimiting__CredentialsPerMinute` | `10` | One caller working through a wordlist. `429` with `Retry-After`, refused rather than queued. |
+| Per-account lockout | `Auth__MaxFailedLoginAttempts` / `Auth__LockoutMinutes` | `5` / `15` | A distributed guess, which slips under any per-IP limit but still lands on one account. |
+
+While locked the password is not even checked, so the account cannot be used as an oracle, and a
+lockout returns the same `401 Auth.InvalidCredentials` as a wrong password — saying "locked"
+would confirm the address exists and reveal when to return. A successful sign-in, or redeeming a
+setup link, clears the counter. Nothing but the credential endpoints is rate limited; a classroom
+reading assignment lists should not be throttled.
+
+## Notifications
+
+Six events send mail, each queued by the handler that performs the change, in the same
+transaction. Nothing is triggered by hand.
+
+| Event | Recipient |
+| --- | --- |
+| An account is created | its owner, with a link to set a password |
+| A teacher is assigned to an offering | that teacher |
+| A student is enrolled in a class | that student (one mail listing the class's courses) |
+| An assignment is published | every student enrolled in its class |
+| A submission is received | the teacher who owns the assignment |
+| A submission is graded | the student who owns it |
+
+Moving a submission back to `Pending` for re-evaluation sends nothing — that is bookkeeping, and
+mailing it would announce marks that were just withdrawn.
+
+**Why an outbox rather than sending inline.** The row is committed with the change that caused
+it; `NotificationDispatcher` sweeps every `Email__DispatchIntervalSeconds` and sends afterwards.
+A slow or misconfigured SMTP server therefore cannot fail the publish, submit or grade that
+triggered it; nothing is silently lost when one does; retries are bounded
+(`Email__MaxDeliveryAttempts`) with the failure reason kept on the row; and tests assert on rows
+instead of intercepting mail.
+
+- **Retries back off** exponentially from `Email__RetryBackoffSeconds`, so an unreachable server
+  is not hit once per sweep until the attempt budget is gone.
+- **Sweeps claim their work** with `FOR UPDATE SKIP LOCKED`, so concurrent dispatchers take
+  disjoint batches and several API instances mail each notification once. Rows stranded by a
+  dispatcher that died are reclaimed after `Email__ClaimTimeoutSeconds`. One bad address does not
+  block the queue behind it. A retry can duplicate a mail accepted just before a crash — the
+  right trade: a notice arriving twice is a nuisance, never arriving is a missed deadline.
+- **Three working configurations:** Mailpit (the Compose default — a real SMTP handshake, readable
+  at http://localhost:8025, nothing leaving the machine); a real provider (set `Host`, `Port`,
+  `UseSsl` and `FromAddress` together; Gmail needs an App Password); or **`Email__Host` empty**,
+  where notifications are still queued and their full contents written to the log. Nothing
+  silently does nothing.
+
+**Admin → Notifications** exposes the outbox: pending/sent/failed counts, each message's subject
+and body, the error behind any failure, a *Send queued now* button, and a retry on exhausted
+rows. Teachers and students can read the same endpoint, scoped server-side to their own mail.
+
+## Tests
+
+```bash
+cd backend && dotnet test
+```
+
+**216 tests, all passing.**
+
+| Project | Tests | Covers |
+|---|---|---|
+| `Application.Tests` | 64 | Domain invariants (assignment lifecycle, submission state machine, marks bounds, outbox backoff), handlers with mocked repositories, the authorization pipeline, the upload policy. No external dependencies. |
+| `Api.Tests` | 152 | End-to-end via `WebApplicationFactory` against a **real Postgres container** (Testcontainers): per-endpoint authorization, the submit → grade workflow, enrollment and offering rules, DB constraints, login throttling, rate limiting, password setup, paging/sorting determinism, request hardening, and outbox behaviour including concurrent claims. |
+
+`dotnet test tests/AssignmentSystem.Application.Tests` runs the fast half with no Docker. The
+integration project **needs Docker running** — Testcontainers starts and disposes the database
+itself. Frontend: `npm run lint` (no automated frontend tests — see
+[Limitations](#known-limitations)).
+
+## Configuration
+
+Every setting is an ASP.NET Core configuration key, so it works from `appsettings.json` or an
+environment variable with `__` for nesting. `.env.example` documents all of them; copy it to
+`.env` for Compose. **No real secret is committed** — `Jwt__Key` ships as an obvious placeholder
+and mail credentials are blank.
+
+| Key | Default | Purpose |
+|---|---|---|
+| `ConnectionStrings__Default` | local Postgres | EF Core connection string |
+| `Jwt__Key` | placeholder — **change it** | HMAC signing key, ≥ 32 characters |
+| `Jwt__AccessTokenMinutes` / `RefreshTokenDays` | `5` / `7` | Token lifetimes |
+| `Cors__Origins__0` | `http://localhost:3000` | Allowed frontend origins |
+| `Auth__PasswordSetupTokenHours` / `MinimumPasswordLength` | `48` / `6` | Setup link validity, password floor |
+| `Auth__MaxFailedLoginAttempts` / `LockoutMinutes` | `5` / `15` | Per-account lockout |
+| `RateLimiting__CredentialsPerMinute` | `10` | Per-IP cap on credential endpoints |
+| `FileStorage__Root` | `../_uploads` (`/data/submissions` in Docker) | Where uploaded bytes live |
+| `FileStorage__MaxBytes` | 10 MB | Per-file cap; also drives the multipart body limit |
+| `FileStorage__MaxFilesPerSubmission` / `MaxFilesPerAssignment` | `3` / `5` | Attachment counts |
+| `FileStorage__AllowedExtensions__*` | pdf, docx, doc, txt, png, jpg, jpeg | Only types whose signature can be verified |
+| `Email__Host` / `Port` / `UseSsl` / `Username` / `Password` | Mailpit in Docker, empty otherwise | SMTP; empty host logs instead of sending |
+| `Email__FromAddress` / `FromName` / `AppBaseUrl` | see `.env.example` | Sender identity, and the base for links in mail |
+| `Email__EnableDispatcher` / `DispatchIntervalSeconds` / `BatchSize` | `true` / `30` / `25` | Background sweep |
+| `Email__MaxDeliveryAttempts` / `RetryBackoffSeconds` / `ClaimTimeoutSeconds` | `3` / `30` / `300` | Retry budget, backoff base, reclaim window |
+| `Database__AutoMigrate` / `SeedOnStartup` | `true` / `true` | Migrate and seed on boot |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:5269` | Frontend → API base origin (no `/api/v1`) |
 
 ## Assumptions
 
-Documented per the assignment brief's request to record assumptions where requirements weren't explicit:
+Recorded where the requirements were not explicit.
 
-1. **PostgreSQL over MongoDB** — the domain is highly relational (users ↔ classes ↔ courses ↔ offerings ↔ assignments ↔ submissions) with FK/cascade rules and several composite unique constraints that a relational schema enforces naturally.
-2. **`Class` and `Course` are separate, joined by a `ClassCourse` offering** — the brief's "class/course" is really two things: the cohort of students, and the subject being taught. The offering is the pair, and it is what teachers are assigned to and assignments are scoped to.
-3. **A student may be enrolled in more than one class** — membership is a `StudentEnrollment` row rather than a column. In practice the seeded students each have one, but the model does not forbid a second, and an admin can add one from the class roster.
-4. **One submission per student per assignment** — resubmission updates the existing row until the deadline, gated per-assignment by an `AllowResubmission` flag.
-5. **An admin creating an assignment must name its teacher** — there is no "current teacher" to fall back on, and an assignment whose author cannot publish or grade it would be stuck. A teacher's own request ignores any teacher id in the body and uses their token identity, so authorship cannot be spoofed.
-6. **Notifications are email-only, and delivery state is visible to admins** — the brief lists notifications as optional; this implements them as a transactional outbox rather than fire-and-forget, and exposes the queue rather than hiding failures in logs. See [Email Notifications](#email-notifications).
-7. **Soft delete only for `Assignment` and `User`** — both may need to be restored and are referenced by history (submissions, grading records) that must stay intact. Other entities hard-delete with restrict/cascade rules.
-8. **Refresh tokens are included** even though the brief doesn't require them — a browser client needs sessions longer than a short-lived access token safely allows; the refresh token rotates and is stored hashed, with reuse-detection revoking the whole token family.
-9. **Custom identity, not ASP.NET Identity** — a single `ApplicationUser` entity discriminated by a `Role` enum, to keep the domain model clean and match "design the entities yourself."
-10. **Self-registration is disabled** — this is a closed, Admin-provisioned system (a school doesn't let students register themselves).
-11. **Submissions support both a text answer and file attachments** — files are stored on disk (a Docker volume in the compose setup) via an `IFileStorage` abstraction; only metadata lives in the database.
-12. **Single-school deployment** — no multi-tenancy.
-13. **All timestamps are stored and compared in UTC.**
+1. **PostgreSQL over MongoDB** — the domain is highly relational, with cascade rules and ten
+   unique constraints a relational schema enforces naturally.
+2. **Class and Course are separate, joined by a `ClassCourse` offering** — "class/course" is two
+   things: the cohort, and the subject taught to it.
+3. **A student may be enrolled in more than one class** — membership is a row, not a column.
+4. **One submission per student per assignment**, updated in place until the deadline, gated by
+   the assignment's `AllowResubmission`.
+5. **Only a teacher creates an assignment, always as its author** — the id comes from the token,
+   never the body, so authorship cannot be spoofed and no assignment can exist that its author
+   may not publish or grade. Admins have full visibility but do not author work for teachers.
+6. **One teacher per offering.** Co-teaching would mean relaxing a single unique index; nothing
+   else in the authorization model depends on it.
+7. **Notifications are email-only, with delivery state visible to admins** — an outbox rather
+   than fire-and-forget, exposing failures instead of burying them in logs.
+8. **Soft delete only for `Assignment` and `User`** — both are referenced by history that must
+   stay intact. Everything else hard-deletes under the rules above.
+9. **Refresh tokens are included** though not required: a browser needs sessions longer than a
+   five-minute access token safely allows.
+10. **Custom identity, not ASP.NET Core Identity** — one `ApplicationUser` discriminated by a
+    `Role` enum, to keep the model explicit and the schema legible.
+11. **Self-registration is disabled** — a closed, admin-provisioned system.
+12. **Submissions may carry text, files, or both;** bytes go to disk behind `IFileStorage`, only
+    metadata to the database.
+13. **Marks are `numeric(5,2)`**, rounded at the domain boundary so the stored and validated
+    values cannot disagree.
+14. **Single school, no multi-tenancy.** **All timestamps are UTC.**
 
-## Known Limitations
+## Known limitations
 
-- **No virus/malware scanning on uploaded files.** Uploads are validated by extension allow-list, size cap, and magic-byte signature check, but bytes are not scanned by an AV engine (e.g. ClamAV) before being persisted.
-- **Notifications cover six events, and every one of them is a reaction to a state change.** A *deadline approaching* reminder is not implemented, because it needs a scheduled job scanning for upcoming deadlines rather than something to react to, and there is no in-app notification centre for end users (only the admin outbox view). Un-enrolling a student and removing a teacher's course mapping are also silent — the outbox announces access being granted, not withdrawn.
-- **No forgot-password flow, and no way to re-send a setup link.** The `PasswordSetupToken` machinery would serve both, but nothing issues a token outside account creation, so an expired link means an admin sets the password directly instead. See [Account Setup](#account-setup).
-- **The setup token rides in a URL query string,** so it can reach a proxy or browser-history entry. Mitigated by being single-use and short-lived rather than eliminated; the password itself only ever goes in a POST body.
-- **No localisation.** Bodies are HTML built in code with a derived plain-text part — deliberately, since HTML mail needs escaping, a text fallback, and inline-CSS work to survive real clients — but that means no branding and no per-recipient language.
-- **No plagiarism detection** on submitted text answers.
-- **Pagination is API-complete but not fully surfaced in the UI** — list endpoints support `page`/`pageSize`/`search`, but the frontend currently fetches up to 100 rows per list rather than exposing page-through controls (acceptable at the current seeded data volume).
-- **Multi-class enrollment is supported by the model but thinly surfaced.** The schema, API and rule checks all handle a student in several classes; the UI shows them joined in the header and the user list, but there is no dedicated "my classes" screen.
-- **The outbox is never pruned.** Sent notifications accumulate; a real deployment would archive or delete rows past a retention window.
-- **No frontend automated test suite** — testing focus (per the brief) went into backend business-rule, authorization and workflow tests.
-- **Local/Docker-volume file storage only** — `IFileStorage` is an interface specifically so a cloud backend (S3/Azure Blob) could be swapped in later, but that swap isn't implemented.
-- **Single-region, non-HA setup** — this is a local/demo deployment (Docker Compose), not a production topology (no managed Postgres, no reverse proxy/HTTPS termination). The application itself is no longer the obstacle to running several API instances — the outbox claims rows with `SKIP LOCKED` and sessions carry no server-side state — but local file storage still pins uploads to one machine, so horizontal scaling waits on the cloud storage backend above.
-- **Rate limiting is per-instance, held in memory.** Behind several API replicas each keeps its own counters, so the effective limit multiplies by the replica count. The per-account lockout is in the database and so is unaffected; a shared limiter (Redis) would be the fix.
-
-## License
-
-Recruitment project — © OnnoRokom Projukti Limited.
+- **No virus scanning on uploads.** Extension, size and magic-byte checks only.
+- **Notifications only react to state changes.** No deadline reminders (that needs a scheduled
+  job), no in-app notification centre for end users, and no mail when access is *withdrawn* —
+  un-enrolling a student or removing a teacher's mapping is silent.
+- **No forgot-password flow and no way to re-send a setup link.** The token machinery would serve
+  both, but nothing issues a token outside account creation, so an expired link means an admin
+  sets the password directly.
+- **The setup token rides in a query string,** so it can reach a proxy log. Mitigated by being
+  single-use and short-lived, not eliminated; the password itself only ever goes in a POST body.
+- **No localisation**, and no branding in mail — bodies are HTML built in code with a derived
+  plain-text part.
+- **No plagiarism detection.**
+- **Reference-data lookups are unpaged.** List screens page properly, but dropdowns that need a
+  whole catalogue fetch the first 100–200 rows. Fine at this volume; a large school would want a
+  searchable async select.
+- **Multi-class enrollment is thinly surfaced.** Schema, API and rules all support it; the UI
+  shows the classes joined but has no dedicated screen.
+- **The outbox is never pruned.** A real deployment would archive past a retention window.
+- **No frontend test suite and no CI pipeline** — the testing effort went into backend
+  business-rule, authorization and workflow coverage; `dotnet test` and `npm run lint` run
+  locally.
+- **Local file storage only.** `IFileStorage` exists so S3/Azure Blob could be dropped in; that
+  swap is not implemented — and it is what still pins the API to one machine, since the outbox
+  already claims rows with `SKIP LOCKED` and sessions hold no server-side state.
+- **Rate limiting is per-instance and in memory,** so N replicas multiply the effective limit.
+  The per-account lockout is in the database and unaffected; Redis would be the fix.
+- **Single-region demo topology** — Docker Compose, no managed Postgres, no HTTPS termination.

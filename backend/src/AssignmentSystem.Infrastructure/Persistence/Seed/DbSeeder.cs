@@ -227,8 +227,12 @@ public sealed class DbSeeder
         await _context.SaveChangesAsync(ct); // persist to resolve generated IDs
 
         // ── Enrollments: one class each, matching the placements above ─────────────
-        _context.StudentEnrollments.AddRange(
-            studentPlacements.Select(p => StudentEnrollment.Create(p.Student.Id, p.Class.Id, now)));
+        // Materialized rather than added straight from the projection so the summary below
+        // reports what was actually written instead of a number that happens to match.
+        var enrollments = studentPlacements
+            .Select(p => StudentEnrollment.Create(p.Student.Id, p.Class.Id, now))
+            .ToList();
+        _context.StudentEnrollments.AddRange(enrollments);
 
         // ── Course offerings: each grade studies only the subjects that fit its stage ─
         //   • Lower grades (6–8): Bangla, English, General Math, General Science, ICT  (5)
@@ -345,11 +349,16 @@ public sealed class DbSeeder
             .ToList();
         var mahinLate = class12BStudents[0];
 
+        // Collected rather than added one by one, so the summary below counts the rows that
+        // were actually built. Adding a submission here and forgetting to update a hard-coded
+        // total is exactly how the previous count came to be wrong.
+        var submissions = new List<Submission>();
+
         void Submit(Assignment assignment, ApplicationUser student, string content, TimeSpan ago, bool finalize)
         {
             var submission = Submission.Create(assignment.Id, student.Id, content, hasFile: false, assignment, new FixedClock(now - ago), finalize);
             assignment.IncrementSubmissionCount();
-            _context.Submissions.Add(submission);
+            submissions.Add(submission);
         }
 
         void SubmitAndGrade(Assignment assignment, ApplicationUser student, string content, TimeSpan submittedAgo, TimeSpan gradedAgo, decimal marks, string feedback)
@@ -357,7 +366,7 @@ public sealed class DbSeeder
             var submission = Submission.Create(assignment.Id, student.Id, content, hasFile: false, assignment, new FixedClock(now - submittedAgo), finalize: true);
             assignment.IncrementSubmissionCount();
             submission.Grade(marks, feedback, assignment.TeacherId, assignment, new FixedClock(now - gradedAgo));
-            _context.Submissions.Add(submission);
+            submissions.Add(submission);
         }
 
         // Class 12-A assignments — the demo student and a couple of classmates.
@@ -373,15 +382,18 @@ public sealed class DbSeeder
         // Class 12-B late submission.
         Submit(aLate, mahinLate, "Submitting a little late — solved all the integration problems.", TimeSpan.FromMinutes(-75), finalize: true);
 
+        _context.Submissions.AddRange(submissions);
+
         await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation(
             "Seed complete: {Classes} classes, {Courses} courses, {Offerings} offerings, {Teachers} teachers, " +
             "{Students} students, {Enrollments} enrollments, {TeacherAssignments} teaching mappings, " +
-            "{Assignments} assignments, {Submissions} submissions. " +
+            "{Assignments} assignments ({PublishedAssignments} published), {Submissions} submissions. " +
             "Demo logins — admin={Admin}, teacher={Teacher}, student={Student}",
             classes.Length, courses.Length, offerings.Count, teachers.Length,
-            students.Count, students.Count, teacherAssignments.Count, assignments.Count, 8,
+            students.Count, enrollments.Count, teacherAssignments.Count,
+            assignments.Count, assignments.Count(a => a.Status == AssignmentStatus.Published), submissions.Count,
             AdminEmail, TeacherEmail, StudentEmail);
     }
 
