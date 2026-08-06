@@ -17,83 +17,200 @@ namespace AssignmentSystem.Application.Features.Notifications;
 /// is passed in — so the wording is unit-testable on its own, and the queue stays about
 /// persistence rather than prose.
 ///
+/// Every message follows the same shape: an eyebrow pill naming what kind of mail this is, a
+/// title naming the thing it is about, a short lede, a detail table of the structured facts,
+/// then whatever body content is specific to the event (a description, feedback, files…), and
+/// finally a call to action. The goal is that every fact the recipient would otherwise have to
+/// open the app to find — who, what, when, how much, attached to what — is already in the mail.
+///
 /// <b>Escaping is this class's responsibility.</b> It is the boundary that knows which entity
-/// fields are user-authored (assignment titles and descriptions, teacher feedback, names, IDs)
-/// and runs every such value through <see cref="WebUtility.HtmlEncode"/> before it reaches
-/// <see cref="EmailTemplates"/>, which trusts its inputs. A blanket escape over whole assembled
-/// strings would escape the template's own tags, so escaping is per-value at the point of use.
+/// fields are user-authored (assignment titles and descriptions, teacher feedback, names, IDs,
+/// submitted text) and runs every such value through <see cref="WebUtility.HtmlEncode"/> before
+/// it reaches <see cref="EmailTemplates"/>, which trusts its inputs. A blanket escape over whole
+/// assembled strings would escape the template's own tags, so escaping is per-value at the point
+/// of use.
 ///
 /// Subjects stay plain text on purpose: they are not rendered as HTML anywhere, and the test
 /// suite asserts on them as substrings.
 /// </summary>
 internal static class NotificationMessages
 {
+    /// <summary>Submitted text answers are shown in full up to this length; longer ones are
+    /// clipped with a pointer to the app, so one very long answer cannot blow up the mail.</summary>
+    private const int ContentPreviewLimit = 600;
+
+    /// <summary>Teacher feedback is shown in full up to this length, mirroring the content
+    /// preview limit — feedback can run to the domain's 2000-character cap.</summary>
+    private const int FeedbackPreviewLimit = 800;
+
     public static (string Subject, string Body) AssignmentPublished(
         Assignment assignment, ClassCourse offering, string recipientName, string appBaseUrl)
     {
         var subject = $"New assignment: {assignment.Title} ({offering.Course.Name})";
+        var teacherName = assignment.Teacher?.FullName;
+
+        var rows = new List<(string, string)>
+        {
+            ("📘 Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
+            ("🏫 Class", GradeLine(offering.Class)),
+        };
+        if (!string.IsNullOrWhiteSpace(teacherName))
+        {
+            rows.Add(("👨‍🏫 Posted by", Esc(teacherName)));
+        }
+        rows.Add(("⏰ Deadline", Esc(FormatDeadline(assignment.DeadlineUtc))));
+        rows.Add(("🏆 Max marks", Esc(FormatMarks(assignment.MaxMarks))));
+        rows.Add(("🔁 Resubmission", assignment.AllowResubmission
+            ? EmailTemplates.Badge("Allowed until the deadline", Tone.Success)
+            : EmailTemplates.Badge("Not allowed — single submission", Tone.Warning)));
 
         var content = new StringBuilder()
+            .Append(EmailTemplates.Eyebrow("New assignment"))
+            .Append(EmailTemplates.Title(Esc(assignment.Title)))
             .Append(Paragraph($"Hello {Esc(recipientName)},"))
             .Append(Paragraph("A new assignment has been published for your class. Here are the details:"))
-            .Append(DetailTable(
-                ("Assignment", Esc(assignment.Title)),
-                ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-                ("Class", Esc(offering.Class.Name)),
-                ("Deadline", Esc(FormatDeadline(assignment.DeadlineUtc))),
-                ("Max marks", Esc(FormatMarks(assignment.MaxMarks)))))
+            .Append(DetailTable([.. rows]))
             .Append(Heading("Description"))
-            .Append(Paragraph(Esc(assignment.Description)))
-            .Append(Cta(appBaseUrl, "/assignments", "Open your assignments"))
-            .ToString();
+            .Append(Paragraph(Esc(assignment.Description)));
 
-        return (subject, Wrap("A new assignment has been published.", content));
+        if (assignment.Files.Count > 0)
+        {
+            content.Append(Heading($"Reference materials ({assignment.Files.Count})"))
+                   .Append(Note("Attached by your teacher — open the assignment in the app to download."))
+                   .Append(FileList(assignment.Files.Select(f => (f.OriginalFileName, f.FileSizeBytes))));
+        }
+
+        content.Append(Cta(appBaseUrl, "/assignments", "Open your assignments"));
+
+        return (subject, Wrap($"New assignment \"{assignment.Title}\" — due {FormatDeadline(assignment.DeadlineUtc)}.", content.ToString()));
     }
 
     public static (string Subject, string Body) SubmissionReceived(
-        Assignment assignment, ClassCourse offering, string teacherName, string studentName, Submission submission, string appBaseUrl)
+        Assignment assignment,
+        ClassCourse offering,
+        string teacherName,
+        string studentName,
+        Submission submission,
+        string appBaseUrl,
+        string? studentIdNumber = null)
     {
         var subject = $"Submission received: {assignment.Title} — {studentName}";
+        var isLate = submission.Status == SubmissionStatus.Late;
+
+        var rows = new List<(string, string)>
+        {
+            ("📘 Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
+            ("🏫 Class", Esc(offering.Class.Name)),
+            ("🧑‍🎓 Student", Esc(studentName)),
+        };
+        if (!string.IsNullOrWhiteSpace(studentIdNumber))
+        {
+            rows.Add(("🆔 Student ID", Esc(studentIdNumber)));
+        }
+        rows.Add(("📌 Status", StatusBadge(submission.Status)));
+        rows.Add(("📥 Submitted", Esc(FormatDeadline(submission.SubmittedAtUtc ?? submission.CreatedAtUtc))));
+        rows.Add(("⏰ Deadline was", Esc(FormatDeadline(assignment.DeadlineUtc))));
 
         var content = new StringBuilder()
+            .Append(EmailTemplates.Eyebrow("Submission received", isLate ? Tone.Warning : Tone.Brand))
+            .Append(EmailTemplates.Title(Esc(assignment.Title)))
             .Append(Paragraph($"Hello {Esc(teacherName)},"))
-            .Append(Paragraph($"{Esc(studentName)} has submitted work for your assignment:"))
-            .Append(DetailTable(
-                ("Assignment", Esc(assignment.Title)),
-                ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-                ("Class", Esc(offering.Class.Name)),
-                ("Student", Esc(studentName)),
-                ("Status", Esc(submission.Status.ToString())),
-                ("Submitted", Esc(FormatDeadline(submission.SubmittedAtUtc ?? submission.CreatedAtUtc)))))
-            .Append(Cta(appBaseUrl, "/submissions", "Review submissions"))
-            .ToString();
+            .Append(Paragraph($"{Esc(studentName)} has submitted work for your assignment:"));
 
-        return (subject, Wrap($"{studentName} submitted work for {assignment.Title}.", content));
+        if (isLate)
+        {
+            content.Append(InfoBox(
+                "This submission arrived after the deadline and has been marked <strong>Late</strong>.",
+                Tone.Warning));
+        }
+
+        content.Append(DetailTable([.. rows]));
+
+        if (!string.IsNullOrWhiteSpace(submission.Content))
+        {
+            content.Append(Heading("Written answer"))
+                   .Append(Quote(EscTruncated(submission.Content, ContentPreviewLimit)));
+        }
+
+        if (submission.Files.Count > 0)
+        {
+            content.Append(Heading($"Attachments ({submission.Files.Count})"))
+                   .Append(FileList(submission.Files.Select(f => (f.OriginalFileName, f.FileSizeBytes))));
+        }
+
+        content.Append(Cta(appBaseUrl, "/submissions", "Review submissions"));
+
+        var preheader = isLate
+            ? $"{studentName} submitted {assignment.Title} — after the deadline."
+            : $"{studentName} submitted {assignment.Title}.";
+        return (subject, Wrap(preheader, content.ToString()));
     }
 
     public static (string Subject, string Body) SubmissionGraded(
         Assignment assignment, ClassCourse offering, string studentName, Submission submission, string appBaseUrl)
     {
         var subject = $"Your submission was graded: {assignment.Title}";
+        var wasLate = submission.SubmittedAtUtc is { } submittedAt && submittedAt > assignment.DeadlineUtc;
+
+        var rows = new List<(string, string)>
+        {
+            ("📘 Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
+            ("🏫 Class", Esc(offering.Class.Name)),
+            ("🏆 Score", Esc(FormatScore(submission))),
+        };
+        if (submission.Marks is { } marks)
+        {
+            rows.Add(("📊 Result", EmailTemplates.GradeBadge(marks, submission.MarksOutOf ?? 0m)));
+        }
+        if (submission.ReviewedBy is { } reviewer)
+        {
+            rows.Add(("👨‍🏫 Graded by", Esc(reviewer.FullName)));
+        }
+        if (submission.ReviewedAtUtc is { } reviewedAt)
+        {
+            rows.Add(("🗓️ Graded on", Esc(FormatDeadline(reviewedAt))));
+        }
+        if (submission.SubmittedAtUtc is { } submittedOn)
+        {
+            rows.Add(("📥 You submitted", Esc(FormatDeadline(submittedOn))));
+        }
+        if (wasLate)
+        {
+            rows.Add(("📌 Timing", EmailTemplates.Badge("Late submission", Tone.Warning)));
+        }
 
         var content = new StringBuilder()
+            .Append(EmailTemplates.Eyebrow("Graded", Tone.Success))
+            .Append(EmailTemplates.Title(Esc(assignment.Title)))
             .Append(Paragraph($"Hello {Esc(studentName)},"))
-            .Append(Paragraph("Your submission has been reviewed and graded."))
-            .Append(DetailTable(
-                ("Assignment", Esc(assignment.Title)),
-                ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-                ("Class", Esc(offering.Class.Name)),
-                ("Marks", Esc(FormatScore(submission)))));
+            .Append(Paragraph("Your submission has been reviewed and graded."));
+
+        if (submission.Marks is { } m && submission.MarksOutOf is { } outOf)
+        {
+            content.Append(EmailTemplates.ScoreBar(m, outOf));
+        }
+
+        content.Append(DetailTable([.. rows]));
 
         if (!string.IsNullOrWhiteSpace(submission.Feedback))
         {
             content.Append(Heading("Feedback from your teacher"))
-                   .Append(Paragraph(Esc(submission.Feedback)));
+                   .Append(Quote(EscTruncated(submission.Feedback, FeedbackPreviewLimit)));
+        }
+        else
+        {
+            content.Append(Note("Your teacher did not leave written feedback for this submission."));
+        }
+
+        if (submission.Files.Count > 0)
+        {
+            content.Append(Heading($"Your submitted files ({submission.Files.Count})"))
+                   .Append(FileList(submission.Files.Select(f => (f.OriginalFileName, f.FileSizeBytes))));
         }
 
         content.Append(Cta(appBaseUrl, "/assignments", "View your marks and feedback"));
 
-        return (subject, Wrap("Your submission has been graded.", content.ToString()));
+        return (subject, Wrap($"Your submission for {assignment.Title} has been graded: {FormatScore(submission)}.", content.ToString()));
     }
 
     /// <summary>
@@ -115,21 +232,23 @@ internal static class NotificationMessages
 
         var rows = new List<(string, string)>
         {
-            ("Role", Esc(role)),
-            ("Email", Esc(user.EmailValue)),
+            ("🎭 Role", Esc(Capitalize(role))),
+            ("📧 Email", Esc(user.EmailValue)),
         };
 
         // The school id is how staff will refer to them, so it belongs in the first mail.
         if (user.StudentId is { } studentId)
         {
-            rows.Add(("Student ID", Esc(studentId)));
+            rows.Add(("🆔 Student ID", Esc(studentId)));
         }
         else if (user.TeacherId is { } teacherId)
         {
-            rows.Add(("Teacher ID", Esc(teacherId)));
+            rows.Add(("🆔 Teacher ID", Esc(teacherId)));
         }
 
         var content = new StringBuilder()
+            .Append(EmailTemplates.Eyebrow("Account ready"))
+            .Append(EmailTemplates.Title($"Your {Esc(role)} account is ready"))
             .Append(Paragraph($"Hello {Esc(user.FullName)},"))
             .Append(Paragraph(
                 "An account has been created for you on the Assignment &amp; Submission Management " +
@@ -138,9 +257,10 @@ internal static class NotificationMessages
 
         if (string.IsNullOrWhiteSpace(appBaseUrl))
         {
-            content.Append(Note(
+            content.Append(InfoBox(
                 "No application URL is configured on the server, so the setup link could not be " +
-                "built. Ask your administrator to set <code>Email__AppBaseUrl</code> and re-send this."));
+                "built. Ask your administrator to set <code>Email__AppBaseUrl</code> and re-send this.",
+                Tone.Danger));
         }
         else
         {
@@ -150,31 +270,51 @@ internal static class NotificationMessages
             content.Append(EmailTemplates.Button(url, "Choose your password"));
         }
 
+        content.Append(InfoBox(
+            $"This link works once and expires on <strong>{Esc(FormatDeadline(expiresAtUtc))}</strong>. " +
+            "If it has expired by the time you open it, ask your administrator to send a new one.",
+            Tone.Warning));
+
         content.Append(Note(
-            $"This link works once and expires on {Esc(FormatDeadline(expiresAtUtc))}. " +
-            "If it has expired by the time you open it, ask your administrator to send a new one."));
+            "If you were not expecting this email, no action is needed — no changes are made to " +
+            "this account until the link above is used."));
 
         return (subject, Wrap($"Your {role} account is ready. Choose a password to activate it.", content.ToString()));
     }
 
     public static (string Subject, string Body) TeacherAssignedToCourse(
-        ClassCourse offering, string teacherName, string appBaseUrl)
+        ClassCourse offering,
+        string teacherName,
+        string appBaseUrl,
+        string? teacherIdNumber = null,
+        int? enrolledStudentCount = null)
     {
         var subject = $"You have been assigned to teach {offering.Course.Name} ({offering.Class.Name})";
-        var gradeLine = Esc($"Grade {offering.Class.GradeLabel}") +
-            (offering.Class.Section is { } section ? $", Section {Esc(section)}" : string.Empty);
+
+        var rows = new List<(string, string)>
+        {
+            ("📘 Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
+            ("🏫 Class", GradeLine(offering.Class)),
+        };
+        if (!string.IsNullOrWhiteSpace(teacherIdNumber))
+        {
+            rows.Add(("🆔 Teacher ID", Esc(teacherIdNumber)));
+        }
+        if (enrolledStudentCount is { } count)
+        {
+            rows.Add(("🧑‍🎓 Enrolled students", Esc(count == 1 ? "1 student" : $"{count} students")));
+        }
 
         var content = new StringBuilder()
+            .Append(EmailTemplates.Eyebrow("New course assignment"))
+            .Append(EmailTemplates.Title($"{Esc(offering.Course.Name)} — {Esc(offering.Class.Name)}"))
             .Append(Paragraph($"Hello {Esc(teacherName)},"))
             .Append(Paragraph("You have been assigned to teach a course. You can now create and publish assignments for this class, and grade the work that comes in."))
-            .Append(DetailTable(
-                ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-                ("Class", Esc(offering.Class.Name)),
-                ("Level", gradeLine)))
+            .Append(DetailTable([.. rows]))
             .Append(Cta(appBaseUrl, "/assignments", "Open your assignments"))
             .ToString();
 
-        return (subject, Wrap("You have been assigned to teach a course.", content));
+        return (subject, Wrap($"You have been assigned to teach {offering.Course.Name} for {offering.Class.Name}.", content));
     }
 
     /// <summary>
@@ -186,23 +326,32 @@ internal static class NotificationMessages
     /// to it, and the student should still be told they are in it.
     /// </summary>
     public static (string Subject, string Body) StudentEnrolled(
-        Class @class, IReadOnlyList<Course> courses, string studentName, string? studentIdNumber, string appBaseUrl)
+        Class @class,
+        IReadOnlyList<Course> courses,
+        string studentName,
+        string? studentIdNumber,
+        string appBaseUrl,
+        int? classmateCount = null)
     {
         var subject = $"You have been enrolled in {@class.Name}";
-        var gradeLine = Esc($"Grade {@class.GradeLabel}") +
-            (@class.Section is { } section ? $", Section {Esc(section)}" : string.Empty);
 
         var rows = new List<(string, string)>
         {
-            ("Class", Esc(@class.Name)),
-            ("Level", gradeLine),
+            ("🏫 Class", GradeLine(@class)),
         };
         if (!string.IsNullOrWhiteSpace(studentIdNumber))
         {
-            rows.Add(("Student ID", Esc(studentIdNumber)));
+            rows.Add(("🆔 Student ID", Esc(studentIdNumber)));
         }
+        if (classmateCount is { } count and > 0)
+        {
+            rows.Add(("🧑‍🎓 Classmates", Esc(count == 1 ? "1 other student" : $"{count} other students")));
+        }
+        rows.Add(("📚 Courses", Esc(courses.Count == 1 ? "1 course" : $"{courses.Count} courses")));
 
         var content = new StringBuilder()
+            .Append(EmailTemplates.Eyebrow("Class enrollment"))
+            .Append(EmailTemplates.Title($"Welcome to {Esc(@class.Name)}"))
             .Append(Paragraph($"Hello {Esc(studentName)},"))
             .Append(Paragraph("You have been enrolled in a class."))
             .Append(DetailTable([.. rows]));
@@ -236,6 +385,12 @@ internal static class NotificationMessages
 
     private static string Note(string html) => EmailTemplates.Note(html);
 
+    private static string Quote(string html) => EmailTemplates.Quote(html);
+
+    private static string InfoBox(string html, Tone tone) => EmailTemplates.InfoBox(html, tone);
+
+    private static string FileList(IEnumerable<(string Name, long SizeBytes)> files) => EmailTemplates.FileList(files);
+
     private static string DetailTable(params (string Label, string Value)[] rows) =>
         EmailTemplates.DetailTable(rows);
 
@@ -253,15 +408,31 @@ internal static class NotificationMessages
     {
         var sb = new StringBuilder()
             .Append("<ul style=\"margin:6px 0 14px;padding-left:20px;font-family:Arial,Helvetica,sans-serif;")
-            .Append("font-size:14px;line-height:1.8;color:#1e1e2a;\">");
+            .Append("font-size:14px;line-height:1.9;color:#1e1e2a;\">");
         foreach (var course in courses)
         {
-            sb.Append("<li><strong>").Append(Esc(course.Name))
+            sb.Append("<li>📘 <strong>").Append(Esc(course.Name))
               .Append("</strong> <span style=\"color:#6b6b80;\">(").Append(Esc(course.Code))
               .Append(")</span></li>");
         }
         return sb.Append("</ul>").ToString();
     }
+
+    /// <summary>"Class IX, Section A" — the grade/section line shared by three of the messages.</summary>
+    private static string GradeLine(Class @class)
+    {
+        var line = $"{Esc(@class.Name)} &mdash; Grade {Esc(@class.GradeLabel)}";
+        return @class.Section is { } section ? $"{line}, Section {Esc(section)}" : line;
+    }
+
+    /// <summary>A tone-coloured pill for a submission's lifecycle status.</summary>
+    private static string StatusBadge(SubmissionStatus status) => status switch
+    {
+        SubmissionStatus.Late => EmailTemplates.Badge("Late", Tone.Warning),
+        SubmissionStatus.Graded => EmailTemplates.Badge("Graded", Tone.Success),
+        SubmissionStatus.Submitted => EmailTemplates.Badge("Submitted", Tone.Info),
+        _ => EmailTemplates.Badge(status.ToString(), Tone.Neutral),
+    };
 
     // ── Wording / formatting (unchanged behaviour, kept from the plain-text version) ──
 
@@ -277,6 +448,9 @@ internal static class NotificationMessages
         Role.Student => "student",
         _ => "user",
     };
+
+    private static string Capitalize(string value) =>
+        string.IsNullOrEmpty(value) ? value : char.ToUpperInvariant(value[0]) + value[1..];
 
     /// <summary>
     /// UTC, stated as UTC. Everything is stored in UTC and the recipient's timezone is not
@@ -295,4 +469,21 @@ internal static class NotificationMessages
 
     /// <summary>HTML-escape a user-supplied value for safe insertion into the template.</summary>
     private static string Esc(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
+
+    /// <summary>
+    /// Escapes, then clips to <paramref name="limit"/> characters with an ellipsis and a note
+    /// pointing at the app — so one very long answer or feedback comment cannot make the mail
+    /// itself unreasonably large. Escaping happens first so clipping can never land mid-entity
+    /// (e.g. splitting "&amp;" in two).
+    /// </summary>
+    private static string EscTruncated(string? value, int limit)
+    {
+        var escaped = Esc(value);
+        if (escaped.Length <= limit)
+        {
+            return escaped;
+        }
+
+        return escaped[..limit] + "&hellip; <em>(continued in the app)</em>";
+    }
 }

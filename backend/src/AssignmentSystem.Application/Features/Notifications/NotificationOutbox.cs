@@ -114,7 +114,8 @@ internal sealed class NotificationOutbox : INotificationOutbox
         var studentName = student?.FullName ?? "A student";
 
         var (subject, body) = NotificationMessages.SubmissionReceived(
-            assignment, offering, teacher.FullName, studentName, submission, _settings.AppBaseUrl);
+            assignment, offering, teacher.FullName, studentName, submission, _settings.AppBaseUrl,
+            studentIdNumber: student?.StudentId);
 
         await _notifications.AddAsync(
             Notification.Queue(
@@ -196,8 +197,15 @@ internal sealed class NotificationOutbox : INotificationOutbox
             return;
         }
 
+        // Roster size at the moment of assignment — a teacher gaining a course is naturally
+        // curious how many students that means grading for, and it costs one grouped query
+        // this class already has the repository for.
+        var studentCounts = await _roster.GetStudentCountsAsync([offering.ClassId], ct);
+        var enrolledStudentCount = studentCounts.GetValueOrDefault(offering.ClassId, 0);
+
         var (subject, body) = NotificationMessages.TeacherAssignedToCourse(
-            offering, teacher.FullName, _settings.AppBaseUrl);
+            offering, teacher.FullName, _settings.AppBaseUrl,
+            teacherIdNumber: teacher.TeacherId, enrolledStudentCount: enrolledStudentCount);
 
         await _notifications.AddAsync(
             Notification.Queue(
@@ -237,8 +245,15 @@ internal sealed class NotificationOutbox : INotificationOutbox
             new ClassCourseOfferingsForClassSpecification(enrollment.ClassId), ct);
         var courses = offerings.Select(o => o.Course).ToList();
 
+        // Read before this enrollment's row has been committed (the caller saves after
+        // queueing), so it counts the students already there — precisely "classmates",
+        // not "everyone including yourself".
+        var studentCounts = await _roster.GetStudentCountsAsync([enrollment.ClassId], ct);
+        var classmateCount = studentCounts.GetValueOrDefault(enrollment.ClassId, 0);
+
         var (subject, body) = NotificationMessages.StudentEnrolled(
-            @class, courses, student.FullName, student.StudentId, _settings.AppBaseUrl);
+            @class, courses, student.FullName, student.StudentId, _settings.AppBaseUrl,
+            classmateCount: classmateCount);
 
         await _notifications.AddAsync(
             Notification.Queue(
