@@ -37,6 +37,17 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
 
     public bool IsActive { get; private set; } = true;
 
+    // ── Login throttling ──────────────────────────────────────────────────────
+    // Per-account, and deliberately separate from the per-IP rate limit in front of the
+    // endpoint: the rate limiter stops one caller hammering the API, this stops a slow
+    // distributed guess at one account from ever getting enough attempts.
+
+    /// <summary>Consecutive failed password attempts. Reset to zero by any success.</summary>
+    public int FailedLoginAttempts { get; private set; }
+
+    /// <summary>When set and in the future, password checks are refused outright.</summary>
+    public DateTime? LockoutEndUtc { get; private set; }
+
     // ── Soft delete ───────────────────────────────────────────────────────────
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
@@ -123,6 +134,10 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
         }
 
         PasswordHash = passwordHash;
+
+        // Choosing a new password clears the throttle. Someone who has proved control of the
+        // account through a setup link should not be locked out by the guesses that preceded it.
+        RegisterSuccessfulLogin();
     }
 
     /// <summary>
@@ -155,6 +170,31 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
 
     /// <summary>True when the student is enrolled in the given class (rule B1).</summary>
     public bool IsEnrolledIn(Guid classId) => _enrollments.Exists(e => e.ClassId == classId);
+
+    /// <summary>True while a lockout window is open — the caller must not be let past.</summary>
+    public bool IsLockedOut(DateTime utcNow) => LockoutEndUtc is { } until && until > utcNow;
+
+    /// <summary>
+    /// Records a wrong password. Locks the account once the threshold is reached; the counter
+    /// keeps climbing while locked so repeated attempts against a locked account do not reset
+    /// on the first failure after the window expires.
+    /// </summary>
+    public void RegisterFailedLogin(DateTime utcNow, int maxAttempts, TimeSpan lockoutDuration)
+    {
+        FailedLoginAttempts++;
+
+        if (FailedLoginAttempts >= maxAttempts)
+        {
+            LockoutEndUtc = utcNow.Add(lockoutDuration);
+        }
+    }
+
+    /// <summary>Clears the throttle. Called on a successful sign-in and on a password reset.</summary>
+    public void RegisterSuccessfulLogin()
+    {
+        FailedLoginAttempts = 0;
+        LockoutEndUtc = null;
+    }
 
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;

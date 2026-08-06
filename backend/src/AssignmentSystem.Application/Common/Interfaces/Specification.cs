@@ -32,6 +32,44 @@ public abstract class Specification<T> : ISpecification<T> where T : class
         Page = PageDefaults.NormalizePage(page);
         PageSize = PageDefaults.NormalizePageSize(pageSize);
     }
+    /// <summary>
+    /// Applies a caller-requested sort if the key is one this endpoint allows, and reports
+    /// whether it did. Callers order themselves when it returns false:
+    ///
+    /// <code>
+    /// if (!ApplySort(Sortable, sortBy, sortDir))
+    /// {
+    ///     ApplyOrderBy(c => c.Level);
+    ///     ApplyThenBy(c => c.Section!);
+    /// }
+    /// </code>
+    ///
+    /// That shape keeps each endpoint's natural order — which is usually a composite that no
+    /// single sort key expresses — expressed where it is obvious, rather than encoded as a
+    /// magic entry in the map.
+    /// </summary>
+    protected bool ApplySort(SortMap<T> sortable, string? sortBy, string? sortDir)
+    {
+        if (!sortable.TryResolve(sortBy, out var field))
+        {
+            return false;
+        }
+
+        if (SortDirection.IsDescending(sortDir))
+        {
+            ApplyOrderByDescending(field);
+        }
+        else
+        {
+            ApplyOrderBy(field);
+        }
+
+        // See SortMap.TieBreaker: without this, paging over a non-unique sort column can
+        // show the same row twice or skip it entirely.
+        ApplyThenBy(sortable.TieBreaker);
+        return true;
+    }
+
     protected void ApplyOrderBy(Expression<Func<T, object>> orderBy) => OrderBy = orderBy;
     protected void ApplyOrderByDescending(Expression<Func<T, object>> orderByDescending) => OrderByDescending = orderByDescending;
     protected void ApplyThenBy(Expression<Func<T, object>> thenBy) => ThenBy = thenBy;

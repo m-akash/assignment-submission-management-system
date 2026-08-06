@@ -1,3 +1,4 @@
+using AssignmentSystem.Application.Common.Authorization;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Shared.Common;
@@ -34,16 +35,23 @@ public sealed record NotificationSummaryDto(
     int Failed
 );
 
+[RequiresAuthentication]
 public sealed record GetNotificationsQuery(
     NotificationStatus? Status = null,
     NotificationType? Type = null,
     Guid? RecipientId = null,
     string? Search = null,
+    /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
+    string? SortBy = null,
+    /// <summary>"desc" for descending; ascending otherwise.</summary>
+    string? SortDir = null,
     int Page = 1,
     int PageSize = 20
 ) : IQuery<PageResult<NotificationDto>>;
 
+[RequiresRole(Role.Admin)]
 public sealed record GetNotificationSummaryQuery : IQuery<NotificationSummaryDto>;
 
 /// <summary>Puts a failed row back in the queue once the mail problem is fixed.</summary>
+[RequiresRole(Role.Admin)]
 public sealed record RetryNotificationCommand(Guid Id) : ICommand<NotificationDto>;

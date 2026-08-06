@@ -2,7 +2,6 @@ using AssignmentSystem.Api.Common;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Features.Enrollments;
 using AssignmentSystem.Application.Features.StudentCourses;
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,22 +21,9 @@ namespace AssignmentSystem.Api.Controllers;
 [Authorize]
 public sealed class EnrollmentsController : ControllerBase
 {
-    private readonly ICommandHandler<CreateEnrollmentCommand, EnrollmentDto> _createHandler;
-    private readonly ICommandHandler<DeleteEnrollmentCommand> _deleteHandler;
-    private readonly IQueryHandler<GetEnrollmentsQuery, Shared.Common.PageResult<EnrollmentDto>> _getListHandler;
-    private readonly IQueryHandler<GetStudentCoursesQuery, Shared.Common.PageResult<StudentCourseDto>> _getStudentCoursesHandler;
+    private readonly IDispatcher _dispatcher;
 
-    public EnrollmentsController(
-        ICommandHandler<CreateEnrollmentCommand, EnrollmentDto> createHandler,
-        ICommandHandler<DeleteEnrollmentCommand> deleteHandler,
-        IQueryHandler<GetEnrollmentsQuery, Shared.Common.PageResult<EnrollmentDto>> getListHandler,
-        IQueryHandler<GetStudentCoursesQuery, Shared.Common.PageResult<StudentCourseDto>> getStudentCoursesHandler)
-    {
-        _createHandler = createHandler;
-        _deleteHandler = deleteHandler;
-        _getListHandler = getListHandler;
-        _getStudentCoursesHandler = getStudentCoursesHandler;
-    }
+    public EnrollmentsController(IDispatcher dispatcher) => _dispatcher = dispatcher;
 
     [HttpGet]
     [Authorize(Roles = "Admin,Teacher")]
@@ -45,12 +31,14 @@ public sealed class EnrollmentsController : ControllerBase
         [FromQuery] Guid? studentId,
         [FromQuery] Guid? classId,
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetEnrollmentsQuery(studentId, classId, search, page, pageSize);
-        var result = await _getListHandler.HandleAsync(query, ct);
+        var query = new GetEnrollmentsQuery(studentId, classId, search, sortBy, sortDir, page, pageSize);
+        var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
@@ -67,12 +55,14 @@ public sealed class EnrollmentsController : ControllerBase
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> GetMyCourses(
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
     {
-        var query = new GetStudentCoursesQuery(search, page, pageSize);
-        var result = await _getStudentCoursesHandler.HandleAsync(query, ct);
+        var query = new GetStudentCoursesQuery(search, sortBy, sortDir, page, pageSize);
+        var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
@@ -85,7 +75,7 @@ public sealed class EnrollmentsController : ControllerBase
     public async Task<IActionResult> CreateEnrollment([FromBody] CreateEnrollmentRequest request, CancellationToken ct)
     {
         var command = new CreateEnrollmentCommand(request.StudentId, request.ClassId);
-        var result = await _createHandler.HandleAsync(command, ct);
+        var result = await _dispatcher.SendAsync(command, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
@@ -101,21 +91,10 @@ public sealed class EnrollmentsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteEnrollment(Guid id, CancellationToken ct)
     {
-        var result = await _deleteHandler.HandleAsync(new DeleteEnrollmentCommand(id), ct);
+        var result = await _dispatcher.SendAsync(new DeleteEnrollmentCommand(id), ct);
         return result.ToActionResult(this);
     }
 }
 
 public sealed record CreateEnrollmentRequest(Guid StudentId, Guid ClassId);
 
-public sealed class CreateEnrollmentRequestValidator : AbstractValidator<CreateEnrollmentRequest>
-{
-    public CreateEnrollmentRequestValidator()
-    {
-        RuleFor(x => x.StudentId)
-            .NotEmpty().WithMessage("Student id is required.");
-
-        RuleFor(x => x.ClassId)
-            .NotEmpty().WithMessage("Class id is required.");
-    }
-}

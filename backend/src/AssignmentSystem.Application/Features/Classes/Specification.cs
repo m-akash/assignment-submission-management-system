@@ -5,13 +5,27 @@ namespace AssignmentSystem.Application.Features.Classes;
 
 internal sealed class ClassesPagedSpecification : Specification<Class>
 {
-    public ClassesPagedSpecification(string? search, int page, int pageSize)
+    /// <summary>Columns this endpoint may be sorted by. See <see cref="SortMap{T}"/>.</summary>
+    private static readonly SortMap<Class> Sortable = new(
+        new Dictionary<string, System.Linq.Expressions.Expression<Func<Class, object>>>
+        {
+            ["name"] = c => c.Name,
+            ["level"] = c => c.Level,
+            ["section"] = c => c.Section!,
+            ["createdAt"] = c => c.CreatedAtUtc,
+        },
+        tieBreaker: c => c.Id);
+
+    public ClassesPagedSpecification(string? search, string? sortBy, string? sortDir, int page, int pageSize)
     {
         ApplyNoTracking();
-        // By level then section, not by name: names carry Roman numerals, so sorting them
-        // as text puts "Class IX" before "Class VI".
-        ApplyOrderBy(c => c.Level);
-        ApplyThenBy(c => c.Section!);
+        if (!ApplySort(Sortable, sortBy, sortDir))
+        {
+            // By level then section, not by name: names carry Roman numerals, so sorting them
+            // as text puts "Class IX" before "Class VI".
+            ApplyOrderBy(c => c.Level);
+            ApplyThenBy(c => c.Section!);
+        }
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();

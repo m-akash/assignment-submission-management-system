@@ -309,7 +309,7 @@ public sealed class GetUsersHandler : IQueryHandler<GetUsersQuery, PageResult<Us
 
     public async Task<Result<PageResult<UserDto>>> HandleAsync(GetUsersQuery query, CancellationToken ct = default)
     {
-        var spec = new UsersPagedSpecification(query.Role, query.ClassId, query.Search, query.Page, query.PageSize);
+        var spec = new UsersPagedSpecification(query.Role, query.ClassId, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var pagedUsers = await _userRepository.ListPagedAsync(spec, ct);
 
         var items = pagedUsers.Items.Select(Mapper.MapToDto).ToList();

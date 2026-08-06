@@ -1,4 +1,6 @@
+using AssignmentSystem.Application.Common.Authorization;
 using AssignmentSystem.Application.Common.Handlers;
+using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Features.Enrollments;
@@ -30,17 +32,24 @@ public sealed record EnrolledClassDto(
     DateTime EnrolledAtUtc
 );
 
+[RequiresRole(Role.Admin)]
 public sealed record CreateEnrollmentCommand(
     Guid StudentId,
     Guid ClassId
 ) : ICommand<EnrollmentDto>;
 
+[RequiresRole(Role.Admin)]
 public sealed record DeleteEnrollmentCommand(Guid Id) : ICommand;
 
+[RequiresRole(Role.Admin, Role.Teacher)]
 public sealed record GetEnrollmentsQuery(
     Guid? StudentId = null,
     Guid? ClassId = null,
     string? Search = null,
+    /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
+    string? SortBy = null,
+    /// <summary>"desc" for descending; ascending otherwise.</summary>
+    string? SortDir = null,
     int Page = 1,
     int PageSize = 20
 ) : IQuery<PageResult<EnrollmentDto>>;

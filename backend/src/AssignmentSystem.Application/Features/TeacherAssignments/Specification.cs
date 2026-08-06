@@ -47,14 +47,29 @@ internal sealed class TeacherAssignmentByClassCourseSpecification : Specificatio
 
 internal sealed class TeacherAssignmentsPagedSpecification : Specification<TeacherAssignment>
 {
+    /// <summary>Columns this endpoint may be sorted by. See <see cref="SortMap{T}"/>.</summary>
+    private static readonly SortMap<TeacherAssignment> Sortable = new(
+        new Dictionary<string, System.Linq.Expressions.Expression<Func<TeacherAssignment, object>>>
+        {
+            ["teacher"] = ta => ta.Teacher.FullName,
+            ["course"] = ta => ta.ClassCourse.Course.Name,
+            ["class"] = ta => ta.ClassCourse.Class.Level,
+            ["createdAt"] = ta => ta.CreatedAtUtc,
+        },
+        tieBreaker: ta => ta.Id);
+
     public TeacherAssignmentsPagedSpecification(
-        Guid? teacherId, Guid? courseId, Guid? classId, Guid? classCourseId, string? search, int page, int pageSize)
+        Guid? teacherId, Guid? courseId, Guid? classId, Guid? classCourseId, string? search,
+        string? sortBy, string? sortDir, int page, int pageSize)
     {
         ApplyNoTracking();
         AddInclude(ta => ta.Teacher);
         AddInclude("ClassCourse.Class");
         AddInclude("ClassCourse.Course");
-        ApplyOrderBy(ta => ta.Teacher.FullName);
+        if (!ApplySort(Sortable, sortBy, sortDir))
+        {
+            ApplyOrderBy(ta => ta.Teacher.FullName);
+        }
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();

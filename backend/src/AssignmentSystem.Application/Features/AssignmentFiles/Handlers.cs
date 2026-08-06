@@ -1,4 +1,5 @@
 using AssignmentSystem.Application.Abstractions;
+using AssignmentSystem.Application.Common.Authorization;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Assignments;
@@ -14,6 +15,7 @@ public sealed class UploadAssignmentFileHandler : ICommandHandler<UploadAssignme
     private readonly IRepository<AssignmentFile> _fileRepository;
     private readonly IFileStorage _fileStorage;
     private readonly IFileUploadPolicy _uploadPolicy;
+    private readonly IAssignmentAccess _access;
     private readonly ICurrentUser _currentUser;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
@@ -24,6 +26,7 @@ public sealed class UploadAssignmentFileHandler : ICommandHandler<UploadAssignme
         IRepository<AssignmentFile> fileRepository,
         IFileStorage fileStorage,
         IFileUploadPolicy uploadPolicy,
+        IAssignmentAccess access,
         ICurrentUser currentUser,
         IClock clock,
         IUnitOfWork unitOfWork)
@@ -32,6 +35,7 @@ public sealed class UploadAssignmentFileHandler : ICommandHandler<UploadAssignme
         _fileRepository = fileRepository;
         _fileStorage = fileStorage;
         _uploadPolicy = uploadPolicy;
+        _access = access;
         _currentUser = currentUser;
         _clock = clock;
         _unitOfWork = unitOfWork;
@@ -39,20 +43,15 @@ public sealed class UploadAssignmentFileHandler : ICommandHandler<UploadAssignme
 
     public async Task<Result<AssignmentFileDto>> HandleAsync(UploadAssignmentFileCommand command, CancellationToken ct = default)
     {
-        if (_currentUser.Role != Role.Teacher)
-        {
-            return Result<AssignmentFileDto>.Failure(Error.Forbidden("AssignmentFile.Forbidden", "Only teachers can attach files to an assignment."));
-        }
-
         var assignment = await _assignmentRepository.GetByIdAsync(command.AssignmentId, ct);
         if (assignment is null)
         {
             return Result<AssignmentFileDto>.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        if (!assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (_access.MustBeAuthor(assignment) is { } denied)
         {
-            return Result<AssignmentFileDto>.Failure(Error.Forbidden("AssignmentFile.Forbidden", "You do not have permission to attach files to this assignment."));
+            return Result<AssignmentFileDto>.Failure(denied);
         }
 
         var existingCount = await _fileRepository.CountAsync(new AssignmentFilesByAssignmentSpecification(assignment.Id), ct);
@@ -116,20 +115,17 @@ public sealed class UploadAssignmentFileHandler : ICommandHandler<UploadAssignme
 public sealed class DownloadAssignmentFileHandler : IQueryHandler<DownloadAssignmentFileQuery, AssignmentFileDownloadResult>
 {
     private readonly IRepository<AssignmentFile> _fileRepository;
-    private readonly IClassRosterRepository _roster;
     private readonly IFileStorage _fileStorage;
-    private readonly ICurrentUser _currentUser;
+    private readonly IAssignmentAccess _access;
 
     public DownloadAssignmentFileHandler(
         IRepository<AssignmentFile> fileRepository,
-        IClassRosterRepository roster,
         IFileStorage fileStorage,
-        ICurrentUser currentUser)
+        IAssignmentAccess access)
     {
         _fileRepository = fileRepository;
-        _roster = roster;
         _fileStorage = fileStorage;
-        _currentUser = currentUser;
+        _access = access;
     }
 
     public async Task<Result<AssignmentFileDownloadResult>> HandleAsync(DownloadAssignmentFileQuery query, CancellationToken ct = default)
@@ -141,26 +137,11 @@ public sealed class DownloadAssignmentFileHandler : IQueryHandler<DownloadAssign
             return Result<AssignmentFileDownloadResult>.Failure(Error.NotFound("AssignmentFile.NotFound", "The specified file was not found."));
         }
 
-        var assignment = file.Assignment;
-
-        if (_currentUser.Role == Role.Teacher && !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        // An attachment is only ever as visible as the assignment it hangs off, so this is
+        // the same question the assignment itself would be asked.
+        if (await _access.CanViewAsync(file.Assignment, ct) is { } denied)
         {
-            return Result<AssignmentFileDownloadResult>.Failure(Error.Forbidden("AssignmentFile.Forbidden", "You do not have permission to download this file."));
-        }
-
-        if (_currentUser.Role == Role.Student)
-        {
-            // B1 + X3: enrolled in the offering's class, and the assignment published — a
-            // draft's attachments are not visible either. Status is checked first because it
-            // needs no query.
-            var isEnrolled = assignment.Status == AssignmentStatus.Published
-                && await _roster.IsEnrolledAsync(
-                    _currentUser.UserId.GetValueOrDefault(), assignment.ClassCourse.ClassId, ct);
-
-            if (!isEnrolled)
-            {
-                return Result<AssignmentFileDownloadResult>.Failure(Error.Forbidden("AssignmentFile.Forbidden", "You do not have permission to download this file."));
-            }
+            return Result<AssignmentFileDownloadResult>.Failure(denied);
         }
 
         try
@@ -179,18 +160,18 @@ public sealed class DeleteAssignmentFileHandler : ICommandHandler<DeleteAssignme
 {
     private readonly IRepository<AssignmentFile> _fileRepository;
     private readonly IFileStorage _fileStorage;
-    private readonly ICurrentUser _currentUser;
+    private readonly IAssignmentAccess _access;
     private readonly IUnitOfWork _unitOfWork;
 
     public DeleteAssignmentFileHandler(
         IRepository<AssignmentFile> fileRepository,
         IFileStorage fileStorage,
-        ICurrentUser currentUser,
+        IAssignmentAccess access,
         IUnitOfWork unitOfWork)
     {
         _fileRepository = fileRepository;
         _fileStorage = fileStorage;
-        _currentUser = currentUser;
+        _access = access;
         _unitOfWork = unitOfWork;
     }
 
@@ -203,9 +184,9 @@ public sealed class DeleteAssignmentFileHandler : ICommandHandler<DeleteAssignme
             return Result.Failure(Error.NotFound("AssignmentFile.NotFound", "The specified file was not found."));
         }
 
-        if (_currentUser.Role != Role.Teacher || !file.Assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (_access.MustBeAuthor(file.Assignment) is { } denied)
         {
-            return Result.Failure(Error.Forbidden("AssignmentFile.Forbidden", "You do not have permission to delete this file."));
+            return Result.Failure(denied);
         }
 
         _fileStorage.Delete(file.RelativePath);

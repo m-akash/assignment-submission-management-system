@@ -441,6 +441,10 @@ namespace AssignmentSystem.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("body");
 
+                    b.Property<DateTime?>("ClaimedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("claimed_at_utc");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at_utc");
@@ -457,6 +461,10 @@ namespace AssignmentSystem.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("last_error");
+
+                    b.Property<DateTime?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at_utc");
 
                     b.Property<string>("RecipientEmail")
                         .IsRequired()
@@ -514,7 +522,7 @@ namespace AssignmentSystem.Infrastructure.Migrations
 
                     b.HasIndex("Status", "CreatedAtUtc")
                         .HasDatabaseName("ix_notifications_status_created_at_utc")
-                        .HasFilter("status = 0");
+                        .HasFilter("status IN (0, 3)");
 
                     b.ToTable("notifications", (string)null);
                 });
@@ -765,6 +773,12 @@ namespace AssignmentSystem.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at_utc");
 
+                    b.Property<int>("FailedLoginAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("failed_login_attempts");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -782,6 +796,10 @@ namespace AssignmentSystem.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("is_deleted");
+
+                    b.Property<DateTime?>("LockoutEndUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lockout_end_utc");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()

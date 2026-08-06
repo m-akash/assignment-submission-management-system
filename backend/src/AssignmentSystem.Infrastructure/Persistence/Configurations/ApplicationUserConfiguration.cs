@@ -32,6 +32,11 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
             .IsRequired();
 
         builder.Property(u => u.IsActive).IsRequired().HasDefaultValue(true);
+
+        // Login throttling. Both default so the migration can add them to existing rows.
+        builder.Property(u => u.FailedLoginAttempts).IsRequired().HasDefaultValue(0);
+        builder.Property(u => u.LockoutEndUtc);
+
         builder.Property(u => u.IsDeleted).IsRequired().HasDefaultValue(false);
         builder.Property(u => u.DeletedAtUtc);
 

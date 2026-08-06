@@ -52,7 +52,7 @@ internal static class NotificationMessages
         var rows = new List<(string, string)>
         {
             ("📘 Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-            ("🏫 Class", GradeLine(offering.Class)),
+            ("🏫 Class", Esc(offering.Class.Name)),
         };
         if (!string.IsNullOrWhiteSpace(teacherName))
         {
@@ -294,7 +294,7 @@ internal static class NotificationMessages
         var rows = new List<(string, string)>
         {
             ("📘 Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-            ("🏫 Class", GradeLine(offering.Class)),
+            ("🏫 Class", Esc(offering.Class.Name)),
         };
         if (!string.IsNullOrWhiteSpace(teacherIdNumber))
         {
@@ -337,7 +337,7 @@ internal static class NotificationMessages
 
         var rows = new List<(string, string)>
         {
-            ("🏫 Class", GradeLine(@class)),
+            ("🏫 Class", Esc(@class.Name)),
         };
         if (!string.IsNullOrWhiteSpace(studentIdNumber))
         {
@@ -416,13 +416,6 @@ internal static class NotificationMessages
               .Append(")</span></li>");
         }
         return sb.Append("</ul>").ToString();
-    }
-
-    /// <summary>"Class IX, Section A" — the grade/section line shared by three of the messages.</summary>
-    private static string GradeLine(Class @class)
-    {
-        var line = $"{Esc(@class.Name)} &mdash; Grade {Esc(@class.GradeLabel)}";
-        return @class.Section is { } section ? $"{line}, Section {Esc(section)}" : line;
     }
 
     /// <summary>A tone-coloured pill for a submission's lifecycle status.</summary>

@@ -38,6 +38,18 @@ internal sealed class AssignmentWithScopeSpecification : Specification<Assignmen
 
 internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
 {
+    /// <summary>Columns this endpoint may be sorted by. See <see cref="SortMap{T}"/>.</summary>
+    private static readonly SortMap<Assignment> Sortable = new(
+        new Dictionary<string, System.Linq.Expressions.Expression<Func<Assignment, object>>>
+        {
+            ["title"] = a => a.Title,
+            ["deadline"] = a => a.DeadlineUtc,
+            ["maxMarks"] = a => a.MaxMarks,
+            ["status"] = a => a.Status,
+            ["createdAt"] = a => a.CreatedAtUtc,
+        },
+        tieBreaker: a => a.Id);
+
     public AssignmentsPagedSpecification(
         Guid? classId,
         Guid? courseId,
@@ -46,6 +58,8 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
         Guid? teacherId,
         AssignmentStatus? status,
         string? search,
+        string? sortBy,
+        string? sortDir,
         int page,
         int pageSize)
     {
@@ -54,7 +68,10 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
         AddInclude("ClassCourse.Class");
         AddInclude("ClassCourse.Course");
         AddInclude(a => a.Files);
-        ApplyOrderByDescending(a => a.CreatedAtUtc);
+        if (!ApplySort(Sortable, sortBy, sortDir))
+        {
+            ApplyOrderByDescending(a => a.CreatedAtUtc);
+        }
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();

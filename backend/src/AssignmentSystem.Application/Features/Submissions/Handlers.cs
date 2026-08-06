@@ -1,4 +1,5 @@
 using AssignmentSystem.Application.Abstractions;
+using AssignmentSystem.Application.Common.Authorization;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
 // AssignmentWithScopeSpecification: the submission paths need the assignment's offering to
@@ -45,11 +46,6 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
 
     public async Task<Result<SubmissionDto>> HandleAsync(SubmitAssignmentCommand command, CancellationToken ct = default)
     {
-        if (_currentUser.Role != Role.Student)
-        {
-            return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "Only students can submit assignments."));
-        }
-
         // Loaded with its offering: the class id behind the B1 check lives there, and the
         // notification body needs the class and course names.
         var scopeSpec = new AssignmentWithScopeSpecification(command.AssignmentId);
@@ -198,6 +194,7 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
     private readonly IRepository<Submission> _submissionRepository;
     private readonly IRepository<Assignment> _assignmentRepository;
     private readonly INotificationOutbox _notifications;
+    private readonly IAssignmentAccess _assignmentAccess;
     private readonly ICurrentUser _currentUser;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
@@ -207,6 +204,7 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
         IRepository<Submission> submissionRepository,
         IRepository<Assignment> assignmentRepository,
         INotificationOutbox notifications,
+        IAssignmentAccess assignmentAccess,
         ICurrentUser currentUser,
         IClock clock,
         IUnitOfWork unitOfWork)
@@ -214,6 +212,7 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
         _submissionRepository = submissionRepository;
         _assignmentRepository = assignmentRepository;
         _notifications = notifications;
+        _assignmentAccess = assignmentAccess;
         _currentUser = currentUser;
         _clock = clock;
         _unitOfWork = unitOfWork;
@@ -221,11 +220,6 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
 
     public async Task<Result<SubmissionDto>> HandleAsync(ReviewSubmissionCommand command, CancellationToken ct = default)
     {
-        if (_currentUser.Role != Role.Teacher)
-        {
-            return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "Only teachers can grade submissions."));
-        }
-
         var spec = new SubmissionWithDetailsSpecification(command.Id);
         var submission = await _submissionRepository.FirstOrDefaultAsync(spec, ct);
         if (submission is null)
@@ -241,10 +235,10 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
             return Result<SubmissionDto>.Failure(Error.NotFound("Assignment.NotFound", "The associated assignment was not found."));
         }
 
-        // B3: Teacher can only grade their own assignments
-        if (!assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        // B3: a teacher grades only work they set.
+        if (_assignmentAccess.MustBeAuthor(assignment) is { } denied)
         {
-            return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "You do not have permission to grade this assignment."));
+            return Result<SubmissionDto>.Failure(denied);
         }
 
         try
@@ -280,18 +274,13 @@ public sealed class ReviewSubmissionHandler : ICommandHandler<ReviewSubmissionCo
 public sealed class GetSubmissionByIdHandler : IQueryHandler<GetSubmissionByIdQuery, SubmissionDto>
 {
     private readonly IRepository<Submission> _submissionRepository;
-    private readonly IRepository<Assignment> _assignmentRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly ISubmissionAccess _access;
     private static readonly SubmissionMapper Mapper = new();
 
-    public GetSubmissionByIdHandler(
-        IRepository<Submission> submissionRepository,
-        IRepository<Assignment> assignmentRepository,
-        ICurrentUser currentUser)
+    public GetSubmissionByIdHandler(IRepository<Submission> submissionRepository, ISubmissionAccess access)
     {
         _submissionRepository = submissionRepository;
-        _assignmentRepository = assignmentRepository;
-        _currentUser = currentUser;
+        _access = access;
     }
 
     public async Task<Result<SubmissionDto>> HandleAsync(GetSubmissionByIdQuery query, CancellationToken ct = default)
@@ -303,19 +292,9 @@ public sealed class GetSubmissionByIdHandler : IQueryHandler<GetSubmissionByIdQu
             return Result<SubmissionDto>.Failure(Error.NotFound("Submission.NotFound", "The specified submission was not found."));
         }
 
-        // Access checks
-        if (_currentUser.Role == Role.Student && !submission.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (await _access.CanViewAsync(submission, ct) is { } denied)
         {
-            return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "You do not have permission to view this submission."));
-        }
-
-        if (_currentUser.Role == Role.Teacher)
-        {
-            var assignment = await _assignmentRepository.GetByIdAsync(submission.AssignmentId, ct);
-            if (assignment is null || !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
-            {
-                return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "You do not have permission to view this submission."));
-            }
+            return Result<SubmissionDto>.Failure(denied);
         }
 
         return Mapper.MapToDto(submission);
@@ -336,11 +315,6 @@ public sealed class GetStudentSubmissionHandler : IQueryHandler<GetStudentSubmis
 
     public async Task<Result<SubmissionDto>> HandleAsync(GetStudentSubmissionQuery query, CancellationToken ct = default)
     {
-        if (_currentUser.Role != Role.Student)
-        {
-            return Result<SubmissionDto>.Failure(Error.Forbidden("Submission.Forbidden", "Only students can query their own submissions."));
-        }
-
         var spec = new SubmissionByStudentAndAssignmentSpecification(_currentUser.UserId.GetValueOrDefault(), query.AssignmentId);
         var submission = await _submissionRepository.FirstOrDefaultAsync(spec, ct);
         if (submission is null)
@@ -406,7 +380,7 @@ public sealed class GetSubmissionsHandler : IQueryHandler<GetSubmissionsQuery, P
         }
 
         var spec = new SubmissionsPagedSpecification(
-            assignmentId, authoredAssignmentIds, studentId, query.Status, query.Search, query.Page, query.PageSize);
+            assignmentId, authoredAssignmentIds, studentId, query.Status, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var pagedSubmissions = await _submissionRepository.ListPagedAsync(spec, ct);
 
         var items = pagedSubmissions.Items.Select(Mapper.MapToDto).ToList();
@@ -461,11 +435,6 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
 
     public async Task<Result<SubmissionFileDto>> HandleAsync(UploadSubmissionFileCommand command, CancellationToken ct = default)
     {
-        if (_currentUser.Role != Role.Student)
-        {
-            return Result<SubmissionFileDto>.Failure(Error.Forbidden("SubmissionFile.Forbidden", "Only students can upload files."));
-        }
-
         var scopeSpec = new AssignmentWithScopeSpecification(command.AssignmentId);
         var assignment = await _assignmentRepository.FirstOrDefaultAsync(scopeSpec, ct);
         if (assignment is null)
@@ -599,22 +568,19 @@ public sealed class DownloadSubmissionFileHandler : IQueryHandler<DownloadSubmis
 {
     private readonly IRepository<SubmissionFile> _fileRepository;
     private readonly IRepository<Submission> _submissionRepository;
-    private readonly IRepository<Assignment> _assignmentRepository;
     private readonly IFileStorage _fileStorage;
-    private readonly ICurrentUser _currentUser;
+    private readonly ISubmissionAccess _access;
 
     public DownloadSubmissionFileHandler(
         IRepository<SubmissionFile> fileRepository,
         IRepository<Submission> submissionRepository,
-        IRepository<Assignment> assignmentRepository,
         IFileStorage fileStorage,
-        ICurrentUser currentUser)
+        ISubmissionAccess access)
     {
         _fileRepository = fileRepository;
         _submissionRepository = submissionRepository;
-        _assignmentRepository = assignmentRepository;
         _fileStorage = fileStorage;
-        _currentUser = currentUser;
+        _access = access;
     }
 
     public async Task<Result<SubmissionFileDownloadResult>> HandleAsync(DownloadSubmissionFileQuery query, CancellationToken ct = default)
@@ -632,19 +598,10 @@ public sealed class DownloadSubmissionFileHandler : IQueryHandler<DownloadSubmis
             return Result<SubmissionFileDownloadResult>.Failure(Error.NotFound("Submission.NotFound", "Associated submission was not found."));
         }
 
-        // Access checks
-        if (_currentUser.Role == Role.Student && !submission.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        // An attachment is exactly as reachable as the submission it belongs to.
+        if (await _access.CanViewAsync(submission, ct) is { } denied)
         {
-            return Result<SubmissionFileDownloadResult>.Failure(Error.Forbidden("SubmissionFile.Forbidden", "You do not have permission to download this file."));
-        }
-
-        if (_currentUser.Role == Role.Teacher)
-        {
-            var assignment = await _assignmentRepository.GetByIdAsync(submission.AssignmentId, ct);
-            if (assignment is null || !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
-            {
-                return Result<SubmissionFileDownloadResult>.Failure(Error.Forbidden("SubmissionFile.Forbidden", "You do not have permission to download this file."));
-            }
+            return Result<SubmissionFileDownloadResult>.Failure(denied);
         }
 
         try
@@ -665,7 +622,7 @@ public sealed class DeleteSubmissionFileHandler : ICommandHandler<DeleteSubmissi
     private readonly IRepository<Submission> _submissionRepository;
     private readonly IRepository<Assignment> _assignmentRepository;
     private readonly IFileStorage _fileStorage;
-    private readonly ICurrentUser _currentUser;
+    private readonly ISubmissionAccess _access;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -674,7 +631,7 @@ public sealed class DeleteSubmissionFileHandler : ICommandHandler<DeleteSubmissi
         IRepository<Submission> submissionRepository,
         IRepository<Assignment> assignmentRepository,
         IFileStorage fileStorage,
-        ICurrentUser currentUser,
+        ISubmissionAccess access,
         IClock clock,
         IUnitOfWork unitOfWork)
     {
@@ -682,7 +639,7 @@ public sealed class DeleteSubmissionFileHandler : ICommandHandler<DeleteSubmissi
         _submissionRepository = submissionRepository;
         _assignmentRepository = assignmentRepository;
         _fileStorage = fileStorage;
-        _currentUser = currentUser;
+        _access = access;
         _clock = clock;
         _unitOfWork = unitOfWork;
     }
@@ -703,9 +660,9 @@ public sealed class DeleteSubmissionFileHandler : ICommandHandler<DeleteSubmissi
             return Result.Failure(Error.NotFound("Submission.NotFound", "Associated submission was not found."));
         }
 
-        if (!submission.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (_access.MustBeSubmitter(submission) is { } denied)
         {
-            return Result.Failure(Error.Forbidden("SubmissionFile.Forbidden", "You do not own this submission."));
+            return Result.Failure(denied);
         }
 
         var assignment = await _assignmentRepository.GetByIdAsync(submission.AssignmentId, ct);

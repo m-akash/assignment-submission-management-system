@@ -1,4 +1,6 @@
+using AssignmentSystem.Application.Common.Authorization;
 using AssignmentSystem.Application.Common.Handlers;
+using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Application.Features.Enrollments;
 using AssignmentSystem.Shared.Common;
 
@@ -27,6 +29,7 @@ public sealed record UserDto(
 /// exists in a state where they belong to no class. Further classes are added through the
 /// enrollments endpoint.
 /// </summary>
+[RequiresRole(Role.Admin)]
 public sealed record CreateUserCommand(
     string Email,
     string FullName,
@@ -41,14 +44,17 @@ public sealed record CreateUserCommand(
 /// last class), and folding them into a profile update would let a single PUT quietly
 /// bypass those.
 /// </summary>
+[RequiresRole(Role.Admin)]
 public sealed record UpdateUserCommand(
     Guid Id,
     string FullName,
     string? Password
 ) : ICommand<UserDto>;
 
+[RequiresRole(Role.Admin)]
 public sealed record DeleteUserCommand(Guid Id) : ICommand;
 
+[RequiresRole(Role.Admin)]
 public sealed record GetUserByIdQuery(Guid Id) : IQuery<UserDto>;
 
 /// <summary>
@@ -56,12 +62,19 @@ public sealed record GetUserByIdQuery(Guid Id) : IQuery<UserDto>;
 /// the frontend renders (including the enrolled <c>Classes</c>, which the login
 /// response deliberately omits). Takes no parameters: the id comes from the token.
 /// </summary>
+[RequiresAuthentication]
 public sealed record GetCurrentUserQuery : IQuery<UserDto>;
 
+// Qualified: this record's own `Role` parameter shadows the enum inside its attribute list.
+[RequiresRole(Domain.Enums.Role.Admin)]
 public sealed record GetUsersQuery(
     Domain.Enums.Role? Role = null,
     Guid? ClassId = null,
     string? Search = null,
+    /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
+    string? SortBy = null,
+    /// <summary>"desc" for descending; ascending otherwise.</summary>
+    string? SortDir = null,
     int Page = 1,
     int PageSize = 20
 ) : IQuery<PageResult<UserDto>>;

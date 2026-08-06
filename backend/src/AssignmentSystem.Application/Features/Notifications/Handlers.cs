@@ -32,7 +32,7 @@ public sealed class GetNotificationsHandler : IQueryHandler<GetNotificationsQuer
             : _currentUser.UserId;
 
         var spec = new NotificationsPagedSpecification(
-            query.Status, query.Type, recipientId, query.Search, query.Page, query.PageSize);
+            query.Status, query.Type, recipientId, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var paged = await _notifications.ListPagedAsync(spec, ct);
 
         var items = paged.Items.Select(Mapper.MapToDto).ToList();
@@ -51,7 +51,10 @@ public sealed class GetNotificationSummaryHandler : IQueryHandler<GetNotificatio
 
     public async Task<Result<NotificationSummaryDto>> HandleAsync(GetNotificationSummaryQuery query, CancellationToken ct = default)
     {
-        var pending = await _notifications.CountAsync(new NotificationsByStatusSpecification(NotificationStatus.Pending), ct);
+        // Processing counts as pending: a row a dispatcher is holding is still queued as far
+        // as an admin reading this screen is concerned, and leaving it out of every bucket
+        // would make the three counts silently fail to add up to the outbox.
+        var pending = await _notifications.CountAsync(new NotificationsAwaitingDeliverySpecification(), ct);
         var sent = await _notifications.CountAsync(new NotificationsByStatusSpecification(NotificationStatus.Sent), ct);
         var failed = await _notifications.CountAsync(new NotificationsByStatusSpecification(NotificationStatus.Failed), ct);
 

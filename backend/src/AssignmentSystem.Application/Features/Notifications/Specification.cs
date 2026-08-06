@@ -21,20 +21,49 @@ internal sealed class NotificationsByStatusSpecification : Specification<Notific
     }
 }
 
+/// <summary>
+/// Everything still owed a delivery — queued, plus whatever a dispatcher currently holds.
+/// </summary>
+internal sealed class NotificationsAwaitingDeliverySpecification : Specification<Notification>
+{
+    public NotificationsAwaitingDeliverySpecification()
+    {
+        Criteria = n => n.Status == NotificationStatus.Pending || n.Status == NotificationStatus.Processing;
+    }
+}
+
 internal sealed class NotificationsPagedSpecification : Specification<Notification>
 {
+    /// <summary>Columns this endpoint may be sorted by. See <see cref="SortMap{T}"/>.</summary>
+    private static readonly SortMap<Notification> Sortable = new(
+        new Dictionary<string, System.Linq.Expressions.Expression<Func<Notification, object>>>
+        {
+            ["recipient"] = n => n.RecipientEmail,
+            ["subject"] = n => n.Subject,
+            ["status"] = n => n.Status,
+            ["type"] = n => n.Type,
+            ["sentAt"] = n => n.SentAtUtc!,
+            ["createdAt"] = n => n.CreatedAtUtc,
+        },
+        tieBreaker: n => n.Id);
+
     public NotificationsPagedSpecification(
         NotificationStatus? status,
         NotificationType? type,
         Guid? recipientId,
         string? search,
+        string? sortBy,
+        string? sortDir,
         int page,
         int pageSize)
     {
         ApplyNoTracking();
         AddInclude(n => n.Recipient);
-        // Newest first: an outbox is read to find out what just happened.
-        ApplyOrderByDescending(n => n.CreatedAtUtc);
+        if (!ApplySort(Sortable, sortBy, sortDir))
+        {
+            // Newest first: an outbox is read to find out what just happened.
+            ApplyOrderByDescending(n => n.CreatedAtUtc);
+        }
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();

@@ -63,45 +63,10 @@ public class AssignmentHandlerTests
         new(classCourseId ?? OfferingId, "Title", "Desc",
             new DateTime(2026, 8, 9, 12, 0, 0, DateTimeKind.Utc), 100m, true);
 
-    [Fact]
-    public async Task Handle_CreateAssignment_WhenUserIsStudent_ShouldReturnForbidden()
-    {
-        _currentUserMock.Setup(u => u.Role).Returns(Role.Student);
-
-        var result = await _createHandler.HandleAsync(Command(), CancellationToken.None);
-
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Type.Should().Be(ErrorType.Forbidden);
-    }
-
-    /// <summary>
-    /// Coursework is read-only for admins: they browse assignments but cannot author them.
-    /// </summary>
-    [Fact]
-    public async Task Handle_CreateAssignment_WhenUserIsAdmin_ShouldReturnForbidden()
-    {
-        _currentUserMock.Setup(u => u.Role).Returns(Role.Admin);
-
-        var result = await _createHandler.HandleAsync(Command(), CancellationToken.None);
-
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Type.Should().Be(ErrorType.Forbidden);
-    }
-
-    [Fact]
-    public async Task Handle_CreateAssignment_WhenOfferingNotFound_ShouldReturnNotFound()
-    {
-        _currentUserMock.Setup(u => u.Role).Returns(Role.Teacher);
-        _currentUserMock.Setup(u => u.UserId).Returns(TeacherId);
-        _classCourseRepoMock
-            .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ClassCourse)null!);
-
-        var result = await _createHandler.HandleAsync(Command(), CancellationToken.None);
-
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Type.Should().Be(ErrorType.NotFound);
-    }
+    // The "a student may not create an assignment" and "an admin may not either" rules used
+    // to be asserted here, against this handler. They now live on the command itself, as
+    // [RequiresRole(Role.Teacher)], and are enforced for every handler by the pipeline —
+    // so they are tested once, against that, in AuthorizationPipelineTests.
 
     /// <summary>
     /// Rule B3 at its most important: the offering exists, but this teacher was never

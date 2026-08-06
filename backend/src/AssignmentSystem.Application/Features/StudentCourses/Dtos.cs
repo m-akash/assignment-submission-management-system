@@ -1,4 +1,6 @@
+using AssignmentSystem.Application.Common.Authorization;
 using AssignmentSystem.Application.Common.Handlers;
+using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Features.StudentCourses;
@@ -35,8 +37,13 @@ public sealed record StudentCourseDto(
 /// The signed-in student's own courses. Self-scoped server-side: no student id travels
 /// in the query, mirroring the rule-B1 read pattern used by the submissions endpoints.
 /// </summary>
+[RequiresRole(Role.Student)]
 public sealed record GetStudentCoursesQuery(
     string? Search = null,
+    /// <summary>One of: course, courseCode, class, teacher. Anything else keeps the natural order.</summary>
+    string? SortBy = null,
+    /// <summary>"desc" for descending; ascending otherwise.</summary>
+    string? SortDir = null,
     int Page = 1,
     int PageSize = 50
 ) : IQuery<PageResult<StudentCourseDto>>;

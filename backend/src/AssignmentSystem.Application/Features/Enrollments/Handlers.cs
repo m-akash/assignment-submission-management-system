@@ -180,7 +180,7 @@ public sealed class GetEnrollmentsHandler : IQueryHandler<GetEnrollmentsQuery, P
         }
 
         var spec = new EnrollmentsPagedSpecification(
-            query.StudentId, query.ClassId, query.Search, query.Page, query.PageSize, allowedClassIds);
+            query.StudentId, query.ClassId, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize, allowedClassIds);
         var paged = await _enrollmentRepository.ListPagedAsync(spec, ct);
 
         var items = paged.Items.Select(Mapper.MapToDto).ToList();

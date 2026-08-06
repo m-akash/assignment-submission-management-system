@@ -14,6 +14,7 @@ A role-based **Assignment & Submission Management System** for a school/college 
 - [Data Model](#data-model)
 - [Database](#database)
 - [Account Setup](#account-setup)
+- [Login throttling](#login-throttling)
 - [Email Notifications](#email-notifications)
 - [Running Tests](#running-tests)
 - [Demo Credentials](#demo-credentials)
@@ -25,14 +26,16 @@ A role-based **Assignment & Submission Management System** for a school/college 
 ## Main Features
 
 - **JWT authentication** with a rotating refresh token (httpOnly cookie) and role-based authorization (Admin / Teacher / Student), enforced entirely server-side.
+- **Authorization as a pipeline, not a convention.** Every command and query declares who may send it (`[RequiresRole(...)]`, `[RequiresAuthentication]`, `[AllowAnonymous]`) and a decorator enforces that for all of them. The declaration is mandatory: `AddApplication()` refuses to build the container if any message is missing one, so a new endpoint cannot ship unguarded. Resource-level rules that need the row loaded ("is this *your* assignment?") live in `IAssignmentAccess` / `ISubmissionAccess` rather than being re-derived per handler.
+- **Brute-force resistance on sign-in** — a per-IP rate limit on the credential endpoints, plus a per-account lockout after repeated wrong passwords. A lockout is reported as an ordinary "invalid email or password", so it never confirms an address exists. See [Login throttling](#login-throttling).
 - **Admin** — manage users, classes, courses, **course offerings** (which courses each class studies), **student enrollments**, and teacher-to-offering assignments; view every assignment and submission, and inspect the email outbox.
 - **Teacher** — create/update/delete assignments scoped to an offering they are assigned to teach, publish or keep as draft, view submissions, grade with marks + feedback, and change submission status.
 - **Student** — see assignments for every class they are enrolled in, submit a text answer and/or file attachments before the deadline, update a submission before the deadline (if the assignment allows resubmission), and view marks/feedback once graded.
-- **Email notifications** — six events mail automatically: an account being created, a teacher gaining a course, a student being enrolled, an assignment being published (to every student in the class), a submission arriving (to the owning teacher), and grading (to the student). Written as a transactional outbox and sent by a background sweep, so a slow or unconfigured mail server never fails the request that caused it — see [Email Notifications](#email-notifications).
+- **Email notifications** — six events mail automatically: an account being created, a teacher gaining a course, a student being enrolled, an assignment being published (to every student in the class), a submission arriving (to the owning teacher), and grading (to the student). Written as a transactional outbox and sent by a background sweep, so a slow or unconfigured mail server never fails the request that caused it. Sweeps claim rows with `FOR UPDATE SKIP LOCKED`, so several API instances can run without mailing anything twice, and failures back off exponentially — see [Email Notifications](#email-notifications).
 - **Password setup by single-use link** — a new account's welcome email carries an expiring, single-use link to choose a password rather than the password itself, and redeeming it drops any session opened with the admin-set one. See [Account Setup](#account-setup).
 - **File uploads** on submissions — allow-listed extensions, size cap, magic-byte signature validation (the actual file header is checked, not just the `Content-Type` the browser sends), sanitized filenames, and authorization-checked streamed download (no static file serving).
 - **Business rules enforced server-side**, not just in the UI — see [Business rules](#business-rules-enforced) below.
-- Pagination, sorting, filtering and free-text search on every list endpoint (users, classes, courses, offerings, enrollments, assignments, submissions, notifications).
+- Pagination, sorting, filtering and free-text search on every list endpoint (users, classes, courses, offerings, enrollments, assignments, submissions, notifications). Sort keys are an explicit per-endpoint allow-list (`?sortBy=name&sortDir=desc`) — an unknown key falls back to the endpoint's natural order rather than failing or being turned into a property access — and every sort carries a unique tiebreaker so paging cannot show a row twice or skip it.
 - Structured logging (Serilog), consistent error responses (RFC 7807 ProblemDetails), and a Swagger/OpenAPI document with JWT auth wired in.
 
 ### Business rules enforced
@@ -235,6 +238,38 @@ would serve one, but nothing issues a token outside account creation), and an ad
 re-send a setup link from the UI yet, so an expired link currently means recreating the
 account or an admin resetting the password directly.
 
+## Login throttling
+
+Two independent defences sit in front of `POST /api/v1/auth/login`, because neither covers
+the other's gap.
+
+**Per client address — a rate limit.** The credential endpoints (`login`, `refresh`, and both
+halves of `set-password`) are capped at `RateLimiting__CredentialsPerMinute` requests per
+minute per address, partitioned so one noisy caller cannot lock the school out of signing in.
+Over the limit is `429` with a `Retry-After` header and an RFC 7807 body. Nothing else in the
+API is rate limited — a busy classroom reading assignment lists should not be throttled.
+
+**Per account — a lockout.** `Auth__MaxFailedLoginAttempts` consecutive wrong passwords locks
+the account for `Auth__LockoutMinutes`. This is what a distributed guess runs into: spreading
+attempts across a thousand addresses slips under any per-IP limit, but it still lands on one
+account. While locked, the password is not even checked, so a locked account cannot be used
+as an oracle for whether a guess was right. Any successful sign-in clears the counter, and so
+does redeeming a password-setup link — someone who has proved control of the account should
+not stay locked out by the guesses that preceded them.
+
+A lockout is reported as the same `401 Auth.InvalidCredentials` as a wrong password, byte for
+byte. Saying "this account is locked" would confirm the address exists and tell the caller
+exactly when to come back.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `RateLimiting__CredentialsPerMinute` | `10` | Requests per minute per address on credential endpoints |
+| `Auth__MaxFailedLoginAttempts` | `5` | Consecutive wrong passwords before the account locks |
+| `Auth__LockoutMinutes` | `15` | How long the lock holds |
+
+Note that the rate limiter's counters are per instance and in memory — see
+[Known Limitations](#known-limitations).
+
 ## Email Notifications
 
 Six events send mail. Nobody triggers any of them by hand — each is queued by the command
@@ -281,6 +316,19 @@ direct `SendEmailAsync` in the handler cannot:
 - Retries are bounded (`Email__MaxDeliveryAttempts`, default 3) and the failure reason is
   recorded on the row, so "why did this not arrive?" has an answer.
 - Tests assert on rows instead of intercepting mail.
+
+**Retries back off.** A failed row returns to `Pending` behind a delay that doubles with each
+attempt, starting at `Email__RetryBackoffSeconds`. Without that, an unreachable mail server is
+retried once per sweep until the attempt budget is gone — three attempts spent in ninety
+seconds against something that needed two minutes to come back.
+
+**Sweeps claim their work, so more than one instance is safe.** A sweep does not simply select
+pending rows; it moves a batch to `Processing` in a single statement using
+`FOR UPDATE SKIP LOCKED`. Concurrent dispatchers step over each other's rows and each takes a
+disjoint batch, so running several API instances mails each notification once rather than once
+per instance. A dispatcher killed mid-batch leaves rows claimed — the same query also picks up
+anything claimed longer ago than `Email__ClaimTimeoutSeconds`, so another sweep takes them
+back rather than leaving them stranded.
 
 Retrying can duplicate an email that was accepted just before a crash. That is the right
 trade here: a student receiving one notice twice is a nuisance, never receiving it is a
@@ -346,14 +394,15 @@ Documented per the assignment brief's request to record assumptions where requir
 - **Notifications cover six events, and every one of them is a reaction to a state change.** A *deadline approaching* reminder is not implemented, because it needs a scheduled job scanning for upcoming deadlines rather than something to react to, and there is no in-app notification centre for end users (only the admin outbox view). Un-enrolling a student and removing a teacher's course mapping are also silent — the outbox announces access being granted, not withdrawn.
 - **No forgot-password flow, and no way to re-send a setup link.** The `PasswordSetupToken` machinery would serve both, but nothing issues a token outside account creation, so an expired link means an admin sets the password directly instead. See [Account Setup](#account-setup).
 - **The setup token rides in a URL query string,** so it can reach a proxy or browser-history entry. Mitigated by being single-use and short-lived rather than eliminated; the password itself only ever goes in a POST body.
-- **No email templating or localisation.** Bodies are plain text built in code — deliberately, since HTML mail needs escaping, a text fallback, and inline-CSS work to survive real clients — but that means no branding and no per-recipient language.
+- **No localisation.** Bodies are HTML built in code with a derived plain-text part — deliberately, since HTML mail needs escaping, a text fallback, and inline-CSS work to survive real clients — but that means no branding and no per-recipient language.
 - **No plagiarism detection** on submitted text answers.
 - **Pagination is API-complete but not fully surfaced in the UI** — list endpoints support `page`/`pageSize`/`search`, but the frontend currently fetches up to 100 rows per list rather than exposing page-through controls (acceptable at the current seeded data volume).
 - **Multi-class enrollment is supported by the model but thinly surfaced.** The schema, API and rule checks all handle a student in several classes; the UI shows them joined in the header and the user list, but there is no dedicated "my classes" screen.
 - **The outbox is never pruned.** Sent notifications accumulate; a real deployment would archive or delete rows past a retention window.
 - **No frontend automated test suite** — testing focus (per the brief) went into backend business-rule, authorization and workflow tests.
 - **Local/Docker-volume file storage only** — `IFileStorage` is an interface specifically so a cloud backend (S3/Azure Blob) could be swapped in later, but that swap isn't implemented.
-- **Single-region, non-HA setup** — this is a local/demo deployment (Docker Compose), not a production topology (no managed Postgres, no reverse proxy/HTTPS termination, no horizontal scaling).
+- **Single-region, non-HA setup** — this is a local/demo deployment (Docker Compose), not a production topology (no managed Postgres, no reverse proxy/HTTPS termination). The application itself is no longer the obstacle to running several API instances — the outbox claims rows with `SKIP LOCKED` and sessions carry no server-side state — but local file storage still pins uploads to one machine, so horizontal scaling waits on the cloud storage backend above.
+- **Rate limiting is per-instance, held in memory.** Behind several API replicas each keeps its own counters, so the effective limit multiplies by the replica count. The per-account lockout is in the database and so is unaffected; a shared limiter (Redis) would be the fix.
 
 ## License
 

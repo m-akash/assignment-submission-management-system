@@ -1,15 +1,18 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using System.Text.Json.Serialization;
 using AssignmentSystem.Api.Authentication;
+using AssignmentSystem.Api.Common;
 using AssignmentSystem.Api.Middleware;
 using AssignmentSystem.Api.Swagger;
 using AssignmentSystem.Application;
 using AssignmentSystem.Application.Abstractions;
-using FluentValidation;
 using AssignmentSystem.Infrastructure;
 using AssignmentSystem.Infrastructure.Persistence;
 using AssignmentSystem.Infrastructure.Persistence.Seed;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
@@ -34,8 +37,6 @@ try
     // ── Layer services ────────────────────────────────────────────────────────
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
-    // Register request-body validators that live in the Api assembly.
-    builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
     // ── Current user (per-request, from HttpContext claims) ───────────────────
     builder.Services.AddHttpContextAccessor();
@@ -61,6 +62,56 @@ try
 
     builder.Services.AddAuthorization();
 
+    // ── Rate limiting (credential endpoints) ──────────────────────────────────
+    // Partitioned by client address, not globally: a shared limit would let one noisy
+    // caller lock the whole school out of signing in.
+    //
+    // This bounds how fast anyone can *try*; ApplicationUser's lockout bounds how many
+    // times a single account can be guessed at in total. Neither alone is enough — a
+    // distributed guess slips under a per-IP limit, and a per-account lock does nothing
+    // about someone spraying one password across every address in the directory.
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+        options.AddPolicy(RateLimitPolicies.Credentials, httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = builder.Configuration.GetValue("RateLimiting:CredentialsPerMinute", 10),
+                    Window = TimeSpan.FromMinutes(1),
+                    // No queue: a caller over the limit is told so immediately rather than
+                    // held open, which would tie up connections during exactly the burst
+                    // this exists to survive.
+                    QueueLimit = 0,
+                }));
+
+        options.OnRejected = async (context, ct) =>
+        {
+            var retryAfterSeconds = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter)
+                ? (int)retryAfter.TotalSeconds
+                : 60;
+            context.HttpContext.Response.Headers.RetryAfter = retryAfterSeconds.ToString(
+                System.Globalization.CultureInfo.InvariantCulture);
+            // Content type passed to WriteAsJsonAsync rather than set beforehand — it
+            // overwrites the header with application/json otherwise, and a client branching
+            // on problem+json would stop recognising this as an error it can read.
+            await context.HttpContext.Response.WriteAsJsonAsync(
+                new ProblemDetails
+                {
+                    Status = StatusCodes.Status429TooManyRequests,
+                    Title = "Too many requests.",
+                    Type = "https://httpstatuses.io/429",
+                    Detail = "Too many attempts. Please wait a moment and try again.",
+                    Instance = context.HttpContext.Request.Path,
+                },
+                options: null,
+                contentType: "application/problem+json",
+                cancellationToken: ct);
+        };
+    });
+
     // ── CORS (frontend origin allowlist) ──────────────────────────────────────
     var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
     builder.Services.AddCors(options =>
@@ -83,7 +134,10 @@ try
         options.MultipartBodyLengthLimit = maxUploadBytes + MultipartFramingHeadroom);
 
     // ── MVC / JSON ────────────────────────────────────────────────────────────
-    builder.Services.AddControllers(o => o.Filters.Add<AssignmentSystem.Api.Filters.ValidationFilter>())
+    // No validation filter: request bodies are mapped to commands, and the Application
+    // layer's ValidationDecorator validates those. Validating here as well would mean two
+    // sets of rules for one request — which is exactly what this replaced.
+    builder.Services.AddControllers()
         .AddJsonOptions(o =>
         {
             o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
@@ -137,6 +191,8 @@ try
     app.UseCors();
     app.UseMiddleware<CorrelationIdMiddleware>();
     app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+    app.UseRateLimiter();
 
     app.UseAuthentication();
     app.UseAuthorization();

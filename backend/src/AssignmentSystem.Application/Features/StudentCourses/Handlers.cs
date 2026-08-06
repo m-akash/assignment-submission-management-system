@@ -32,12 +32,13 @@ public sealed class GetStudentCoursesHandler : IQueryHandler<GetStudentCoursesQu
 
     public async Task<Result<PageResult<StudentCourseDto>>> HandleAsync(GetStudentCoursesQuery query, CancellationToken ct = default)
     {
-        // Defense-in-depth: the endpoint is role-gated to Student at the controller. If it is
-        // ever reached by another role through a routing change, fail closed rather than leak.
-        if (_currentUser.Role != Role.Student || _currentUser.UserId is null)
+        // The role is [RequiresRole(Role.Student)] on the query and enforced by the pipeline.
+        // The id is still checked: a token that authenticates but carries no subject claim
+        // would otherwise fall through to querying the roster for Guid.Empty.
+        if (_currentUser.UserId is null)
         {
-            return Result<PageResult<StudentCourseDto>>.Failure(Error.Forbidden(
-                "StudentCourses.NotAStudent", "Only students can view their own courses."));
+            return Result<PageResult<StudentCourseDto>>.Failure(Error.Unauthorized(
+                "StudentCourses.NoIdentity", "Your session does not identify a student account."));
         }
 
         var classIds = await _classRosterRepository.GetEnrolledClassIdsAsync(_currentUser.UserId.Value, ct);
@@ -71,8 +72,6 @@ public sealed class GetStudentCoursesHandler : IQueryHandler<GetStudentCoursesQu
                         .OrderBy(t => t.TeacherName)
                         .ToList());
             })
-            .OrderBy(c => c.ClassName)
-            .ThenBy(c => c.CourseName)
             .ToList();
 
         // Search runs in memory (after the EF query and grouping), so invariant culture is the
@@ -89,14 +88,47 @@ public sealed class GetStudentCoursesHandler : IQueryHandler<GetStudentCoursesQu
                 c.ClassName.ToLowerInvariant().Contains(search) ||
                 c.Teachers.Any(t => t.TeacherName.ToLowerInvariant().Contains(search))).ToList();
 
-        var total = filtered.Count;
+        // Sorted in memory for the same reason the search is: the rows are grouped after the
+        // EF query, so there is no IQueryable left to order. The allow-list is spelled out
+        // rather than resolved by reflection, matching how SortMap guards the spec-based
+        // endpoints. ClassName then CourseName is the natural order when nothing is asked for.
+        var sorted = SortStudentCourses(filtered, query.SortBy, query.SortDir);
+
+        var total = sorted.Count;
         var page = Math.Max(query.Page, 1);
         var pageSize = Math.Max(query.PageSize, 1);
-        var pageItems = filtered
+        var pageItems = sorted
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToList();
 
         return new PageResult<StudentCourseDto>(pageItems, page, pageSize, total);
+    }
+
+    private static List<StudentCourseDto> SortStudentCourses(
+        List<StudentCourseDto> courses, string? sortBy, string? sortDir)
+    {
+        Func<StudentCourseDto, string> key = sortBy?.Trim().ToLowerInvariant() switch
+        {
+            "course" => c => c.CourseName,
+            "coursecode" => c => c.CourseCode,
+            "class" => c => c.ClassName,
+            "teacher" => c => c.Teachers.Count > 0 ? c.Teachers[0].TeacherName : string.Empty,
+            _ => null!,
+        };
+
+        if (key is null)
+        {
+            return [.. courses.OrderBy(c => c.ClassName, StringComparer.OrdinalIgnoreCase)
+                              .ThenBy(c => c.CourseName, StringComparer.OrdinalIgnoreCase)];
+        }
+
+        var ordered = SortDirection.IsDescending(sortDir)
+            ? courses.OrderByDescending(key, StringComparer.OrdinalIgnoreCase)
+            : courses.OrderBy(key, StringComparer.OrdinalIgnoreCase);
+
+        // Offering id as the tiebreaker, for the same reason SortMap carries one: without it,
+        // two courses with the same name can swap places between pages.
+        return [.. ordered.ThenBy(c => c.Id)];
     }
 }

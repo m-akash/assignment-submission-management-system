@@ -1,7 +1,6 @@
 using AssignmentSystem.Api.Common;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Features.TeacherAssignments;
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,19 +11,9 @@ namespace AssignmentSystem.Api.Controllers;
 [Authorize]
 public sealed class TeacherAssignmentsController : ControllerBase
 {
-    private readonly ICommandHandler<CreateTeacherAssignmentCommand, TeacherAssignmentDto> _createHandler;
-    private readonly ICommandHandler<DeleteTeacherAssignmentCommand> _deleteHandler;
-    private readonly IQueryHandler<GetTeacherAssignmentsQuery, Shared.Common.PageResult<TeacherAssignmentDto>> _getQueryHandler;
+    private readonly IDispatcher _dispatcher;
 
-    public TeacherAssignmentsController(
-        ICommandHandler<CreateTeacherAssignmentCommand, TeacherAssignmentDto> createHandler,
-        ICommandHandler<DeleteTeacherAssignmentCommand> deleteHandler,
-        IQueryHandler<GetTeacherAssignmentsQuery, Shared.Common.PageResult<TeacherAssignmentDto>> getQueryHandler)
-    {
-        _createHandler = createHandler;
-        _deleteHandler = deleteHandler;
-        _getQueryHandler = getQueryHandler;
-    }
+    public TeacherAssignmentsController(IDispatcher dispatcher) => _dispatcher = dispatcher;
 
     [HttpGet]
     [Authorize(Roles = "Admin,Teacher")]
@@ -34,12 +23,14 @@ public sealed class TeacherAssignmentsController : ControllerBase
         [FromQuery] Guid? classId,
         [FromQuery] Guid? classCourseId,
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetTeacherAssignmentsQuery(teacherId, courseId, classId, classCourseId, search, page, pageSize);
-        var result = await _getQueryHandler.HandleAsync(query, ct);
+        var query = new GetTeacherAssignmentsQuery(teacherId, courseId, classId, classCourseId, search, sortBy, sortDir, page, pageSize);
+        var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
@@ -52,7 +43,7 @@ public sealed class TeacherAssignmentsController : ControllerBase
     public async Task<IActionResult> CreateTeacherAssignment([FromBody] CreateTeacherAssignmentRequest request, CancellationToken ct)
     {
         var command = new CreateTeacherAssignmentCommand(request.TeacherId, request.ClassCourseId);
-        var result = await _createHandler.HandleAsync(command, ct);
+        var result = await _dispatcher.SendAsync(command, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
@@ -64,7 +55,7 @@ public sealed class TeacherAssignmentsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteTeacherAssignment(Guid id, CancellationToken ct)
     {
-        var result = await _deleteHandler.HandleAsync(new DeleteTeacherAssignmentCommand(id), ct);
+        var result = await _dispatcher.SendAsync(new DeleteTeacherAssignmentCommand(id), ct);
         return result.ToActionResult(this);
     }
 }
@@ -75,14 +66,3 @@ public sealed class TeacherAssignmentsController : ControllerBase
 /// </summary>
 public sealed record CreateTeacherAssignmentRequest(Guid TeacherId, Guid ClassCourseId);
 
-public sealed class CreateTeacherAssignmentRequestValidator : AbstractValidator<CreateTeacherAssignmentRequest>
-{
-    public CreateTeacherAssignmentRequestValidator()
-    {
-        RuleFor(x => x.TeacherId)
-            .NotEmpty().WithMessage("Teacher id is required.");
-
-        RuleFor(x => x.ClassCourseId)
-            .NotEmpty().WithMessage("Choose the class and course to assign the teacher to.");
-    }
-}

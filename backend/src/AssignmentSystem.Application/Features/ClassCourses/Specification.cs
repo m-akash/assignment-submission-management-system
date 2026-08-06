@@ -44,16 +44,30 @@ internal sealed class ClassCourseDuplicateSpecification : Specification<ClassCou
 
 internal sealed class ClassCoursesPagedSpecification : Specification<ClassCourse>
 {
+    /// <summary>Columns this endpoint may be sorted by. See <see cref="SortMap{T}"/>.</summary>
+    private static readonly SortMap<ClassCourse> Sortable = new(
+        new Dictionary<string, System.Linq.Expressions.Expression<Func<ClassCourse, object>>>
+        {
+            ["class"] = cc => cc.Class.Level,
+            ["course"] = cc => cc.Course.Name,
+            ["courseCode"] = cc => cc.Course.Code,
+            ["createdAt"] = cc => cc.CreatedAtUtc,
+        },
+        tieBreaker: cc => cc.Id);
+
     public ClassCoursesPagedSpecification(
-        Guid? classId, Guid? courseId, string? search, int page, int pageSize)
+        Guid? classId, Guid? courseId, string? search, string? sortBy, string? sortDir, int page, int pageSize)
     {
         ApplyNoTracking();
         AddInclude(cc => cc.Class);
         AddInclude(cc => cc.Course);
         // By grade then course name: an offering list is read class-by-class, and class
         // names carry Roman numerals, so sorting them as text puts "Class IX" before "Class VI".
-        ApplyOrderBy(cc => cc.Class.Level);
-        ApplyThenBy(cc => cc.Course.Name);
+        if (!ApplySort(Sortable, sortBy, sortDir))
+        {
+            ApplyOrderBy(cc => cc.Class.Level);
+            ApplyThenBy(cc => cc.Course.Name);
+        }
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();

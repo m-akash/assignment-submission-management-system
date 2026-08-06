@@ -267,7 +267,7 @@ public abstract class IntegrationTestBase
         return profile.Classes[0].ClassId;
     }
 
-    private static async Task<T> PostAsync<T>(HttpClient client, string url, object body)
+    protected static async Task<T> PostAsync<T>(HttpClient client, string url, object body)
     {
         var response = await client.PostAsJsonAsync(url, body);
         response.EnsureSuccessStatusCode();
@@ -314,7 +314,7 @@ public abstract class IntegrationTestBase
     private sealed record ClassRef(Guid Id);
     private sealed record CourseRef(Guid Id);
     private sealed record ClassCourseRef(Guid Id);
-    private sealed record UserRef(Guid Id);
+    protected sealed record UserRef(Guid Id);
     private sealed record TeacherAssignmentRef(Guid Id);
     private sealed record TeacherMappingRef(Guid Id, Guid ClassCourseId);
     private sealed record EnrolledClassRef(Guid ClassId);

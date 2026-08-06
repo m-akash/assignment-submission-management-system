@@ -31,10 +31,22 @@ internal sealed class EnrollmentsByStudentSpecification : Specification<StudentE
 
 internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrollment>
 {
+    /// <summary>Columns this endpoint may be sorted by. See <see cref="SortMap{T}"/>.</summary>
+    private static readonly SortMap<StudentEnrollment> Sortable = new(
+        new Dictionary<string, System.Linq.Expressions.Expression<Func<StudentEnrollment, object>>>
+        {
+            ["student"] = e => e.Student.FullName,
+            ["class"] = e => e.Class.Level,
+            ["enrolledAt"] = e => e.EnrolledAtUtc,
+        },
+        tieBreaker: e => e.Id);
+
     public EnrollmentsPagedSpecification(
         Guid? studentId,
         Guid? classId,
         string? search,
+        string? sortBy,
+        string? sortDir,
         int page,
         int pageSize,
         IReadOnlyCollection<Guid>? allowedClassIds = null)
@@ -42,8 +54,11 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
         ApplyNoTracking();
         AddInclude(e => e.Student);
         AddInclude(e => e.Class);
-        ApplyOrderBy(e => e.Class.Level);
-        ApplyThenBy(e => e.Student.FullName);
+        if (!ApplySort(Sortable, sortBy, sortDir))
+        {
+            ApplyOrderBy(e => e.Class.Level);
+            ApplyThenBy(e => e.Student.FullName);
+        }
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();

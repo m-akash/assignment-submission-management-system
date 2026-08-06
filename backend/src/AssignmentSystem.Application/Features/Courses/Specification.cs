@@ -14,10 +14,23 @@ internal sealed class CourseByCodeSpecification : Specification<Course>
 
 internal sealed class CoursesPagedSpecification : Specification<Course>
 {
-    public CoursesPagedSpecification(string? search, int page, int pageSize)
+    /// <summary>Columns this endpoint may be sorted by. See <see cref="SortMap{T}"/>.</summary>
+    private static readonly SortMap<Course> Sortable = new(
+        new Dictionary<string, System.Linq.Expressions.Expression<Func<Course, object>>>
+        {
+            ["name"] = s => s.Name,
+            ["code"] = s => s.Code,
+            ["createdAt"] = s => s.CreatedAtUtc,
+        },
+        tieBreaker: s => s.Id);
+
+    public CoursesPagedSpecification(string? search, string? sortBy, string? sortDir, int page, int pageSize)
     {
         ApplyNoTracking();
-        ApplyOrderBy(s => s.Name);
+        if (!ApplySort(Sortable, sortBy, sortDir))
+        {
+            ApplyOrderBy(s => s.Name);
+        }
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
