@@ -63,7 +63,10 @@ export function TeacherMappingFormDialog({
   }
 
   const teacherOptions = teachers.data?.items ?? [];
-  const offeringOptions = offerings.data ?? [];
+  // Each offering may have at most one teacher, so one already carrying a mapping isn't a
+  // valid target here — it has to be removed on the mappings screen before it can take
+  // another teacher.
+  const offeringOptions = (offerings.data ?? []).filter((offering) => offering.teacherCount === 0);
   const errors = form.formState.errors;
 
   return (
@@ -124,7 +127,9 @@ export function TeacherMappingFormDialog({
             )}
             {!offerings.isLoading && offeringOptions.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                No offerings yet — add a course to a class on the Offerings screen first.
+                {(offerings.data ?? []).length === 0
+                  ? 'No offerings yet — add a course to a class on the Offerings screen first.'
+                  : 'Every offering already has a teacher. Remove a mapping on this screen to free one up.'}
               </p>
             )}
           </div>

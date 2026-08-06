@@ -36,10 +36,10 @@ internal sealed class TeacherAssignmentConfiguration : IEntityTypeConfiguration<
             .HasForeignKey(t => t.ClassCourseId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Authorization backbone uniqueness: a teacher can be linked to an offering once.
-        builder.HasIndex(t => new { t.TeacherId, t.ClassCourseId }).IsUnique();
-
-        // "Who teaches this offering?" — read when validating an assignment's author.
-        builder.HasIndex(t => t.ClassCourseId);
+        // Authorization backbone uniqueness: at most one teacher per offering. Unique on
+        // ClassCourseId alone (not the (TeacherId, ClassCourseId) pair) so a second, different
+        // teacher can't be linked to an offering that already has one — the existing mapping
+        // has to be removed first. This index also serves "who teaches this offering?" reads.
+        builder.HasIndex(t => t.ClassCourseId).IsUnique();
     }
 }

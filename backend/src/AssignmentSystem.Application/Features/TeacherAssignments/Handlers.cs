@@ -56,11 +56,19 @@ public sealed class CreateTeacherAssignmentHandler : ICommandHandler<CreateTeach
             return Result<TeacherAssignmentDto>.Failure(Error.NotFound("ClassCourse.NotFound", "The specified course offering was not found."));
         }
 
-        var duplicateSpec = new TeacherAssignmentDuplicateSpecification(command.TeacherId, command.ClassCourseId);
-        var alreadyAssigned = await _teacherAssignmentRepository.AnyAsync(duplicateSpec, ct);
-        if (alreadyAssigned)
+        // Only one teacher per offering: if this offering already has a mapping, either it's
+        // this same teacher (plain duplicate) or a different one — and a different teacher
+        // must be removed via delete before another can take the offering.
+        var existingSpec = new TeacherAssignmentByClassCourseSpecification(command.ClassCourseId);
+        var existingAssignment = await _teacherAssignmentRepository.FirstOrDefaultAsync(existingSpec, ct);
+        if (existingAssignment is not null)
         {
-            return Result<TeacherAssignmentDto>.Failure(Error.Conflict("TeacherAssignment.Duplicate", "This teacher is already assigned to this course and class."));
+            if (existingAssignment.TeacherId == command.TeacherId)
+            {
+                return Result<TeacherAssignmentDto>.Failure(Error.Conflict("TeacherAssignment.Duplicate", "This teacher is already assigned to this course and class."));
+            }
+
+            return Result<TeacherAssignmentDto>.Failure(Error.Conflict("TeacherAssignment.AlreadyHasTeacher", "This class and course already has an assigned teacher. Remove that mapping before assigning a different one."));
         }
 
         try

@@ -31,11 +31,17 @@ internal sealed class TeacherAssignmentWithDetailsSpecification : Specification<
     }
 }
 
-internal sealed class TeacherAssignmentDuplicateSpecification : Specification<TeacherAssignment>
+/// <summary>
+/// The one assignment (if any) already covering an offering. An offering may have at most
+/// one teacher, so this both finds a pre-existing mapping to compare teachers against and
+/// backs the "already has a teacher" duplicate check — there is no need for a
+/// teacher-scoped variant since the offering alone now determines uniqueness.
+/// </summary>
+internal sealed class TeacherAssignmentByClassCourseSpecification : Specification<TeacherAssignment>
 {
-    public TeacherAssignmentDuplicateSpecification(Guid teacherId, Guid classCourseId)
+    public TeacherAssignmentByClassCourseSpecification(Guid classCourseId)
     {
-        Criteria = ta => ta.TeacherId == teacherId && ta.ClassCourseId == classCourseId;
+        Criteria = ta => ta.ClassCourseId == classCourseId;
     }
 }
 

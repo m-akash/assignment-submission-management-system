@@ -4,9 +4,11 @@ using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
+using AssignmentSystem.Api.Controllers;
 using AssignmentSystem.Application.Features.Submissions;
 using AssignmentSystem.Domain.Assignments;
 using AssignmentSystem.Domain.Common;
+using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Domain.Submissions;
 using AssignmentSystem.Infrastructure.Persistence;
 using FluentAssertions;
@@ -152,6 +154,31 @@ public class PersistenceConstraintTests : IntegrationTestBase
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
+
+    /// <summary>
+    /// One teacher per offering: a second, different teacher cannot be mapped to an offering
+    /// that already has one, even though the (teacher, offering) pair itself is unique — the
+    /// unique index on the teacher_assignments table now keys on ClassCourseId alone.
+    /// </summary>
+    [Fact]
+    public async Task SecondDifferentTeacherOnSameOffering_ShouldReturn409()
+    {
+        var world = await ProvisionWorldAsync("second-ta");
+        using var admin = await SignInAsAdminAsync();
+
+        var secondTeacherEmail = $"second-teacher-{Guid.NewGuid():N}@test.local";
+        var secondTeacherResponse = await admin.PostAsJsonAsync("/api/v1/users",
+            new CreateUserRequest(secondTeacherEmail, "Second Teacher", TestPassword, Role.Teacher, null));
+        secondTeacherResponse.EnsureSuccessStatusCode();
+        var secondTeacher = await ReadAsync<CreatedUserRef>(secondTeacherResponse);
+
+        var response = await admin.PostAsJsonAsync("/api/v1/teacher-assignments",
+            new Api.Controllers.CreateTeacherAssignmentRequest(secondTeacher.Id, world.ClassCourseId));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    private sealed record CreatedUserRef(Guid Id);
 
     private sealed class SystemUtcClock : IClock
     {
