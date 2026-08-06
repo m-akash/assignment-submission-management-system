@@ -53,6 +53,7 @@ public static class DependencyInjection
         services.Configure<FileStorageOptions>(configuration.GetSection("FileStorage"));
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IPasswordSetupTokenService, PasswordSetupTokenService>();
+        services.AddSingleton<ILoginThrottleSettings, LoginThrottleSettings>();
 
         // ── File storage (local disk / Docker volume) + upload rules ───────────
         services.AddSingleton<IFileStorage, LocalFileStorage>();

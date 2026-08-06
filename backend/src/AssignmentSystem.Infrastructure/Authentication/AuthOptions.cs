@@ -22,4 +22,18 @@ public sealed class AuthOptions
     /// not face a weaker bar than the one an admin faces on their behalf.
     /// </summary>
     public int MinimumPasswordLength { get; set; } = 6;
+
+    /// <summary>
+    /// Consecutive wrong passwords before an account is locked. Five is enough room for a
+    /// person who genuinely mistypes and forgets which of two passwords they used, and far
+    /// too few for anyone working through a list.
+    /// </summary>
+    public int MaxFailedLoginAttempts { get; set; } = 5;
+
+    /// <summary>
+    /// How long the lock holds. Fifteen minutes is short enough that a locked-out teacher is
+    /// inconvenienced rather than blocked, and long enough that it caps an attacker at twenty
+    /// guesses an hour per account — which no wordlist survives.
+    /// </summary>
+    public int LockoutMinutes { get; set; } = 15;
 }
