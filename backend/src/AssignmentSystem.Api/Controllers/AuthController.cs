@@ -16,28 +16,9 @@ namespace AssignmentSystem.Api.Controllers;
 [Route("api/v1/auth")]
 public sealed class AuthController : ControllerBase
 {
-    private readonly ICommandHandler<LoginCommand, AuthResult> _loginHandler;
-    private readonly ICommandHandler<RefreshTokenCommand, AuthResult> _refreshHandler;
-    private readonly ICommandHandler<RevokeTokenCommand> _revokeHandler;
-    private readonly IQueryHandler<GetCurrentUserQuery, UserDto> _currentUserHandler;
-    private readonly ICommandHandler<SetPasswordCommand> _setPasswordHandler;
-    private readonly IQueryHandler<GetPasswordSetupStatusQuery, PasswordSetupStatusDto> _setupStatusHandler;
+    private readonly IDispatcher _dispatcher;
 
-    public AuthController(
-        ICommandHandler<LoginCommand, AuthResult> loginHandler,
-        ICommandHandler<RefreshTokenCommand, AuthResult> refreshHandler,
-        ICommandHandler<RevokeTokenCommand> revokeHandler,
-        IQueryHandler<GetCurrentUserQuery, UserDto> currentUserHandler,
-        ICommandHandler<SetPasswordCommand> setPasswordHandler,
-        IQueryHandler<GetPasswordSetupStatusQuery, PasswordSetupStatusDto> setupStatusHandler)
-    {
-        _loginHandler = loginHandler;
-        _refreshHandler = refreshHandler;
-        _revokeHandler = revokeHandler;
-        _currentUserHandler = currentUserHandler;
-        _setPasswordHandler = setPasswordHandler;
-        _setupStatusHandler = setupStatusHandler;
-    }
+    public AuthController(IDispatcher dispatcher) => _dispatcher = dispatcher;
 
     [HttpPost("login")]
     [AllowAnonymous]
@@ -45,7 +26,7 @@ public sealed class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var command = new LoginCommand(request.Email, request.Password, GetClientIp());
-        var result = await _loginHandler.HandleAsync(command, ct);
+        var result = await _dispatcher.SendAsync(command, ct);
 
         if (result.IsSuccess)
         {
@@ -68,7 +49,7 @@ public sealed class AuthController : ControllerBase
             return Error("Auth.InvalidRefreshToken", "The refresh token is invalid or expired.", StatusCodes.Status401Unauthorized);
         }
 
-        var result = await _refreshHandler.HandleAsync(new RefreshTokenCommand(cookieToken, GetClientIp()), ct);
+        var result = await _dispatcher.SendAsync(new RefreshTokenCommand(cookieToken, GetClientIp()), ct);
 
         if (result.IsSuccess)
         {
@@ -90,7 +71,7 @@ public sealed class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Me(CancellationToken ct)
     {
-        var result = await _currentUserHandler.HandleAsync(new GetCurrentUserQuery(), ct);
+        var result = await _dispatcher.QueryAsync(new GetCurrentUserQuery(), ct);
         return result.ToActionResult(this);
     }
 
@@ -106,7 +87,7 @@ public sealed class AuthController : ControllerBase
         var cookieToken = Request.Cookies[AuthConstants.RefreshTokenCookie];
         if (!string.IsNullOrWhiteSpace(cookieToken))
         {
-            await _revokeHandler.HandleAsync(new RevokeTokenCommand(cookieToken), ct);
+            await _dispatcher.SendAsync(new RevokeTokenCommand(cookieToken), ct);
         }
 
         Response.Cookies.Delete(
@@ -130,7 +111,7 @@ public sealed class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<PasswordSetupStatusDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPasswordSetupStatus([FromQuery] string token, CancellationToken ct)
     {
-        var result = await _setupStatusHandler.HandleAsync(new GetPasswordSetupStatusQuery(token), ct);
+        var result = await _dispatcher.QueryAsync(new GetPasswordSetupStatusQuery(token), ct);
         return result.ToActionResult(this);
     }
 
@@ -148,7 +129,7 @@ public sealed class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> SetPassword([FromBody] SetPasswordRequest request, CancellationToken ct)
     {
-        var result = await _setPasswordHandler.HandleAsync(
+        var result = await _dispatcher.SendAsync(
             new SetPasswordCommand(request.Token, request.NewPassword), ct);
 
         return result.IsSuccess ? NoContent() : result.ToActionResult(this);

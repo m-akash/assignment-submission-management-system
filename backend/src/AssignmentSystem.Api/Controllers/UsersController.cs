@@ -2,7 +2,6 @@ using AssignmentSystem.Api.Common;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Features.Users;
 using AssignmentSystem.Domain.Enums;
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,25 +12,9 @@ namespace AssignmentSystem.Api.Controllers;
 [Authorize(Roles = "Admin")]
 public sealed class UsersController : ControllerBase
 {
-    private readonly ICommandHandler<CreateUserCommand, UserDto> _createUserHandler;
-    private readonly ICommandHandler<UpdateUserCommand, UserDto> _updateUserHandler;
-    private readonly ICommandHandler<DeleteUserCommand> _deleteUserHandler;
-    private readonly IQueryHandler<GetUserByIdQuery, UserDto> _getUserByIdHandler;
-    private readonly IQueryHandler<GetUsersQuery, Shared.Common.PageResult<UserDto>> _getUsersHandler;
+    private readonly IDispatcher _dispatcher;
 
-    public UsersController(
-        ICommandHandler<CreateUserCommand, UserDto> createUserHandler,
-        ICommandHandler<UpdateUserCommand, UserDto> updateUserHandler,
-        ICommandHandler<DeleteUserCommand> deleteUserHandler,
-        IQueryHandler<GetUserByIdQuery, UserDto> getUserByIdHandler,
-        IQueryHandler<GetUsersQuery, Shared.Common.PageResult<UserDto>> getUsersHandler)
-    {
-        _createUserHandler = createUserHandler;
-        _updateUserHandler = updateUserHandler;
-        _deleteUserHandler = deleteUserHandler;
-        _getUserByIdHandler = getUserByIdHandler;
-        _getUsersHandler = getUsersHandler;
-    }
+    public UsersController(IDispatcher dispatcher) => _dispatcher = dispatcher;
 
     [HttpGet]
     public async Task<IActionResult> GetUsers(
@@ -43,7 +26,7 @@ public sealed class UsersController : ControllerBase
         CancellationToken ct = default)
     {
         var query = new GetUsersQuery(role, classId, search, page, pageSize);
-        var result = await _getUsersHandler.HandleAsync(query, ct);
+        var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
@@ -54,7 +37,7 @@ public sealed class UsersController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetUserById(Guid id, CancellationToken ct)
     {
-        var result = await _getUserByIdHandler.HandleAsync(new GetUserByIdQuery(id), ct);
+        var result = await _dispatcher.QueryAsync(new GetUserByIdQuery(id), ct);
         return result.ToActionResult(this);
     }
 
@@ -62,7 +45,7 @@ public sealed class UsersController : ControllerBase
     public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request, CancellationToken ct)
     {
         var command = new CreateUserCommand(request.Email, request.FullName, request.Password, request.Role, request.ClassId);
-        var result = await _createUserHandler.HandleAsync(command, ct);
+        var result = await _dispatcher.SendAsync(command, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
@@ -74,14 +57,14 @@ public sealed class UsersController : ControllerBase
     public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequest request, CancellationToken ct)
     {
         var command = new UpdateUserCommand(id, request.FullName, request.Password);
-        var result = await _updateUserHandler.HandleAsync(command, ct);
+        var result = await _dispatcher.SendAsync(command, ct);
         return result.ToActionResult(this);
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteUser(Guid id, CancellationToken ct)
     {
-        var result = await _deleteUserHandler.HandleAsync(new DeleteUserCommand(id), ct);
+        var result = await _dispatcher.SendAsync(new DeleteUserCommand(id), ct);
         return result.ToActionResult(this);
     }
 }
@@ -93,46 +76,3 @@ public sealed record CreateUserRequest(string Email, string FullName, string Pas
 /// </summary>
 public sealed record UpdateUserRequest(string FullName, string? Password);
 
-public sealed class CreateUserRequestValidator : AbstractValidator<CreateUserRequest>
-{
-    public CreateUserRequestValidator()
-    {
-        RuleFor(x => x.Email)
-            .NotEmpty().WithMessage("Email is required.")
-            .EmailAddress().WithMessage("A valid email is required.")
-            .MaximumLength(256);
-
-        RuleFor(x => x.FullName)
-            .NotEmpty().WithMessage("Full name is required.")
-            .MaximumLength(150).WithMessage("Full name cannot exceed 150 characters.");
-
-        RuleFor(x => x.Password)
-            .NotEmpty().WithMessage("Password is required.")
-            .MinimumLength(6).WithMessage("Password must be at least 6 characters.");
-
-        RuleFor(x => x.Role)
-            .IsInEnum().WithMessage("A valid role is required.");
-
-        RuleFor(x => x.ClassId)
-            .NotEmpty().WithMessage("A student must be assigned to a class.")
-            .When(x => x.Role == Role.Student);
-
-        RuleFor(x => x.ClassId)
-            .Empty().WithMessage("Only students may be assigned to a class.")
-            .When(x => x.Role != Role.Student);
-    }
-}
-
-public sealed class UpdateUserRequestValidator : AbstractValidator<UpdateUserRequest>
-{
-    public UpdateUserRequestValidator()
-    {
-        RuleFor(x => x.FullName)
-            .NotEmpty().WithMessage("Full name is required.")
-            .MaximumLength(150).WithMessage("Full name cannot exceed 150 characters.");
-
-        RuleFor(x => x.Password)
-            .MinimumLength(6).WithMessage("Password must be at least 6 characters.")
-            .When(x => !string.IsNullOrEmpty(x.Password));
-    }
-}

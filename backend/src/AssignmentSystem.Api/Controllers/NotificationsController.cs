@@ -21,21 +21,15 @@ namespace AssignmentSystem.Api.Controllers;
 [Authorize]
 public sealed class NotificationsController : ControllerBase
 {
-    private readonly IQueryHandler<GetNotificationsQuery, Shared.Common.PageResult<NotificationDto>> _getListHandler;
-    private readonly IQueryHandler<GetNotificationSummaryQuery, NotificationSummaryDto> _getSummaryHandler;
-    private readonly ICommandHandler<RetryNotificationCommand, NotificationDto> _retryHandler;
-    private readonly INotificationDispatcher _dispatcher;
+    private readonly IDispatcher _dispatcher;
+    private readonly INotificationDispatcher _outboxDispatcher;
 
     public NotificationsController(
-        IQueryHandler<GetNotificationsQuery, Shared.Common.PageResult<NotificationDto>> getListHandler,
-        IQueryHandler<GetNotificationSummaryQuery, NotificationSummaryDto> getSummaryHandler,
-        ICommandHandler<RetryNotificationCommand, NotificationDto> retryHandler,
-        INotificationDispatcher dispatcher)
+        IDispatcher dispatcher,
+        INotificationDispatcher outboxDispatcher)
     {
-        _getListHandler = getListHandler;
-        _getSummaryHandler = getSummaryHandler;
-        _retryHandler = retryHandler;
         _dispatcher = dispatcher;
+        _outboxDispatcher = outboxDispatcher;
     }
 
     [HttpGet]
@@ -49,7 +43,7 @@ public sealed class NotificationsController : ControllerBase
         CancellationToken ct = default)
     {
         var query = new GetNotificationsQuery(status, type, recipientId, search, page, pageSize);
-        var result = await _getListHandler.HandleAsync(query, ct);
+        var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
@@ -61,7 +55,7 @@ public sealed class NotificationsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetSummary(CancellationToken ct)
     {
-        var result = await _getSummaryHandler.HandleAsync(new GetNotificationSummaryQuery(), ct);
+        var result = await _dispatcher.QueryAsync(new GetNotificationSummaryQuery(), ct);
         return result.ToActionResult(this);
     }
 
@@ -69,7 +63,7 @@ public sealed class NotificationsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Retry(Guid id, CancellationToken ct)
     {
-        var result = await _retryHandler.HandleAsync(new RetryNotificationCommand(id), ct);
+        var result = await _dispatcher.SendAsync(new RetryNotificationCommand(id), ct);
         return result.ToActionResult(this);
     }
 
@@ -82,7 +76,7 @@ public sealed class NotificationsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Dispatch([FromQuery] int batchSize = 25, CancellationToken ct = default)
     {
-        var sent = await _dispatcher.DispatchPendingAsync(Math.Clamp(batchSize, 1, 200), ct);
+        var sent = await _outboxDispatcher.DispatchPendingAsync(Math.Clamp(batchSize, 1, 200), ct);
         return Ok(new ApiResponse<DispatchResult> { Success = true, Data = new DispatchResult(sent) });
     }
 }

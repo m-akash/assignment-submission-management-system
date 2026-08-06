@@ -10,6 +10,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The decorator pipeline and the authorization policy are implementation details, but
+         they are also the things most worth testing directly — a role gate that silently
+         stopped running would otherwise only show up as a missing 403 somewhere. -->
+    <InternalsVisibleTo Include="AssignmentSystem.Application.Tests" />
+    <InternalsVisibleTo Include="AssignmentSystem.Api.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="FluentValidation" Version="11.10.0" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
     <PackageReference Include="Riok.Mapperly" Version="4.1.1" />

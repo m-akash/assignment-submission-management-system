@@ -34,6 +34,12 @@ public sealed class ReviewSubmissionCommandValidator : AbstractValidator<ReviewS
 
         RuleFor(x => x.Marks)
             .GreaterThanOrEqualTo(0).WithMessage("Marks cannot be negative.");
+
+        // An unmapped enum value arrives as a plain integer cast, so this is the only
+        // thing standing between a hand-rolled request and a submission in a status the
+        // domain has no meaning for.
+        RuleFor(x => x.Status)
+            .IsInEnum().WithMessage("That is not a valid submission status.");
     }
 }
 

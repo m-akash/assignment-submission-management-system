@@ -1,7 +1,6 @@
 using AssignmentSystem.Api.Common;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Features.Courses;
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,25 +11,9 @@ namespace AssignmentSystem.Api.Controllers;
 [Authorize]
 public sealed class CoursesController : ControllerBase
 {
-    private readonly ICommandHandler<CreateCourseCommand, CourseDto> _createCourseHandler;
-    private readonly ICommandHandler<UpdateCourseCommand, CourseDto> _updateCourseHandler;
-    private readonly ICommandHandler<DeleteCourseCommand> _deleteCourseHandler;
-    private readonly IQueryHandler<GetCourseByIdQuery, CourseDto> _getCourseByIdHandler;
-    private readonly IQueryHandler<GetCoursesQuery, Shared.Common.PageResult<CourseDto>> _getCoursesHandler;
+    private readonly IDispatcher _dispatcher;
 
-    public CoursesController(
-        ICommandHandler<CreateCourseCommand, CourseDto> createCourseHandler,
-        ICommandHandler<UpdateCourseCommand, CourseDto> updateCourseHandler,
-        ICommandHandler<DeleteCourseCommand> deleteCourseHandler,
-        IQueryHandler<GetCourseByIdQuery, CourseDto> getCourseByIdHandler,
-        IQueryHandler<GetCoursesQuery, Shared.Common.PageResult<CourseDto>> getCoursesHandler)
-    {
-        _createCourseHandler = createCourseHandler;
-        _updateCourseHandler = updateCourseHandler;
-        _deleteCourseHandler = deleteCourseHandler;
-        _getCourseByIdHandler = getCourseByIdHandler;
-        _getCoursesHandler = getCoursesHandler;
-    }
+    public CoursesController(IDispatcher dispatcher) => _dispatcher = dispatcher;
 
     [HttpGet]
     public async Task<IActionResult> GetCourses(
@@ -40,7 +23,7 @@ public sealed class CoursesController : ControllerBase
         CancellationToken ct = default)
     {
         var query = new GetCoursesQuery(search, page, pageSize);
-        var result = await _getCoursesHandler.HandleAsync(query, ct);
+        var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
@@ -51,7 +34,7 @@ public sealed class CoursesController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetCourseById(Guid id, CancellationToken ct)
     {
-        var result = await _getCourseByIdHandler.HandleAsync(new GetCourseByIdQuery(id), ct);
+        var result = await _dispatcher.QueryAsync(new GetCourseByIdQuery(id), ct);
         return result.ToActionResult(this);
     }
 
@@ -60,7 +43,7 @@ public sealed class CoursesController : ControllerBase
     public async Task<IActionResult> CreateCourse([FromBody] CreateCourseRequest request, CancellationToken ct)
     {
         var command = new CreateCourseCommand(request.Name, request.Code);
-        var result = await _createCourseHandler.HandleAsync(command, ct);
+        var result = await _dispatcher.SendAsync(command, ct);
         if (!result.IsSuccess)
         {
             return result.ToActionResult(this);
@@ -73,7 +56,7 @@ public sealed class CoursesController : ControllerBase
     public async Task<IActionResult> UpdateCourse(Guid id, [FromBody] UpdateCourseRequest request, CancellationToken ct)
     {
         var command = new UpdateCourseCommand(id, request.Name, request.Code);
-        var result = await _updateCourseHandler.HandleAsync(command, ct);
+        var result = await _dispatcher.SendAsync(command, ct);
         return result.ToActionResult(this);
     }
 
@@ -81,7 +64,7 @@ public sealed class CoursesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteCourse(Guid id, CancellationToken ct)
     {
-        var result = await _deleteCourseHandler.HandleAsync(new DeleteCourseCommand(id), ct);
+        var result = await _dispatcher.SendAsync(new DeleteCourseCommand(id), ct);
         return result.ToActionResult(this);
     }
 }
@@ -89,30 +72,3 @@ public sealed class CoursesController : ControllerBase
 public sealed record CreateCourseRequest(string Name, string Code);
 public sealed record UpdateCourseRequest(string Name, string Code);
 
-public sealed class CreateCourseRequestValidator : AbstractValidator<CreateCourseRequest>
-{
-    public CreateCourseRequestValidator()
-    {
-        RuleFor(x => x.Name)
-            .NotEmpty().WithMessage("Course name is required.")
-            .MaximumLength(150).WithMessage("Course name cannot exceed 150 characters.");
-
-        RuleFor(x => x.Code)
-            .NotEmpty().WithMessage("Course code is required.")
-            .MaximumLength(30).WithMessage("Course code cannot exceed 30 characters.");
-    }
-}
-
-public sealed class UpdateCourseRequestValidator : AbstractValidator<UpdateCourseRequest>
-{
-    public UpdateCourseRequestValidator()
-    {
-        RuleFor(x => x.Name)
-            .NotEmpty().WithMessage("Course name is required.")
-            .MaximumLength(150).WithMessage("Course name cannot exceed 150 characters.");
-
-        RuleFor(x => x.Code)
-            .NotEmpty().WithMessage("Course code is required.")
-            .MaximumLength(30).WithMessage("Course code cannot exceed 30 characters.");
-    }
-}

@@ -5,7 +5,6 @@ using AssignmentSystem.Api.Middleware;
 using AssignmentSystem.Api.Swagger;
 using AssignmentSystem.Application;
 using AssignmentSystem.Application.Abstractions;
-using FluentValidation;
 using AssignmentSystem.Infrastructure;
 using AssignmentSystem.Infrastructure.Persistence;
 using AssignmentSystem.Infrastructure.Persistence.Seed;
@@ -34,8 +33,6 @@ try
     // ── Layer services ────────────────────────────────────────────────────────
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
-    // Register request-body validators that live in the Api assembly.
-    builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
     // ── Current user (per-request, from HttpContext claims) ───────────────────
     builder.Services.AddHttpContextAccessor();
@@ -83,7 +80,10 @@ try
         options.MultipartBodyLengthLimit = maxUploadBytes + MultipartFramingHeadroom);
 
     // ── MVC / JSON ────────────────────────────────────────────────────────────
-    builder.Services.AddControllers(o => o.Filters.Add<AssignmentSystem.Api.Filters.ValidationFilter>())
+    // No validation filter: request bodies are mapped to commands, and the Application
+    // layer's ValidationDecorator validates those. Validating here as well would mean two
+    // sets of rules for one request — which is exactly what this replaced.
+    builder.Services.AddControllers()
         .AddJsonOptions(o =>
         {
             o.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
