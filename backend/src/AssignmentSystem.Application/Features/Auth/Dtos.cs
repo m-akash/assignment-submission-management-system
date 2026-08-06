@@ -1,14 +1,18 @@
+using AssignmentSystem.Application.Common.Authorization;
 using AssignmentSystem.Application.Common.Handlers;
 
 namespace AssignmentSystem.Application.Features.Auth;
 
 /// <summary>Login request body.</summary>
+[AllowAnonymous]
 public sealed record LoginCommand(string Email, string Password, string? ClientIp = null) : ICommand<AuthResult>;
 
 /// <summary>Refresh request — refresh token read from the httpOnly cookie.</summary>
+[AllowAnonymous]
 public sealed record RefreshTokenCommand(string RefreshToken, string? ClientIp = null) : ICommand<AuthResult>;
 
 /// <summary>Logout request — revokes the supplied refresh token.</summary>
+[AllowAnonymous]
 public sealed record RevokeTokenCommand(string RefreshToken) : ICommand;
 
 /// <summary>
@@ -16,9 +20,11 @@ public sealed record RevokeTokenCommand(string RefreshToken) : ICommand;
 /// whole point is that the caller cannot sign in yet — with possession of the single-use
 /// token as the authorisation.
 /// </summary>
+[AllowAnonymous]
 public sealed record SetPasswordCommand(string Token, string NewPassword) : ICommand;
 
 /// <summary>Checks a setup token without spending it, so the page can fail early.</summary>
+[AllowAnonymous]
 public sealed record GetPasswordSetupStatusQuery(string Token) : IQuery<PasswordSetupStatusDto>;
 
 /// <summary>

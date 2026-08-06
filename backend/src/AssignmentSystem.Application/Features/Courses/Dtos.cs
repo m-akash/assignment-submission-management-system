@@ -1,4 +1,5 @@
 using AssignmentSystem.Application.Common.Handlers;
+using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Features.Courses;

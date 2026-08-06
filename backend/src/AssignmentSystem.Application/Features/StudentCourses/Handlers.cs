@@ -32,12 +32,13 @@ public sealed class GetStudentCoursesHandler : IQueryHandler<GetStudentCoursesQu
 
     public async Task<Result<PageResult<StudentCourseDto>>> HandleAsync(GetStudentCoursesQuery query, CancellationToken ct = default)
     {
-        // Defense-in-depth: the endpoint is role-gated to Student at the controller. If it is
-        // ever reached by another role through a routing change, fail closed rather than leak.
-        if (_currentUser.Role != Role.Student || _currentUser.UserId is null)
+        // The role is [RequiresRole(Role.Student)] on the query and enforced by the pipeline.
+        // The id is still checked: a token that authenticates but carries no subject claim
+        // would otherwise fall through to querying the roster for Guid.Empty.
+        if (_currentUser.UserId is null)
         {
-            return Result<PageResult<StudentCourseDto>>.Failure(Error.Forbidden(
-                "StudentCourses.NotAStudent", "Only students can view their own courses."));
+            return Result<PageResult<StudentCourseDto>>.Failure(Error.Unauthorized(
+                "StudentCourses.NoIdentity", "Your session does not identify a student account."));
         }
 
         var classIds = await _classRosterRepository.GetEnrolledClassIdsAsync(_currentUser.UserId.Value, ct);

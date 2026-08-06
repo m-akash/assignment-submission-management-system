@@ -1,4 +1,5 @@
 using AssignmentSystem.Application.Common.Handlers;
+using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Features.StudentCourses;
@@ -37,6 +38,7 @@ public sealed record StudentCourseDto(
 /// </summary>
 public sealed record GetStudentCoursesQuery(
     string? Search = null,
+    /// <summary>One of: course, courseCode, class, teacher. Anything else keeps the natural order.</summary>
     int Page = 1,
     int PageSize = 50
 ) : IQuery<PageResult<StudentCourseDto>>;

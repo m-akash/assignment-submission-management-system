@@ -1,4 +1,5 @@
 using AssignmentSystem.Application.Common.Handlers;
+using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Application.Features.Enrollments;
 using AssignmentSystem.Shared.Common;
 
@@ -58,6 +59,7 @@ public sealed record GetUserByIdQuery(Guid Id) : IQuery<UserDto>;
 /// </summary>
 public sealed record GetCurrentUserQuery : IQuery<UserDto>;
 
+// Qualified: this record's own `Role` parameter shadows the enum inside its attribute list.
 public sealed record GetUsersQuery(
     Domain.Enums.Role? Role = null,
     Guid? ClassId = null,

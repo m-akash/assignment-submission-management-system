@@ -1,4 +1,5 @@
 using AssignmentSystem.Application.Abstractions;
+using AssignmentSystem.Application.Common.Authorization;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Assignments;
@@ -47,11 +48,9 @@ public sealed class CreateAssignmentHandler : ICommandHandler<CreateAssignmentCo
 
     public async Task<Result<AssignmentDto>> HandleAsync(CreateAssignmentCommand command, CancellationToken ct = default)
     {
-        if (_currentUser.Role != Role.Teacher)
-        {
-            return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "Only teachers can create assignments."));
-        }
-
+        // The caller is a teacher — [RequiresRole(Role.Teacher)] on the command has already
+        // established that. What is left is whether this teacher may set work for *this*
+        // offering, which is the teaching mapping checked below.
         var offering = await _classCourseRepository.GetByIdAsync(command.ClassCourseId, ct);
         if (offering is null)
         {
@@ -109,22 +108,19 @@ public sealed class CreateAssignmentHandler : ICommandHandler<CreateAssignmentCo
 public sealed class UpdateAssignmentHandler : ICommandHandler<UpdateAssignmentCommand, AssignmentDto>
 {
     private readonly IRepository<Assignment> _assignmentRepository;
-    private readonly IRepository<Submission> _submissionRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly IAssignmentAccess _access;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly AssignmentMapper Mapper = new();
 
     public UpdateAssignmentHandler(
         IRepository<Assignment> assignmentRepository,
-        IRepository<Submission> submissionRepository,
-        ICurrentUser currentUser,
+        IAssignmentAccess access,
         IClock clock,
         IUnitOfWork unitOfWork)
     {
         _assignmentRepository = assignmentRepository;
-        _submissionRepository = submissionRepository;
-        _currentUser = currentUser;
+        _access = access;
         _clock = clock;
         _unitOfWork = unitOfWork;
     }
@@ -138,16 +134,18 @@ public sealed class UpdateAssignmentHandler : ICommandHandler<UpdateAssignmentCo
             return Result<AssignmentDto>.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        if (_currentUser.Role != Role.Teacher || !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (_access.MustBeAuthor(assignment) is { } denied)
         {
-            return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have permission to update this assignment."));
+            return Result<AssignmentDto>.Failure(denied);
         }
 
         try
         {
-            // Check if there are any submissions for this assignment (either pending or graded)
-            var countSpec = new SubmissionsByAssignmentCountSpecification(assignment.Id);
-            var hasSubmissions = await _submissionRepository.AnyAsync(countSpec, ct);
+            // Read off the assignment rather than counted with a second query. The column is
+            // maintained on every submit and never decremented (submissions are not deletable),
+            // so "has ever been submitted to" — which is what rule X6 actually turns on — is
+            // exactly what it holds. Two answers to one question is how they drift apart.
+            var hasSubmissions = assignment.SubmissionCount > 0;
 
             assignment.Update(
                 command.Title,
@@ -169,30 +167,23 @@ public sealed class UpdateAssignmentHandler : ICommandHandler<UpdateAssignmentCo
         }
     }
 
-    private sealed class SubmissionsByAssignmentCountSpecification : Specification<Submission>
-    {
-        public SubmissionsByAssignmentCountSpecification(Guid assignmentId)
-        {
-            Criteria = s => s.AssignmentId == assignmentId;
-        }
-    }
 }
 
 public sealed class DeleteAssignmentHandler : ICommandHandler<DeleteAssignmentCommand>
 {
     private readonly IRepository<Assignment> _assignmentRepository;
-    private readonly ICurrentUser _currentUser;
+    private readonly IAssignmentAccess _access;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
 
     public DeleteAssignmentHandler(
         IRepository<Assignment> assignmentRepository,
-        ICurrentUser currentUser,
+        IAssignmentAccess access,
         IClock clock,
         IUnitOfWork unitOfWork)
     {
         _assignmentRepository = assignmentRepository;
-        _currentUser = currentUser;
+        _access = access;
         _clock = clock;
         _unitOfWork = unitOfWork;
     }
@@ -205,9 +196,9 @@ public sealed class DeleteAssignmentHandler : ICommandHandler<DeleteAssignmentCo
             return Result.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        if (_currentUser.Role != Role.Teacher || !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (_access.MustBeAuthor(assignment) is { } denied)
         {
-            return Result.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have permission to delete this assignment."));
+            return Result.Failure(denied);
         }
 
         assignment.SoftDelete(_clock.UtcNow);
@@ -229,19 +220,19 @@ public sealed class PublishAssignmentHandler : ICommandHandler<PublishAssignment
 {
     private readonly IRepository<Assignment> _assignmentRepository;
     private readonly INotificationOutbox _notifications;
-    private readonly ICurrentUser _currentUser;
+    private readonly IAssignmentAccess _access;
     private readonly IUnitOfWork _unitOfWork;
     private static readonly AssignmentMapper Mapper = new();
 
     public PublishAssignmentHandler(
         IRepository<Assignment> assignmentRepository,
         INotificationOutbox notifications,
-        ICurrentUser currentUser,
+        IAssignmentAccess access,
         IUnitOfWork unitOfWork)
     {
         _assignmentRepository = assignmentRepository;
         _notifications = notifications;
-        _currentUser = currentUser;
+        _access = access;
         _unitOfWork = unitOfWork;
     }
 
@@ -254,9 +245,9 @@ public sealed class PublishAssignmentHandler : ICommandHandler<PublishAssignment
             return Result<AssignmentDto>.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        if (_currentUser.Role != Role.Teacher || !assignment.IsOwnedBy(_currentUser.UserId.GetValueOrDefault()))
+        if (_access.MustBeAuthor(assignment) is { } denied)
         {
-            return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have permission to publish this assignment."));
+            return Result<AssignmentDto>.Failure(denied);
         }
 
         try
@@ -280,18 +271,13 @@ public sealed class PublishAssignmentHandler : ICommandHandler<PublishAssignment
 public sealed class GetAssignmentByIdHandler : IQueryHandler<GetAssignmentByIdQuery, AssignmentDto>
 {
     private readonly IRepository<Assignment> _assignmentRepository;
-    private readonly IClassRosterRepository _roster;
-    private readonly ICurrentUser _currentUser;
+    private readonly IAssignmentAccess _access;
     private static readonly AssignmentMapper Mapper = new();
 
-    public GetAssignmentByIdHandler(
-        IRepository<Assignment> assignmentRepository,
-        IClassRosterRepository roster,
-        ICurrentUser currentUser)
+    public GetAssignmentByIdHandler(IRepository<Assignment> assignmentRepository, IAssignmentAccess access)
     {
         _assignmentRepository = assignmentRepository;
-        _roster = roster;
-        _currentUser = currentUser;
+        _access = access;
     }
 
     public async Task<Result<AssignmentDto>> HandleAsync(GetAssignmentByIdQuery query, CancellationToken ct = default)
@@ -303,22 +289,9 @@ public sealed class GetAssignmentByIdHandler : IQueryHandler<GetAssignmentByIdQu
             return Result<AssignmentDto>.Failure(Error.NotFound("Assignment.NotFound", "The specified assignment was not found."));
         }
 
-        if (_currentUser.Role == Role.Student)
+        if (await _access.CanViewAsync(assignment, ct) is { } denied)
         {
-            // X3 before B1: a draft is invisible to every student, so it is not worth a
-            // roster query to find out which draft they were asking about.
-            if (assignment.Status == AssignmentStatus.Draft)
-            {
-                return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have access to this draft assignment."));
-            }
-
-            // B1: only assignments for a class they are actually enrolled in.
-            var isEnrolled = await _roster.IsEnrolledAsync(
-                _currentUser.UserId.GetValueOrDefault(), assignment.ClassCourse.ClassId, ct);
-            if (!isEnrolled)
-            {
-                return Result<AssignmentDto>.Failure(Error.Forbidden("Assignment.Forbidden", "You do not have access to this assignment."));
-            }
+            return Result<AssignmentDto>.Failure(denied);
         }
 
         return Mapper.MapToDto(assignment);
