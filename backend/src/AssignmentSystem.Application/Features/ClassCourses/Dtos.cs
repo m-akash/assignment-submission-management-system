@@ -1,3 +1,4 @@
+using AssignmentSystem.Application.Common.Authorization;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Domain.Enums;
 using AssignmentSystem.Shared.Common;
@@ -24,19 +25,27 @@ public sealed record ClassCourseDto(
     int AssignmentCount = 0
 );
 
+[RequiresRole(Role.Admin)]
 public sealed record CreateClassCourseCommand(
     Guid ClassId,
     Guid CourseId
 ) : ICommand<ClassCourseDto>;
 
+[RequiresRole(Role.Admin)]
 public sealed record DeleteClassCourseCommand(Guid Id) : ICommand;
 
+[RequiresRole(Role.Admin, Role.Teacher)]
 public sealed record GetClassCourseByIdQuery(Guid Id) : IQuery<ClassCourseDto>;
 
+[RequiresRole(Role.Admin, Role.Teacher)]
 public sealed record GetClassCoursesQuery(
     Guid? ClassId = null,
     Guid? CourseId = null,
     string? Search = null,
+    /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
+    string? SortBy = null,
+    /// <summary>"desc" for descending; ascending otherwise.</summary>
+    string? SortDir = null,
     int Page = 1,
     int PageSize = 20
 ) : IQuery<PageResult<ClassCourseDto>>;

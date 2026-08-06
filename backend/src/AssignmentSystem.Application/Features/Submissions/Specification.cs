@@ -30,12 +30,26 @@ internal sealed class SubmissionByStudentAndAssignmentSpecification : Specificat
 
 internal sealed class SubmissionsPagedSpecification : Specification<Submission>
 {
+    /// <summary>Columns this endpoint may be sorted by. See <see cref="SortMap{T}"/>.</summary>
+    private static readonly SortMap<Submission> Sortable = new(
+        new Dictionary<string, System.Linq.Expressions.Expression<Func<Submission, object>>>
+        {
+            ["student"] = s => s.Student.FullName,
+            ["status"] = s => s.Status,
+            ["marks"] = s => s.Marks!,
+            ["submittedAt"] = s => s.SubmittedAtUtc!,
+            ["createdAt"] = s => s.CreatedAtUtc,
+        },
+        tieBreaker: s => s.Id);
+
     public SubmissionsPagedSpecification(
         Guid? assignmentId,
         List<Guid>? assignmentIds,
         Guid? studentId,
         SubmissionStatus? status,
         string? search,
+        string? sortBy,
+        string? sortDir,
         int page,
         int pageSize)
     {
@@ -44,7 +58,10 @@ internal sealed class SubmissionsPagedSpecification : Specification<Submission>
         AddInclude(s => s.Student);
         AddInclude(s => s.ReviewedBy!);
         AddInclude(s => s.Files);
-        ApplyOrderByDescending(s => s.SubmittedAtUtc ?? s.CreatedAtUtc);
+        if (!ApplySort(Sortable, sortBy, sortDir))
+        {
+            ApplyOrderByDescending(s => s.SubmittedAtUtc ?? s.CreatedAtUtc);
+        }
         ApplyPaging(page, pageSize);
 
         var searchTerm = string.IsNullOrWhiteSpace(search) ? null : search.Trim().ToLowerInvariant();

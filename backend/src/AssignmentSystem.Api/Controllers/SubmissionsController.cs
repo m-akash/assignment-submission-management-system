@@ -23,11 +23,13 @@ public sealed class SubmissionsController : ControllerBase
         [FromQuery] Guid? studentId,
         [FromQuery] SubmissionStatus? status,
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetSubmissionsQuery(assignmentId, studentId, status, search, page, pageSize);
+        var query = new GetSubmissionsQuery(assignmentId, studentId, status, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

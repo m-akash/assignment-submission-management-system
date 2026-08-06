@@ -21,11 +21,13 @@ public sealed class UsersController : ControllerBase
         [FromQuery] Role? role,
         [FromQuery] Guid? classId,
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetUsersQuery(role, classId, search, page, pageSize);
+        var query = new GetUsersQuery(role, classId, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

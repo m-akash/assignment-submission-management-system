@@ -25,11 +25,13 @@ public sealed class AssignmentsController : ControllerBase
         [FromQuery] Guid? teacherId,
         [FromQuery] Domain.Enums.AssignmentStatus? status,
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetAssignmentsQuery(classId, courseId, classCourseId, teacherId, status, search, page, pageSize);
+        var query = new GetAssignmentsQuery(classId, courseId, classCourseId, teacherId, status, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

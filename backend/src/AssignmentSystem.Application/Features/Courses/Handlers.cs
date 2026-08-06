@@ -148,7 +148,7 @@ public sealed class GetCoursesHandler : IQueryHandler<GetCoursesQuery, PageResul
 
     public async Task<Result<PageResult<CourseDto>>> HandleAsync(GetCoursesQuery query, CancellationToken ct = default)
     {
-        var spec = new CoursesPagedSpecification(query.Search, query.Page, query.PageSize);
+        var spec = new CoursesPagedSpecification(query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var pagedCourses = await _courseRepository.ListPagedAsync(spec, ct);
 
         var items = pagedCourses.Items.Select(Mapper.MapToDto).ToList();

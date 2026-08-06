@@ -337,7 +337,7 @@ public sealed class GetAssignmentsHandler : IQueryHandler<GetAssignmentsQuery, P
 
         var spec = new AssignmentsPagedSpecification(
             query.ClassId, query.CourseId, query.ClassCourseId, restrictToClassIds,
-            teacherId, status, query.Search, query.Page, query.PageSize);
+            teacherId, status, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var pagedAssignments = await _assignmentRepository.ListPagedAsync(spec, ct);
 
         var items = pagedAssignments.Items.Select(Mapper.MapToDto).ToList();

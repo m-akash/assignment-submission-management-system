@@ -18,11 +18,13 @@ public sealed class CoursesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetCourses(
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetCoursesQuery(search, page, pageSize);
+        var query = new GetCoursesQuery(search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

@@ -18,11 +18,13 @@ public sealed class ClassesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetClasses(
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetClassesQuery(search, page, pageSize);
+        var query = new GetClassesQuery(search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

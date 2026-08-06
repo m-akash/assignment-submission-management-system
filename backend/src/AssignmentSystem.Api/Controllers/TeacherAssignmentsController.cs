@@ -23,11 +23,13 @@ public sealed class TeacherAssignmentsController : ControllerBase
         [FromQuery] Guid? classId,
         [FromQuery] Guid? classCourseId,
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetTeacherAssignmentsQuery(teacherId, courseId, classId, classCourseId, search, page, pageSize);
+        var query = new GetTeacherAssignmentsQuery(teacherId, courseId, classId, classCourseId, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

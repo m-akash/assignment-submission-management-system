@@ -32,7 +32,7 @@ public sealed class GetNotificationsHandler : IQueryHandler<GetNotificationsQuer
             : _currentUser.UserId;
 
         var spec = new NotificationsPagedSpecification(
-            query.Status, query.Type, recipientId, query.Search, query.Page, query.PageSize);
+            query.Status, query.Type, recipientId, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var paged = await _notifications.ListPagedAsync(spec, ct);
 
         var items = paged.Items.Select(Mapper.MapToDto).ToList();

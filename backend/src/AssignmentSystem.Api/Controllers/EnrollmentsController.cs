@@ -31,11 +31,13 @@ public sealed class EnrollmentsController : ControllerBase
         [FromQuery] Guid? studentId,
         [FromQuery] Guid? classId,
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetEnrollmentsQuery(studentId, classId, search, page, pageSize);
+        var query = new GetEnrollmentsQuery(studentId, classId, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {
@@ -53,11 +55,13 @@ public sealed class EnrollmentsController : ControllerBase
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> GetMyCourses(
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
     {
-        var query = new GetStudentCoursesQuery(search, page, pageSize);
+        var query = new GetStudentCoursesQuery(search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

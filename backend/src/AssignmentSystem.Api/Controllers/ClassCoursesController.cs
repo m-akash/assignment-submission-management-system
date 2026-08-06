@@ -28,11 +28,13 @@ public sealed class ClassCoursesController : ControllerBase
         [FromQuery] Guid? classId,
         [FromQuery] Guid? courseId,
         [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetClassCoursesQuery(classId, courseId, search, page, pageSize);
+        var query = new GetClassCoursesQuery(classId, courseId, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

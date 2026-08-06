@@ -380,7 +380,7 @@ public sealed class GetSubmissionsHandler : IQueryHandler<GetSubmissionsQuery, P
         }
 
         var spec = new SubmissionsPagedSpecification(
-            assignmentId, authoredAssignmentIds, studentId, query.Status, query.Search, query.Page, query.PageSize);
+            assignmentId, authoredAssignmentIds, studentId, query.Status, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var pagedSubmissions = await _submissionRepository.ListPagedAsync(spec, ct);
 
         var items = pagedSubmissions.Items.Select(Mapper.MapToDto).ToList();

@@ -136,7 +136,7 @@ public sealed class GetClassesHandler : IQueryHandler<GetClassesQuery, PageResul
 
     public async Task<Result<PageResult<ClassDto>>> HandleAsync(GetClassesQuery query, CancellationToken ct = default)
     {
-        var spec = new ClassesPagedSpecification(query.Search, query.Page, query.PageSize);
+        var spec = new ClassesPagedSpecification(query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var pagedClasses = await _classRepository.ListPagedAsync(spec, ct);
 
         var classIds = pagedClasses.Items.Select(c => c.Id).ToList();

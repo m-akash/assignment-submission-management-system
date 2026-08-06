@@ -72,8 +72,6 @@ public sealed class GetStudentCoursesHandler : IQueryHandler<GetStudentCoursesQu
                         .OrderBy(t => t.TeacherName)
                         .ToList());
             })
-            .OrderBy(c => c.ClassName)
-            .ThenBy(c => c.CourseName)
             .ToList();
 
         // Search runs in memory (after the EF query and grouping), so invariant culture is the
@@ -90,14 +88,47 @@ public sealed class GetStudentCoursesHandler : IQueryHandler<GetStudentCoursesQu
                 c.ClassName.ToLowerInvariant().Contains(search) ||
                 c.Teachers.Any(t => t.TeacherName.ToLowerInvariant().Contains(search))).ToList();
 
-        var total = filtered.Count;
+        // Sorted in memory for the same reason the search is: the rows are grouped after the
+        // EF query, so there is no IQueryable left to order. The allow-list is spelled out
+        // rather than resolved by reflection, matching how SortMap guards the spec-based
+        // endpoints. ClassName then CourseName is the natural order when nothing is asked for.
+        var sorted = SortStudentCourses(filtered, query.SortBy, query.SortDir);
+
+        var total = sorted.Count;
         var page = Math.Max(query.Page, 1);
         var pageSize = Math.Max(query.PageSize, 1);
-        var pageItems = filtered
+        var pageItems = sorted
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToList();
 
         return new PageResult<StudentCourseDto>(pageItems, page, pageSize, total);
+    }
+
+    private static List<StudentCourseDto> SortStudentCourses(
+        List<StudentCourseDto> courses, string? sortBy, string? sortDir)
+    {
+        Func<StudentCourseDto, string> key = sortBy?.Trim().ToLowerInvariant() switch
+        {
+            "course" => c => c.CourseName,
+            "coursecode" => c => c.CourseCode,
+            "class" => c => c.ClassName,
+            "teacher" => c => c.Teachers.Count > 0 ? c.Teachers[0].TeacherName : string.Empty,
+            _ => null!,
+        };
+
+        if (key is null)
+        {
+            return [.. courses.OrderBy(c => c.ClassName, StringComparer.OrdinalIgnoreCase)
+                              .ThenBy(c => c.CourseName, StringComparer.OrdinalIgnoreCase)];
+        }
+
+        var ordered = SortDirection.IsDescending(sortDir)
+            ? courses.OrderByDescending(key, StringComparer.OrdinalIgnoreCase)
+            : courses.OrderBy(key, StringComparer.OrdinalIgnoreCase);
+
+        // Offering id as the tiebreaker, for the same reason SortMap carries one: without it,
+        // two courses with the same name can swap places between pages.
+        return [.. ordered.ThenBy(c => c.Id)];
     }
 }

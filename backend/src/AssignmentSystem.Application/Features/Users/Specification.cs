@@ -18,16 +18,32 @@ internal sealed class UserWithClassesByIdSpecification : Specification<Applicati
 
 internal sealed class UsersPagedSpecification : Specification<ApplicationUser>
 {
+    /// <summary>Columns this endpoint may be sorted by. See <see cref="SortMap{T}"/>.</summary>
+    private static readonly SortMap<ApplicationUser> Sortable = new(
+        new Dictionary<string, System.Linq.Expressions.Expression<Func<ApplicationUser, object>>>
+        {
+            ["name"] = u => u.FullName,
+            ["email"] = u => u.Email.Value,
+            ["role"] = u => u.Role,
+            ["createdAt"] = u => u.CreatedAtUtc,
+        },
+        tieBreaker: u => u.Id);
+
     public UsersPagedSpecification(
         Domain.Enums.Role? role,
         Guid? classId,
         string? search,
+        string? sortBy,
+        string? sortDir,
         int page,
         int pageSize)
     {
         ApplyNoTracking();
         AddInclude("Enrollments.Class");
-        ApplyOrderByDescending(u => u.CreatedAtUtc);
+        if (!ApplySort(Sortable, sortBy, sortDir))
+        {
+            ApplyOrderByDescending(u => u.CreatedAtUtc);
+        }
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
