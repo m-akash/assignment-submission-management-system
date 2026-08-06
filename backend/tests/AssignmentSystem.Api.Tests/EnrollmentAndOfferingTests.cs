@@ -261,6 +261,33 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
     }
 
     /// <summary>
+    /// A freshly created teacher with no teaching mapping yet must see an empty roster, not
+    /// every student in the school. allowedClassIds resolves to an empty (non-null) list for
+    /// them, and that must restrict to nothing rather than fall back to "no restriction" —
+    /// which is exactly the null-vs-empty mix-up this pins down.
+    /// </summary>
+    [Fact]
+    public async Task TeacherWithNoAssignedClasses_SeesNoStudents()
+    {
+        var world = await ProvisionWorldAsync("enr-t-none");
+        using var admin = await SignInAsAdminAsync();
+
+        var tag = $"unassigned-{Guid.NewGuid():N}"[..18];
+        var teacherEmail = $"teacher-{tag}@test.local";
+        await admin.PostAsJsonAsync("/api/v1/users",
+            new CreateUserRequest(teacherEmail, $"Teacher {tag}", TestPassword, Role.Teacher, null));
+
+        using var unassignedTeacher = await SignInAsync(teacherEmail);
+
+        var response = await unassignedTeacher.GetAsync("/api/v1/enrollments");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var (rows, _) = await ReadPageAsync<EnrollmentRow>(response);
+        rows.Should().BeEmpty("a teacher with no class/course assignment must not see any students, including " +
+            $"the one enrolled in {world.ClassId}");
+    }
+
+    /// <summary>
     /// A teacher is not a student and cannot be enrolled — the roster would then count them
     /// as one and they would be mailed as one.
     /// </summary>

@@ -48,10 +48,12 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
 
         var searchLower = search?.Trim().ToLowerInvariant();
         // Captured so the EF-translated expression tree can close over it. A null set means
-        // "no class restriction" (admin); an empty HashSet means "the caller is allowed to see
-        // no classes" and so matches nothing. restrictByClass flips the null check out of the
-        // expression tree, which cannot contain an `is null` pattern.
-        var classIdSet = allowedClassIds is null || allowedClassIds.Count == 0
+        // "no class restriction" (admin); a non-null (possibly empty) HashSet means "the caller
+        // is allowed to see only these classes" - if it's empty (teacher with no assignments
+        // yet), that correctly matches nothing rather than falling back to "no restriction".
+        // restrictByClass flips the null check out of the expression tree, which cannot contain
+        // an `is null` pattern.
+        var classIdSet = allowedClassIds is null
             ? null
             : new HashSet<Guid>(allowedClassIds);
         var restrictByClass = classIdSet is not null;
