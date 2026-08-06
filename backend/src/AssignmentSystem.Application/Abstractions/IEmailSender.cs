@@ -23,5 +23,10 @@ public interface IEmailSender
     bool IsConfigured { get; }
 }
 
-/// <summary>A single outbound email. Plain text body — see <c>SmtpEmailSender</c>.</summary>
-public sealed record EmailMessage(string ToEmail, string ToName, string Subject, string Body);
+/// <summary>
+/// A single outbound email. <see cref="HtmlBody"/> is the primary content (styled HTML);
+/// <see cref="TextBody"/> is the accessible plain-text fallback, derived from the HTML so a
+/// notification row only has to persist one body. <see cref="SmtpEmailSender"/> ships both as a
+/// <c>multipart/alternative</c>, letting each mail client pick the part it can render.
+/// </summary>
+public sealed record EmailMessage(string ToEmail, string ToName, string Subject, string HtmlBody, string TextBody);
