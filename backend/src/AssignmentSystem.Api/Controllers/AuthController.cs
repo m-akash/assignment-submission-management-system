@@ -5,6 +5,7 @@ using AssignmentSystem.Application.Features.Auth;
 using AssignmentSystem.Application.Features.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace AssignmentSystem.Api.Controllers;
 
@@ -21,6 +22,7 @@ public sealed class AuthController : ControllerBase
     public AuthController(IDispatcher dispatcher) => _dispatcher = dispatcher;
 
     [HttpPost("login")]
+    [EnableRateLimiting(RateLimitPolicies.Credentials)]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<AuthResponseBody>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
@@ -39,6 +41,7 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("refresh")]
+    [EnableRateLimiting(RateLimitPolicies.Credentials)]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<AuthResponseBody>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Refresh(CancellationToken ct)
@@ -107,6 +110,7 @@ public sealed class AuthController : ControllerBase
     /// short-lived, and why the password itself only ever goes in the POST body below.
     /// </summary>
     [HttpGet("set-password")]
+    [EnableRateLimiting(RateLimitPolicies.Credentials)]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<PasswordSetupStatusDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPasswordSetupStatus([FromQuery] string token, CancellationToken ct)
@@ -124,6 +128,7 @@ public sealed class AuthController : ControllerBase
     /// hand out credentials.
     /// </summary>
     [HttpPost("set-password")]
+    [EnableRateLimiting(RateLimitPolicies.Credentials)]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]

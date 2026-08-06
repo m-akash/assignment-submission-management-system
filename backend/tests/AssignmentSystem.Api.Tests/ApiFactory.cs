@@ -62,6 +62,12 @@ public sealed class ApiFactory : IAsyncLifetime
             // assertion. Draining is still exercised — through the explicit dispatch endpoint.
             builder.UseSetting("Email:EnableDispatcher", "false");
             builder.UseSetting("Email:AppBaseUrl", "http://localhost:3000");
+
+            // Every test in the assembly shares one host, and TestServer reports no remote
+            // address — so all of them land in a single rate-limit partition. Raised well
+            // clear of the suite's total sign-ins so the limiter cannot make an unrelated
+            // test flake. RateLimitingTests overrides it back down for its own host.
+            builder.UseSetting("RateLimiting:CredentialsPerMinute", "10000");
         });
 
         // Creating a client boots the host, which migrates and seeds on startup.
@@ -69,6 +75,27 @@ public sealed class ApiFactory : IAsyncLifetime
         await using var scope = CreateScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.CanConnectAsync();
     }
+
+    /// <summary>
+    /// A second host over the same database, with the credential rate limit set low enough
+    /// to trip on purpose. The shared host runs with the limit effectively disabled, so a
+    /// test that wants to prove the limiter works needs its own — and reusing the container
+    /// keeps that to milliseconds rather than another ten seconds of Postgres startup.
+    /// </summary>
+    public WebApplicationFactory<Program> CreateHostWithRateLimit(int permitsPerMinute) =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("ConnectionStrings:Default", _database.GetConnectionString());
+            builder.UseSetting("FileStorage:Root", FileStorageRoot);
+            builder.UseSetting("Email:EnableDispatcher", "false");
+            builder.UseSetting("Email:AppBaseUrl", "http://localhost:3000");
+
+            // The schema is already migrated and seeded by the shared host.
+            builder.UseSetting("Database:AutoMigrate", "false");
+            builder.UseSetting(
+                "RateLimiting:CredentialsPerMinute",
+                permitsPerMinute.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        });
 
     public async Task DisposeAsync()
     {
