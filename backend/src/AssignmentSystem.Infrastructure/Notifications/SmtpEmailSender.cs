@@ -36,11 +36,13 @@ internal sealed class SmtpEmailSender : IEmailSender
         if (!_options.IsConfigured)
         {
             // Treated as delivered: with no mail server there is nothing to retry against, so
-            // failing would only fill the outbox with rows no retry could ever clear.
+            // failing would only fill the outbox with rows no retry could ever clear. The text
+            // part is logged rather than the HTML — readable in a dev console where raw markup
+            // would just be noise.
             _logger.LogInformation(
                 "Email delivery is not configured — notification logged instead.\n" +
                 "  To      : {ToName} <{ToEmail}>\n  Subject : {Subject}\n{Body}",
-                message.ToName, message.ToEmail, message.Subject, message.Body);
+                message.ToName, message.ToEmail, message.Subject, message.TextBody);
             return;
         }
 
@@ -58,13 +60,19 @@ internal sealed class SmtpEmailSender : IEmailSender
             client.Credentials = new NetworkCredential(_options.Username, _options.Password);
         }
 
+        // multipart/alternative: text first, then HTML. MailMessage emits them in the order
+        // added, and a client renders whichever part it supports (most prefer HTML, some
+        // strip to text, screen readers take the text part). Both views come from the one
+        // composed body — the text part is derived from the HTML by the dispatcher.
         using var mail = new MailMessage
         {
             From = new MailAddress(_options.EffectiveFromAddress, _options.FromName),
             Subject = message.Subject,
-            Body = message.Body,
-            IsBodyHtml = false,
         };
+        mail.AlternateViews.Add(
+            AlternateView.CreateAlternateViewFromString(message.TextBody, null, "text/plain"));
+        mail.AlternateViews.Add(
+            AlternateView.CreateAlternateViewFromString(message.HtmlBody, null, "text/html"));
         mail.To.Add(new MailAddress(message.ToEmail, message.ToName));
 
         await client.SendMailAsync(mail, ct);

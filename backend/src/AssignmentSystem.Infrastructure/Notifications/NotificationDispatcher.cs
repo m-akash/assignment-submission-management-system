@@ -88,7 +88,11 @@ internal sealed class NotificationDispatcher : INotificationDispatcher
                         notification.RecipientEmail,
                         recipientName,
                         notification.Subject,
-                        notification.Body),
+                        // Body is composed and persisted as HTML (see NotificationMessages). The
+                        // plain-text part is derived here at the dispatch boundary — the one place
+                        // both halves of an EmailMessage are needed — so the row stores one body.
+                        HtmlBody: notification.Body,
+                        TextBody: HtmlToText.Convert(notification.Body)),
                     ct);
 
                 notification.MarkSent(_clock.UtcNow);
