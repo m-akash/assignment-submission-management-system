@@ -403,6 +403,97 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
     }
 
     /// <summary>
+    /// Deleting hides a row from the outbox (soft delete). The row is gone from the list and
+    /// the summary count drops — without anything being physically removed.
+    /// </summary>
+    [Fact]
+    public async Task DeleteSingle_AsAdmin_HidesRowAndRefreshesCount()
+    {
+        var world = await ProvisionWorldAsync("notif-del");
+        using var teacher = await SignInAsync(world.TeacherEmail);
+        using var admin = await SignInAsAdminAsync();
+
+        var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
+        var queued = await NotificationsForAssignmentAsync(admin, assignment.Id);
+        var target = queued.Should().ContainSingle().Subject;
+
+        var summaryResponse = await admin.GetAsync("/api/v1/notifications/summary");
+        var summaryBefore = await ReadAsync<NotificationSummary>(summaryResponse);
+        summaryBefore.Pending.Should().BeGreaterThanOrEqualTo(1);
+
+        var delete = await admin.DeleteAsync($"/api/v1/notifications/{target.Id}");
+        delete.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // The row no longer appears in the list — the global query filter hid it.
+        var remaining = await NotificationsForAssignmentAsync(admin, assignment.Id);
+        remaining.Should().BeEmpty("a deleted notification is hidden from reads");
+
+        // ...and a second delete reports the row as gone (still filtered out → NotFound).
+        var secondDelete = await admin.DeleteAsync($"/api/v1/notifications/{target.Id}");
+        secondDelete.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task DeleteSingle_AsStudent_IsForbidden()
+    {
+        var world = await ProvisionWorldAsync("nauth");
+        using var student = await SignInAsync(world.StudentEmail);
+
+        var response = await student.DeleteAsync($"/api/v1/notifications/{Guid.NewGuid()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>
+    /// Bulk delete hides every requested row in one call, reports how many it hid, and
+    /// silently skips ids that no longer exist (or were already deleted).
+    /// </summary>
+    [Fact]
+    public async Task DeleteBulk_AsAdmin_HidesAllAndCounts()
+    {
+        var world = await ProvisionWorldAsync("notif-bulk");
+        using var teacher = await SignInAsync(world.TeacherEmail);
+        using var admin = await SignInAsAdminAsync();
+
+        await AddStudentToClassAsync(world.ClassId, "bd");
+        var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
+        var queued = await NotificationsForAssignmentAsync(admin, assignment.Id);
+        queued.Should().HaveCountGreaterThanOrEqualTo(2);
+
+        var ids = queued.Select(n => n.Id).ToList();
+        var response = await admin.PostAsJsonAsync(
+            "/api/v1/notifications/bulk-delete",
+            new { ids });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await ReadAsync<BulkDeleteResponse>(response);
+        result.Deleted.Should().Be(ids.Count);
+
+        // A non-existent id is tolerated — it simply isn't counted.
+        var mixed = ids.Append(Guid.NewGuid()).ToList();
+        var repeat = await admin.PostAsJsonAsync(
+            "/api/v1/notifications/bulk-delete",
+            new { ids = mixed });
+        repeat.StatusCode.Should().Be(HttpStatusCode.OK);
+        var repeatResult = await ReadAsync<BulkDeleteResponse>(repeat);
+        repeatResult.Deleted.Should().Be(0, "the rows were already hidden on the first call");
+    }
+
+    [Fact]
+    public async Task DeleteBulk_OverFiveHundred_IsRejected()
+    {
+        var world = await ProvisionWorldAsync("ncap");
+        using var admin = await SignInAsAdminAsync();
+
+        var tooMany = Enumerable.Range(0, 501).Select(_ => Guid.NewGuid()).ToList();
+        var response = await admin.PostAsJsonAsync(
+            "/api/v1/notifications/bulk-delete",
+            new { ids = tooMany });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    /// <summary>
     /// Notifications for one assignment. Filtered client-side on assignmentId because the
     /// suite shares a database and every other test is queueing mail into the same outbox.
     /// </summary>
@@ -443,4 +534,8 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
         string? LastError,
         Guid? AssignmentId,
         Guid? SubmissionId);
+
+    // Shape mirrors NotificationSummaryDto / BulkDeleteResult, deserialised from the envelope.
+    private sealed record NotificationSummary(int Pending, int Sent, int Failed);
+    private sealed record BulkDeleteResponse(int Deleted);
 }

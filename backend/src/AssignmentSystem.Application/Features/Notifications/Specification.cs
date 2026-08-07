@@ -13,6 +13,19 @@ internal sealed class NotificationWithRecipientSpecification : Specification<Not
     }
 }
 
+/// <summary>
+/// Loads a set of rows by id for the bulk delete. The handler validates the list is
+/// non-empty first; <c>Contains</c> on the list translates to SQL <c>IN (...)</c>. Rows
+/// already soft-deleted are excluded by the global query filter, so only live rows come back.
+/// </summary>
+internal sealed class NotificationsByIdsSpecification : Specification<Notification>
+{
+    public NotificationsByIdsSpecification(IReadOnlyList<Guid> ids)
+    {
+        Criteria = n => ids.Contains(n.Id);
+    }
+}
+
 internal sealed class NotificationsByStatusSpecification : Specification<Notification>
 {
     public NotificationsByStatusSpecification(NotificationStatus status)

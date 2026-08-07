@@ -55,3 +55,22 @@ public sealed record GetNotificationSummaryQuery : IQuery<NotificationSummaryDto
 /// <summary>Puts a failed row back in the queue once the mail problem is fixed.</summary>
 [RequiresRole(Role.Admin)]
 public sealed record RetryNotificationCommand(Guid Id) : ICommand<NotificationDto>;
+
+/// <summary>
+/// Hides one outbox row. Soft delete so the dispatcher also stops sending it: the global
+/// query filter hides the row from the claim sweep as well as from reads.
+/// </summary>
+[RequiresRole(Role.Admin)]
+public sealed record DeleteNotificationCommand(Guid Id) : ICommand;
+
+/// <summary>
+/// Hides many rows in one transaction. The id list is bounded so an unbounded sweep can't
+/// be smuggled in through the body; rows that don't exist (or were already deleted and are
+/// therefore invisible to the query) are skipped — the count returned reflects what was
+/// actually deleted.
+/// </summary>
+[RequiresRole(Role.Admin)]
+public sealed record BulkDeleteNotificationsCommand(IReadOnlyList<Guid> Ids) : ICommand<BulkDeleteResult>;
+
+/// <summary>How many rows the bulk delete actually hid.</summary>
+public sealed record BulkDeleteResult(int Deleted);

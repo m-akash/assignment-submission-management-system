@@ -42,6 +42,11 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
         builder.Property(n => n.ClaimedAtUtc);
         builder.Property(n => n.LastError).HasMaxLength(2000);
 
+        // Soft delete: the query filter below hides these rows from every read, so a deleted
+        // notification also stops being claimed by the dispatcher (a deleted email is not sent).
+        builder.Property(n => n.IsDeleted).IsRequired().HasDefaultValue(false);
+        builder.Property(n => n.DeletedAtUtc);
+
         // Context ids only, with no FK — see Notification's remarks: the outbox is a record
         // of mail sent and must outlive the assignment or submission it refers to.
         builder.Property(n => n.AssignmentId);
@@ -67,5 +72,7 @@ internal sealed class NotificationConfiguration : IEntityTypeConfiguration<Notif
             .HasFilter("status IN (0, 3)");
 
         builder.HasIndex(n => n.RecipientId);
+
+        builder.HasQueryFilter(n => !n.IsDeleted);
     }
 }

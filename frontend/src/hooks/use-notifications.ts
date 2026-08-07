@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiGet, apiGetPaged, apiPost, toQuery } from '@/lib/api';
+import { apiGet, apiGetPaged, apiPost, apiDelete, toQuery } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 import type {
   AppNotification,
@@ -75,6 +75,42 @@ export function useDispatchNotifications() {
           ? 'Nothing was waiting to be sent'
           : `${result.sent} notification${result.sent === 1 ? '' : 's'} sent`,
       );
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+/**
+ * Hides one outbox row (soft delete on the server). The row vanishes from the list and from
+ * the dispatcher's queue — a deleted email is never sent. Both the list and the summary
+ * counts are refreshed, since removing a row shifts the pending/sent/failed totals.
+ */
+export function useDeleteNotification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => apiDelete(`/api/v1/notifications/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.summary });
+      toast.success('Notification deleted');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+/** Hides many rows at once. Server caps the batch at 500 ids. */
+export function useBulkDeleteNotifications() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ids: string[]) =>
+      apiPost<{ deleted: number }>('/api/v1/notifications/bulk-delete', { ids }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.summary });
+      const count = result?.deleted ?? 0;
+      toast.success(`${count} notification${count === 1 ? '' : 's'} deleted`);
     },
     onError: (error: Error) => toast.error(error.message),
   });

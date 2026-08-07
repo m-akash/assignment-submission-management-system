@@ -103,3 +103,83 @@ public sealed class RetryNotificationHandler : ICommandHandler<RetryNotification
         }
     }
 }
+
+/// <summary>
+/// Hides one outbox row. Soft delete: the row stays in the table (an audit record) but the
+/// global query filter drops it from reads and from the dispatcher's claim sweep alike, so a
+/// deleted email is never sent.
+/// </summary>
+public sealed class DeleteNotificationHandler : ICommandHandler<DeleteNotificationCommand>
+{
+    private readonly IRepository<Notification> _notifications;
+    private readonly IClock _clock;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public DeleteNotificationHandler(IRepository<Notification> notifications, IClock clock, IUnitOfWork unitOfWork)
+    {
+        _notifications = notifications;
+        _clock = clock;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result> HandleAsync(DeleteNotificationCommand command, CancellationToken ct = default)
+    {
+        var notification = await _notifications.GetByIdAsync(command.Id, ct);
+        if (notification is null)
+        {
+            return Result.Failure(Error.NotFound("Notification.NotFound", "The specified notification was not found."));
+        }
+
+        notification.SoftDelete(_clock.UtcNow);
+        _notifications.Update(notification);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return Result.Success();
+    }
+}
+
+/// <summary>
+/// Hides many rows in one transaction. Already-deleted rows are invisible to the query
+/// (global filter) and so are simply not returned — the count reflects rows actually hidden
+/// this call, which is what the UI toasts.
+/// </summary>
+public sealed class BulkDeleteNotificationsHandler : ICommandHandler<BulkDeleteNotificationsCommand, BulkDeleteResult>
+{
+    private const int MaxIdsPerBatch = 500;
+
+    private readonly IRepository<Notification> _notifications;
+    private readonly IClock _clock;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public BulkDeleteNotificationsHandler(IRepository<Notification> notifications, IClock clock, IUnitOfWork unitOfWork)
+    {
+        _notifications = notifications;
+        _clock = clock;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result<BulkDeleteResult>> HandleAsync(BulkDeleteNotificationsCommand command, CancellationToken ct = default)
+    {
+        if (command.Ids.Count == 0)
+        {
+            return Result<BulkDeleteResult>.Failure(Error.Validation("Notification.NoIds", "At least one notification id is required."));
+        }
+
+        if (command.Ids.Count > MaxIdsPerBatch)
+        {
+            return Result<BulkDeleteResult>.Failure(Error.Validation("Notification.TooMany", $"A maximum of {MaxIdsPerBatch} notifications can be deleted at once."));
+        }
+
+        var live = await _notifications.ListAsync(new NotificationsByIdsSpecification(command.Ids), ct);
+
+        foreach (var notification in live)
+        {
+            notification.SoftDelete(_clock.UtcNow);
+            _notifications.Update(notification);
+        }
+
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return new BulkDeleteResult(live.Count);
+    }
+}

@@ -9,11 +9,14 @@ import {
   Mail,
   RefreshCw,
   Send,
+  Trash2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { FilterSelect } from '@/components/shared/filter-select';
 import { PageHeader } from '@/components/shared/page-header';
 import { PaginationBar } from '@/components/shared/pagination-bar';
@@ -22,6 +25,8 @@ import { SearchInput } from '@/components/shared/search-input';
 import { StatCard } from '@/components/shared/stat-card';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
 import {
+  useBulkDeleteNotifications,
+  useDeleteNotification,
   useDispatchNotifications,
   useNotificationSummary,
   useNotifications,
@@ -72,9 +77,19 @@ function NotificationsView() {
   const [type, setType] = useState('');
   const [page, setPage] = useState(1);
 
+  // Selection lives across renders but is reset whenever the view onto the list changes — a
+  // checkbox ticked for a row on page 1 should never silently follow you to page 5.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // One confirm dialog drives both the per-row and bulk actions; `id` distinguishes them.
+  const [confirmTarget, setConfirmTarget] = useState<{ kind: 'single' | 'bulk'; id?: string } | null>(
+    null,
+  );
+
   const summary = useNotificationSummary();
   const dispatch = useDispatchNotifications();
   const retry = useRetryNotification();
+  const deleteOne = useDeleteNotification();
+  const bulkDelete = useBulkDeleteNotifications();
   const query = useNotifications({
     search,
     status: status as NotificationStatus | '',
@@ -86,6 +101,70 @@ function NotificationsView() {
   const items = query.data?.items ?? [];
   const hasFilters = !!search || !!status || !!type;
 
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const changeSearch = (value: string) => {
+    setSearch(value);
+    setPage(1);
+    clearSelection();
+  };
+  const changeStatus = (value: string) => {
+    setStatus(value);
+    setPage(1);
+    clearSelection();
+  };
+  const changeType = (value: string) => {
+    setType(value);
+    setPage(1);
+    clearSelection();
+  };
+  const changePage = (next: number) => {
+    setPage(next);
+    clearSelection();
+  };
+
+  const toggleRow = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Select-all is scoped to the rows currently on screen, not the whole outbox.
+  const allOnPageSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
+  const someOnPageSelected = items.some((item) => selectedIds.has(item.id)) && !allOnPageSelected;
+  const toggleAllOnPage = () => {
+    setSelectedIds((prev) => {
+      if (allOnPageSelected) {
+        const next = new Set(prev);
+        items.forEach((item) => next.delete(item.id));
+        return next;
+      }
+      const next = new Set(prev);
+      items.forEach((item) => next.add(item.id));
+      return next;
+    });
+  };
+
+  const confirmPending = deleteOne.isPending || bulkDelete.isPending;
+
+  const handleConfirmDelete = () => {
+    if (!confirmTarget) {
+      return;
+    }
+    if (confirmTarget.kind === 'single' && confirmTarget.id) {
+      deleteOne.mutate(confirmTarget.id);
+    } else if (confirmTarget.kind === 'bulk') {
+      bulkDelete.mutate([...selectedIds], { onSettled: clearSelection });
+    }
+    setConfirmTarget(null);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -94,14 +173,30 @@ function NotificationsView() {
         icon={Mail}
         description="Every notification is queued when it happens and sent by a background sweep, so nothing is lost if the mail server is unreachable."
         actions={
-          <Button onClick={() => dispatch.mutate()} disabled={dispatch.isPending}>
-            {dispatch.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Send className="size-4" />
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <Button
+                variant="destructive"
+                onClick={() => setConfirmTarget({ kind: 'bulk' })}
+                disabled={confirmPending}
+              >
+                {bulkDelete.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
+                Delete selected ({selectedIds.size})
+              </Button>
             )}
-            Send queued now
-          </Button>
+            <Button onClick={() => dispatch.mutate()} disabled={dispatch.isPending}>
+              {dispatch.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Send className="size-4" />
+              )}
+              Send queued now
+            </Button>
+          </div>
         }
       />
 
@@ -135,28 +230,19 @@ function NotificationsView() {
         <div className="flex flex-col gap-3 border-b p-4 sm:flex-row">
           <SearchInput
             value={search}
-            onChange={(value) => {
-              setSearch(value);
-              setPage(1);
-            }}
+            onChange={changeSearch}
             placeholder="Search by recipient or subject…"
             className="sm:max-w-xs"
           />
           <FilterSelect
             value={status}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(1);
-            }}
+            onChange={changeStatus}
             allLabel="Any status"
             options={STATUSES}
           />
           <FilterSelect
             value={type}
-            onChange={(value) => {
-              setType(value);
-              setPage(1);
-            }}
+            onChange={changeType}
             allLabel="Any event"
             options={TYPES}
             className="w-full sm:w-56"
@@ -171,20 +257,30 @@ function NotificationsView() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        aria-label="Select all on this page"
+                        checked={
+                          allOnPageSelected ? true : someOnPageSelected ? 'indeterminate' : false
+                        }
+                        onCheckedChange={toggleAllOnPage}
+                        disabled={items.length === 0}
+                      />
+                    </TableHead>
                     <TableHead>Recipient</TableHead>
                     <TableHead>Event</TableHead>
                     <TableHead>Subject</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Queued</TableHead>
-                    <TableHead className="w-20">Action</TableHead>
+                    <TableHead className="w-24">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={6} />
+                    <TableSkeleton columns={7} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="p-0">
+                      <TableCell colSpan={7} className="p-0">
                         <EmptyState
                           icon={Mail}
                           title={hasFilters ? 'Nothing matches those filters' : 'No notifications yet'}
@@ -198,7 +294,14 @@ function NotificationsView() {
                     </TableRow>
                   ) : (
                     items.map((notification) => (
-                      <TableRow key={notification.id}>
+                      <TableRow key={notification.id} data-state={selectedIds.has(notification.id) ? 'selected' : undefined}>
+                        <TableCell>
+                          <Checkbox
+                            aria-label={`Select notification to ${notification.recipientEmail}`}
+                            checked={selectedIds.has(notification.id)}
+                            onCheckedChange={() => toggleRow(notification.id)}
+                          />
+                        </TableCell>
                         <TableCell>
                           <p className="font-medium">{notification.recipientName}</p>
                           <p className="text-sm text-muted-foreground">
@@ -216,19 +319,32 @@ function NotificationsView() {
                           {formatDateTime(notification.createdAtUtc)}
                         </TableCell>
                         <TableCell>
-                          {/* Only a failed row can be retried: pending is already queued, and
-                              re-sending a delivered email would just duplicate it. */}
-                          {notification.status === 'Failed' && (
+                          <div className="flex items-center gap-1">
+                            {/* Only a failed row can be retried: pending is already queued, and
+                                re-sending a delivered email would just duplicate it. */}
+                            {notification.status === 'Failed' && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Retry the notification to ${notification.recipientEmail}`}
+                                disabled={retry.isPending}
+                                onClick={() => retry.mutate(notification.id)}
+                              >
+                                <RefreshCw className="size-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
-                              aria-label={`Retry the notification to ${notification.recipientEmail}`}
-                              disabled={retry.isPending}
-                              onClick={() => retry.mutate(notification.id)}
+                              aria-label={`Delete the notification to ${notification.recipientEmail}`}
+                              disabled={deleteOne.isPending}
+                              onClick={() =>
+                                setConfirmTarget({ kind: 'single', id: notification.id })
+                              }
                             >
-                              <RefreshCw className="size-4" />
+                              <Trash2 className="size-4" />
                             </Button>
-                          )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -240,13 +356,35 @@ function NotificationsView() {
             {query.data && (
               <PaginationBar
                 pagination={query.data.pagination}
-                onPageChange={setPage}
+                onPageChange={changePage}
                 itemLabel="notifications"
               />
             )}
           </>
         )}
       </div>
+
+      {/* One confirm dialog for both delete paths. Destructive actions ask first — nothing
+          here is undoable from the UI, and bulk delete removes several rows at once. */}
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmTarget(null);
+        }}
+        title={
+          confirmTarget?.kind === 'bulk'
+            ? `Delete ${selectedIds.size} notification${selectedIds.size === 1 ? '' : 's'}?`
+            : 'Delete this notification?'
+        }
+        description={
+          confirmTarget?.kind === 'bulk'
+            ? 'The selected rows will be hidden from the outbox and will never be sent. This cannot be undone.'
+            : 'It will be hidden from the outbox and never sent. This cannot be undone.'
+        }
+        confirmLabel="Delete"
+        onConfirm={handleConfirmDelete}
+        pending={confirmPending}
+      />
     </div>
   );
 }

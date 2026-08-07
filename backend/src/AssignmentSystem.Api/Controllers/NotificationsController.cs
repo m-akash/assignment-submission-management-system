@@ -70,6 +70,36 @@ public sealed class NotificationsController : ControllerBase
     }
 
     /// <summary>
+    /// Hides a single outbox row. Soft delete: the row remains but the query filter drops it
+    /// from reads and from the dispatcher's sweep, so it is never sent.
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        var result = await _dispatcher.SendAsync(new DeleteNotificationCommand(id), ct);
+        return result.ToActionResult(this);
+    }
+
+    /// <summary>
+    /// Hides a batch of rows at once. Body is <c>{ "ids": [...] }</c>, capped at 500. Returns
+    /// the number actually deleted — rows that were already deleted (and so hidden by the
+    /// query filter) are not counted.
+    /// </summary>
+    [HttpPost("bulk-delete")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> BulkDelete([FromBody] BulkDeleteNotificationsCommand command, CancellationToken ct)
+    {
+        var result = await _dispatcher.SendAsync(command, ct);
+        if (!result.IsSuccess)
+        {
+            return result.ToActionResult(this);
+        }
+
+        return Ok(new ApiResponse<BulkDeleteResult> { Success = true, Data = result.Value! });
+    }
+
+    /// <summary>
     /// Runs a sweep immediately instead of waiting for the timer. Exists so an admin who has
     /// just fixed a mail setting, or an evaluator who does not want to wait 30 seconds, can
     /// see the queue drain — and so the drain is reachable from an integration test.

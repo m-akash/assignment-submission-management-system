@@ -19,7 +19,7 @@ namespace AssignmentSystem.Domain.Notifications;
 /// was queued for, so the outbox still explains where a message went after the user has
 /// changed their address or been deleted.
 /// </summary>
-public sealed class Notification : BaseEntity
+public sealed class Notification : BaseEntity, ISoftDeletable
 {
     public Guid RecipientId { get; private set; }
     public ApplicationUser Recipient { get; private set; } = null!;
@@ -57,6 +57,13 @@ public sealed class Notification : BaseEntity
     /// <summary>Why the most recent attempt failed. Kept after a later success too — it
     /// is the only record that delivery was ever shaky.</summary>
     public string? LastError { get; private set; }
+
+    // ── Soft delete ───────────────────────────────────────────────────────────
+    // A row can be cleared from the outbox without being physically removed: the global
+    // query filter hides it from every read (including the dispatcher's claim sweep, so a
+    // deleted email is never sent), while it stays in the table as an audit record.
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
 
     // ── Context (nullable: not every type relates to both) ────────────────────
     // Plain ids with no navigation or FK: the outbox has to outlive what it refers to.
@@ -190,6 +197,17 @@ public sealed class Notification : BaseEntity
         Status == NotificationStatus.Pending
         && AttemptCount < maxAttempts
         && (NextAttemptAtUtc is null || NextAttemptAtUtc <= utcNow);
+
+    /// <summary>
+    /// Hides this row from the outbox. The global query filter does the hiding; this just
+    /// stamps the flag and timestamp, and is also what stops a deleted row from being
+    /// claimed by the dispatcher (its sweep goes through the same filter).
+    /// </summary>
+    public void SoftDelete(DateTime deletedAtUtc)
+    {
+        IsDeleted = true;
+        DeletedAtUtc = deletedAtUtc;
+    }
 
     private static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];
