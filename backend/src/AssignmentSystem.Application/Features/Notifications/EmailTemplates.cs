@@ -72,15 +72,6 @@ internal static class EmailTemplates
         _ => "#8a8aa0",
     };
 
-    private static string ToneIcon(Tone tone) => tone switch
-    {
-        Tone.Success => "✅",
-        Tone.Warning => "⚠️",
-        Tone.Danger => "⛔",
-        Tone.Info => "ℹ️",
-        _ => "•",
-    };
-
     /// <summary>
     /// The outer document: a centred, fixed-width card on a pale page, with a gradient header
     /// band carrying the wordmark, the supplied content, and a muted footer.
@@ -287,7 +278,7 @@ internal static class EmailTemplates
             .Append("<td style=\"padding:13px 15px;background-color:").Append(bg)
             .Append(";border:1px solid ").Append(border).Append(";border-radius:9px;")
             .Append("font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.6;color:")
-            .Append(fg).Append(";\">").Append(ToneIcon(tone)).Append("&nbsp; ").Append(html)
+            .Append(fg).Append(";\">").Append(html)
             .Append("</td></tr></table>")
             .ToString();
     }
@@ -429,8 +420,9 @@ internal static class EmailTemplates
 
     /// <summary>
     /// Formats a UTC instant the way the rest of the system does, for the rare spot inside the
-    /// template layer that needs a date (kept here so date wording stays in one place).
+    /// template layer that needs a date (kept here so date wording stays in one place). Times are
+    /// shown in 12-hour AM/PM; the UTC offset is omitted because the stored value is UTC.
     /// </summary>
     public static string FormatUtc(DateTime utc) =>
-        utc.ToString("dd MMM yyyy, HH:mm 'UTC'", CultureInfo.InvariantCulture);
+        utc.ToString("dd MMM yyyy, hh:mm tt", CultureInfo.InvariantCulture);
 }

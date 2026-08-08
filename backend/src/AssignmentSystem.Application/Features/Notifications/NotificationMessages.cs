@@ -51,16 +51,16 @@ internal static class NotificationMessages
 
         var rows = new List<(string, string)>
         {
-            ("📘 Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-            ("🏫 Class", Esc(offering.Class.Name)),
+            ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
+            ("Class", Esc(offering.Class.Name)),
         };
         if (!string.IsNullOrWhiteSpace(teacherName))
         {
-            rows.Add(("👨‍🏫 Posted by", Esc(teacherName)));
+            rows.Add(("Posted by", Esc(teacherName)));
         }
-        rows.Add(("⏰ Deadline", Esc(FormatDeadline(assignment.DeadlineUtc))));
-        rows.Add(("🏆 Max marks", Esc(FormatMarks(assignment.MaxMarks))));
-        rows.Add(("🔁 Resubmission", assignment.AllowResubmission
+        rows.Add(("Deadline", Esc(FormatDeadline(assignment.DeadlineUtc))));
+        rows.Add(("Max marks", Esc(FormatMarks(assignment.MaxMarks))));
+        rows.Add(("Resubmission", assignment.AllowResubmission
             ? EmailTemplates.Badge("Allowed until the deadline", Tone.Success)
             : EmailTemplates.Badge("Not allowed — single submission", Tone.Warning)));
 
@@ -99,17 +99,17 @@ internal static class NotificationMessages
 
         var rows = new List<(string, string)>
         {
-            ("📘 Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-            ("🏫 Class", Esc(offering.Class.Name)),
-            ("🧑‍🎓 Student", Esc(studentName)),
+            ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
+            ("Class", Esc(offering.Class.Name)),
+            ("Student", Esc(studentName)),
         };
         if (!string.IsNullOrWhiteSpace(studentIdNumber))
         {
-            rows.Add(("🆔 Student ID", Esc(studentIdNumber)));
+            rows.Add(("Student ID", Esc(studentIdNumber)));
         }
-        rows.Add(("📌 Status", StatusBadge(submission.Status)));
-        rows.Add(("📥 Submitted", Esc(FormatDeadline(submission.SubmittedAtUtc ?? submission.CreatedAtUtc))));
-        rows.Add(("⏰ Deadline was", Esc(FormatDeadline(assignment.DeadlineUtc))));
+        rows.Add(("Status", StatusBadge(submission.Status)));
+        rows.Add(("Submitted", Esc(FormatDeadline(submission.SubmittedAtUtc ?? submission.CreatedAtUtc))));
+        rows.Add(("Deadline was", Esc(FormatDeadline(assignment.DeadlineUtc))));
 
         var content = new StringBuilder()
             .Append(EmailTemplates.Eyebrow("Submission received", isLate ? Tone.Warning : Tone.Brand))
@@ -154,29 +154,29 @@ internal static class NotificationMessages
 
         var rows = new List<(string, string)>
         {
-            ("📘 Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-            ("🏫 Class", Esc(offering.Class.Name)),
-            ("🏆 Score", Esc(FormatScore(submission))),
+            ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
+            ("Class", Esc(offering.Class.Name)),
+            ("Score", Esc(FormatScore(submission))),
         };
         if (submission.Marks is { } marks)
         {
-            rows.Add(("📊 Result", EmailTemplates.GradeBadge(marks, submission.MarksOutOf ?? 0m)));
+            rows.Add(("Result", EmailTemplates.GradeBadge(marks, submission.MarksOutOf ?? 0m)));
         }
         if (submission.ReviewedBy is { } reviewer)
         {
-            rows.Add(("👨‍🏫 Graded by", Esc(reviewer.FullName)));
+            rows.Add(("Graded by", Esc(reviewer.FullName)));
         }
         if (submission.ReviewedAtUtc is { } reviewedAt)
         {
-            rows.Add(("🗓️ Graded on", Esc(FormatDeadline(reviewedAt))));
+            rows.Add(("Graded on", Esc(FormatDeadline(reviewedAt))));
         }
         if (submission.SubmittedAtUtc is { } submittedOn)
         {
-            rows.Add(("📥 You submitted", Esc(FormatDeadline(submittedOn))));
+            rows.Add(("You submitted", Esc(FormatDeadline(submittedOn))));
         }
         if (wasLate)
         {
-            rows.Add(("📌 Timing", EmailTemplates.Badge("Late submission", Tone.Warning)));
+            rows.Add(("Timing", EmailTemplates.Badge("Late submission", Tone.Warning)));
         }
 
         var content = new StringBuilder()
@@ -232,18 +232,18 @@ internal static class NotificationMessages
 
         var rows = new List<(string, string)>
         {
-            ("🎭 Role", Esc(Capitalize(role))),
-            ("📧 Email", Esc(user.EmailValue)),
+            ("Role", Esc(Capitalize(role))),
+            ("Email", Esc(user.EmailValue)),
         };
 
         // The school id is how staff will refer to them, so it belongs in the first mail.
         if (user.StudentId is { } studentId)
         {
-            rows.Add(("🆔 Student ID", Esc(studentId)));
+            rows.Add(("Student ID", Esc(studentId)));
         }
         else if (user.TeacherId is { } teacherId)
         {
-            rows.Add(("🆔 Teacher ID", Esc(teacherId)));
+            rows.Add(("Teacher ID", Esc(teacherId)));
         }
 
         var content = new StringBuilder()
@@ -293,16 +293,16 @@ internal static class NotificationMessages
 
         var rows = new List<(string, string)>
         {
-            ("📘 Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-            ("🏫 Class", Esc(offering.Class.Name)),
+            ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
+            ("Class", Esc(offering.Class.Name)),
         };
         if (!string.IsNullOrWhiteSpace(teacherIdNumber))
         {
-            rows.Add(("🆔 Teacher ID", Esc(teacherIdNumber)));
+            rows.Add(("Teacher ID", Esc(teacherIdNumber)));
         }
         if (enrolledStudentCount is { } count)
         {
-            rows.Add(("🧑‍🎓 Enrolled students", Esc(count == 1 ? "1 student" : $"{count} students")));
+            rows.Add(("Enrolled students", Esc(count == 1 ? "1 student" : $"{count} students")));
         }
 
         var content = new StringBuilder()
@@ -337,17 +337,17 @@ internal static class NotificationMessages
 
         var rows = new List<(string, string)>
         {
-            ("🏫 Class", Esc(@class.Name)),
+            ("Class", Esc(@class.Name)),
         };
         if (!string.IsNullOrWhiteSpace(studentIdNumber))
         {
-            rows.Add(("🆔 Student ID", Esc(studentIdNumber)));
+            rows.Add(("Student ID", Esc(studentIdNumber)));
         }
         if (classmateCount is { } count and > 0)
         {
-            rows.Add(("🧑‍🎓 Classmates", Esc(count == 1 ? "1 other student" : $"{count} other students")));
+            rows.Add(("Classmates", Esc(count == 1 ? "1 other student" : $"{count} other students")));
         }
-        rows.Add(("📚 Courses", Esc(courses.Count == 1 ? "1 course" : $"{courses.Count} courses")));
+        rows.Add(("Courses", Esc(courses.Count == 1 ? "1 course" : $"{courses.Count} courses")));
 
         var content = new StringBuilder()
             .Append(EmailTemplates.Eyebrow("Class enrollment"))
@@ -411,7 +411,7 @@ internal static class NotificationMessages
             .Append("font-size:14px;line-height:1.9;color:#1e1e2a;\">");
         foreach (var course in courses)
         {
-            sb.Append("<li>📘 <strong>").Append(Esc(course.Name))
+            sb.Append("<li><strong>").Append(Esc(course.Name))
               .Append("</strong> <span style=\"color:#6b6b80;\">(").Append(Esc(course.Code))
               .Append(")</span></li>");
         }
@@ -446,11 +446,11 @@ internal static class NotificationMessages
         string.IsNullOrEmpty(value) ? value : char.ToUpperInvariant(value[0]) + value[1..];
 
     /// <summary>
-    /// UTC, stated as UTC. Everything is stored in UTC and the recipient's timezone is not
-    /// known, so labelling it beats quietly implying a local time it isn't.
+    /// Deadline shown in 12-hour AM/PM. Everything is stored in UTC and the offset is omitted
+    /// to keep the wording clean; recipients see a UTC instant without a "UTC" suffix.
     /// </summary>
     private static string FormatDeadline(DateTime utc) =>
-        utc.ToString("dd MMM yyyy, HH:mm 'UTC'", CultureInfo.InvariantCulture);
+        utc.ToString("dd MMM yyyy, hh:mm tt", CultureInfo.InvariantCulture);
 
     private static string FormatMarks(decimal marks) =>
         marks.ToString("0.##", CultureInfo.InvariantCulture);
