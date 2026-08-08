@@ -40,8 +40,29 @@ export function AssignmentCard({
 
   const actionLabel = !submission || submission.status === 'Pending' ? 'Submit' : 'Resubmit';
 
+  // The whole card opens the submit dialog, so it behaves like one big button. Only
+  // wired up for the student flow (`onOpen`) — the link-based (`href`) card stays as-is.
+  const openable = Boolean(onOpen);
+  const open = () => onOpen?.(assignment);
+
   return (
-    <article className="panel-interactive flex h-full flex-col overflow-hidden">
+    <article
+      className={cn('panel-interactive flex h-full flex-col overflow-hidden', openable && 'cursor-pointer')}
+      onClick={openable ? open : undefined}
+      onKeyDown={
+        openable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                open();
+              }
+            }
+          : undefined
+      }
+      role={openable ? 'button' : undefined}
+      tabIndex={openable ? 0 : undefined}
+      aria-label={openable ? `${actionLabel} — ${assignment.title}` : undefined}
+    >
       <div aria-hidden className={cn('h-1 w-full', URGENCY_STRIPE[urgency])} />
 
       <div className="flex-1 space-y-3 p-5">
@@ -98,7 +119,10 @@ export function AssignmentCard({
           <Button
             size="sm"
             variant={canStillEdit ? 'default' : 'outline'}
-            onClick={() => onOpen(assignment)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen(assignment);
+            }}
           >
             {canStillEdit ? actionLabel : 'View'}
           </Button>
