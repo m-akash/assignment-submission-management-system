@@ -247,8 +247,16 @@ function UsersView() {
                         {role === 'Student' && (
                           <>
                             <TableCell className="text-muted-foreground">
+                              {/* The year is part of the answer now that a student can hold
+                                  the same class in more than one session — without it, two
+                                  entries reading "Class IX - Section A" look like a bug. */}
                               {user.classes.length > 0
-                                ? user.classes.map((enrolled) => enrolled.className).join(', ')
+                                ? user.classes
+                                    .map(
+                                      (enrolled) =>
+                                        `${enrolled.className} (${enrolled.academicYearName})`,
+                                    )
+                                    .join(', ')
                                 : '—'}
                             </TableCell>
                             <TableCell className="font-mono text-sm text-muted-foreground">

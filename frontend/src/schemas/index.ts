@@ -46,6 +46,7 @@ export const userSchema = z
     email: z.string().trim().min(1, 'Email is required').email('Enter a valid email address'),
     role: roleEnum,
     classId: z.string().optional(),
+    academicYearId: z.string().optional(),
     password: z.string().optional(),
     /** Set by the form, not the user: an update may leave the password untouched. */
     isEdit: z.boolean(),
@@ -74,8 +75,45 @@ export const userSchema = z
         message: 'A student must belong to a class',
       });
     }
+    // The class is meaningless without the session it is for. The API would fall back to
+    // the current year, but the form shows the field, so leaving it blank is a mistake
+    // rather than an omission — and a school with no current year would be refused there.
+    if (!values.isEdit && values.role === 'Student' && !values.academicYearId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['academicYearId'],
+        message: 'Choose the academic year',
+      });
+    }
   });
 export type UserValues = z.infer<typeof userSchema>;
+
+/**
+ * A school session. The name is free text rather than derived from the dates: what a
+ * session is called ("2026", "2026-2027", "Session 12") is a local convention the server
+ * does not try to guess, so neither does this.
+ *
+ * Dates are the raw "YYYY-MM-DD" a date input produces and are compared as strings — ISO
+ * dates sort chronologically as text, so this needs no Date, which is what keeps the value
+ * from being shifted by the reader's time zone on the way to the API.
+ */
+export const academicYearSchema = z
+  .object({
+    name: z.string().trim().min(2, 'Enter a name for the year').max(50, 'Name is too long'),
+    startDate: z.string().min(1, 'Choose a start date'),
+    endDate: z.string().min(1, 'Choose an end date'),
+    isCurrent: z.boolean(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.startDate && values.endDate && values.endDate <= values.startDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['endDate'],
+        message: 'The end date must be after the start date',
+      });
+    }
+  });
+export type AcademicYearValues = z.infer<typeof academicYearSchema>;
 
 // No name field: the server composes "Class IX - Section A" from the grade and section.
 export const classSchema = z.object({
@@ -126,6 +164,7 @@ export type ClassCourseValues = z.infer<typeof classCourseSchema>;
 export const enrollmentSchema = z.object({
   studentId: z.string().min(1, 'Choose a student'),
   classId: z.string().min(1, 'Choose a class'),
+  academicYearId: z.string().min(1, 'Choose the academic year'),
 });
 export type EnrollmentValues = z.infer<typeof enrollmentSchema>;
 

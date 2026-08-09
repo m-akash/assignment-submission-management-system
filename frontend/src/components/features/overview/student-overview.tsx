@@ -21,8 +21,13 @@ export function StudentOverview({
   /** Every class the student is enrolled in — normally one, but the model allows more. */
   classes: EnrolledClass[];
 }) {
-  // One label for the header, whether they sit in one class or several.
-  const className = classes.length > 0 ? classes.map((c) => c.className).join(' · ') : null;
+  // One label for the header, whether they sit in one class or several. The session is
+  // named alongside each: a student who has moved up a grade keeps last year's enrollment,
+  // so the class alone would not say which of the two is this year's.
+  const className =
+    classes.length > 0
+      ? classes.map((c) => `${c.className} (${c.academicYearName})`).join(' · ')
+      : null;
 
   const { items, isLoading, isError, error } = useStudentAssignments({});
   const firstName = name.split(' ')[0];

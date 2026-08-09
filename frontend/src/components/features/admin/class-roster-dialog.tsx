@@ -10,11 +10,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { MultiCombobox } from '@/components/ui/combobox';
+import { Combobox, MultiCombobox } from '@/components/ui/combobox';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import {
+  useAcademicYearOptions,
   useCreateEnrollment,
+  useCurrentAcademicYear,
   useDeleteEnrollment,
   useEnrollments,
   useUsers,
@@ -22,11 +25,16 @@ import {
 import type { ClassRoom } from '@/types/api';
 
 /**
- * Who's in a class, and the place to change it.
+ * Who's in a class for a given session, and the place to change it.
  *
  * Enrollments are edited here rather than on the user form because the rules are about the
- * class: a student cannot be enrolled twice, and cannot be removed from their only class.
- * Both are enforced by the server and surface here as a toast.
+ * class: a student cannot be enrolled twice in the same year, and cannot be removed from
+ * their only class. Both are enforced by the server and surface here as a toast.
+ *
+ * The year is a filter and the write target at once, deliberately: a class cohort outlives
+ * a session, so "who is in Class IX-A" has no answer until one is named. Showing every year
+ * at once would put a student's 2025 and 2026 rows side by side with no way to tell which
+ * enrollment a Remove button was about to delete.
  */
 export function ClassRosterDialog({
   open,
@@ -38,9 +46,26 @@ export function ClassRosterDialog({
   classRoom: ClassRoom | null;
 }) {
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  // Holds only an explicit choice. The year actually in force is derived below, so the
+  // dialog falls onto the current session the moment the options arrive without an effect
+  // that would have to re-run to catch a cold cache.
+  const [pickedYearId, setPickedYearId] = useState('');
 
-  const enabled = open && !!classRoom;
-  const roster = useEnrollments({ classId: classRoom?.id, pageSize: 100 }, { enabled });
+  const academicYears = useAcademicYearOptions();
+  const currentAcademicYear = useCurrentAcademicYear();
+  const academicYearId = pickedYearId || currentAcademicYear?.id || '';
+
+  /** Clears the working state on close so the next class opens clean. */
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setSelectedStudentIds([]);
+      setPickedYearId('');
+    }
+    onOpenChange(next);
+  }
+
+  const enabled = open && !!classRoom && !!academicYearId;
+  const roster = useEnrollments({ classId: classRoom?.id, academicYearId, pageSize: 100 }, { enabled });
   // Every student, so the picker can offer the ones not already here.
   const allStudents = useUsers({ role: 'Student', pageSize: 200 }, { enabled });
 
@@ -68,12 +93,12 @@ export function ClassRosterDialog({
    * went through and collect a 409 for each.
    */
   async function onEnrol() {
-    if (!classRoom || selectedStudentIds.length === 0) return;
+    if (!classRoom || !academicYearId || selectedStudentIds.length === 0) return;
 
     const pending = [...selectedStudentIds];
     try {
       while (pending.length > 0) {
-        await enrol.mutateAsync({ studentId: pending[0], classId: classRoom.id });
+        await enrol.mutateAsync({ studentId: pending[0], classId: classRoom.id, academicYearId });
         pending.shift();
       }
     } catch {
@@ -83,15 +108,46 @@ export function ClassRosterDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{classRoom?.name ?? 'Students'}</DialogTitle>
           <DialogDescription>
-            {enrolled.length} student{enrolled.length === 1 ? '' : 's'} enrolled. A student must
-            belong to at least one class, so add them to the new one before removing this.
+            {academicYearId
+              ? `${enrolled.length} student${enrolled.length === 1 ? '' : 's'} enrolled for this year. `
+              : ''}
+            A student must belong to at least one class, so add them to the new one before
+            removing this.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="space-y-2">
+          <Label htmlFor="rosterAcademicYear">Academic year</Label>
+          <Combobox
+            id="rosterAcademicYear"
+            value={academicYearId}
+            onChange={(value) => {
+              setPickedYearId(value);
+              // The addable list is derived from the roster for this year, so a stale
+              // selection could name someone already enrolled in the year just chosen.
+              setSelectedStudentIds([]);
+            }}
+            options={(academicYears.data ?? []).map((year) => ({
+              value: year.id,
+              label: year.name,
+              hint: year.isCurrent ? 'Current' : undefined,
+            }))}
+            placeholder={
+              academicYears.isLoading
+                ? 'Loading…'
+                : (academicYears.data ?? []).length === 0
+                  ? 'No academic years yet — create one first'
+                  : 'Choose the academic year'
+            }
+            searchPlaceholder="Search academic years…"
+            emptyMessage="No academic years match"
+          />
+        </div>
 
         <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1">
@@ -104,19 +160,25 @@ export function ClassRosterDialog({
                 hint: student.studentId ?? student.email,
               }))}
               aria-label="Students to enrol"
+              disabled={!academicYearId}
               placeholder={
-                allStudents.isLoading
-                  ? 'Loading…'
-                  : addable.length === 0
-                    ? 'Every student is already enrolled'
-                    : 'Choose students to enrol'
+                !academicYearId
+                  ? 'Choose an academic year first'
+                  : allStudents.isLoading
+                    ? 'Loading…'
+                    : addable.length === 0
+                      ? 'Every student is already enrolled for this year'
+                      : 'Choose students to enrol'
               }
               searchPlaceholder="Search name, ID or email…"
               emptyMessage="No students match"
               className="w-full"
             />
           </div>
-          <Button onClick={onEnrol} disabled={selectedStudentIds.length === 0 || enrol.isPending}>
+          <Button
+            onClick={onEnrol}
+            disabled={!academicYearId || selectedStudentIds.length === 0 || enrol.isPending}
+          >
             {enrol.isPending ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
@@ -127,7 +189,13 @@ export function ClassRosterDialog({
         </div>
 
         <div className="max-h-96 overflow-y-auto">
-          {roster.isError ? (
+          {!academicYearId ? (
+            <EmptyState
+              icon={Users}
+              title="Choose an academic year"
+              description="A class runs every year, so the roster is per session."
+            />
+          ) : roster.isError ? (
             <ErrorState
               message={roster.error instanceof Error ? roster.error.message : undefined}
             />
@@ -138,7 +206,7 @@ export function ClassRosterDialog({
               ))}
             </div>
           ) : enrolled.length === 0 ? (
-            <EmptyState icon={Users} title="No students in this class yet" />
+            <EmptyState icon={Users} title="No students in this class for this year" />
           ) : (
             <ul className="divide-y">
               {enrolled.map((entry) => (

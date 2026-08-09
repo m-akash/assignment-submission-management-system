@@ -10,6 +10,11 @@ export const queryKeys = {
     all: ['users'] as const,
     list: (filters: unknown) => ['users', 'list', filters] as const,
   },
+  academicYears: {
+    all: ['academic-years'] as const,
+    list: (filters: unknown) => ['academic-years', 'list', filters] as const,
+    options: ['academic-years', 'options'] as const,
+  },
   classes: {
     all: ['classes'] as const,
     list: (filters: unknown) => ['classes', 'list', filters] as const,

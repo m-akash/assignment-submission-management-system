@@ -57,13 +57,15 @@ export interface ProblemDetails {
   errors?: Record<string, string[]>;
 }
 
-/** One class a student is enrolled in — `EnrolledClassDto` on the server. */
+/** One class a student is enrolled in, for one session — `EnrolledClassDto` on the server. */
 export interface EnrolledClass {
   enrollmentId: string;
   classId: string;
   className: string;
   classLevel: number;
   classSection: string | null;
+  academicYearId: string;
+  academicYearName: string;
   enrolledAtUtc: string;
 }
 
@@ -95,6 +97,22 @@ export interface LoginResponse {
   role: Role;
   accessToken: string;
   accessTokenExpiresAtUtc: string;
+}
+
+/**
+ * A school session — `AcademicYearDto`. Dates are plain calendar days ("2026-07-01"),
+ * not instants: a session starts on the same day for everyone regardless of time zone,
+ * so these must never be run through a `Date` that would shift them.
+ */
+export interface AcademicYear {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  /** Exactly one year carries this — what the enrollment forms preselect. */
+  isCurrent: boolean;
+  /** Enrollments recorded against it. Non-zero means it cannot be deleted. */
+  enrollmentCount: number;
 }
 
 export interface ClassRoom {
@@ -130,7 +148,7 @@ export interface ClassCourse {
   assignmentCount: number;
 }
 
-/** One student's membership of one class — `EnrollmentDto`. */
+/** One student's membership of one class, for one session — `EnrollmentDto`. */
 export interface Enrollment {
   id: string;
   studentId: string;
@@ -142,6 +160,8 @@ export interface Enrollment {
   className: string;
   classLevel: number;
   classSection: string | null;
+  academicYearId: string;
+  academicYearName: string;
   enrolledAtUtc: string;
 }
 

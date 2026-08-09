@@ -16,7 +16,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
-import { useClassOptions } from '@/hooks/use-admin-resources';
+import {
+  useAcademicYearOptions,
+  useClassOptions,
+  useCurrentAcademicYear,
+} from '@/hooks/use-admin-resources';
 import { useSaveUser } from '@/hooks/use-admin-resources';
 import { userSchema, type UserValues } from '@/schemas';
 import type { Role, User } from '@/types/api';
@@ -38,6 +42,8 @@ export function UserFormDialog({
 }) {
   const isEdit = !!user;
   const classes = useClassOptions();
+  const academicYears = useAcademicYearOptions();
+  const currentAcademicYear = useCurrentAcademicYear();
   const save = useSaveUser();
 
   const emptyValues: UserValues = {
@@ -45,6 +51,7 @@ export function UserFormDialog({
     email: '',
     role: defaultRole,
     classId: '',
+    academicYearId: '',
     password: '',
     isEdit: false,
   };
@@ -65,13 +72,17 @@ export function UserFormDialog({
             // Create-only: an existing student's classes are managed on the class roster,
             // where removing their last one can be refused.
             classId: '',
+            academicYearId: '',
             password: '',
             isEdit: true,
           }
-        : { ...emptyValues },
+        : { ...emptyValues, academicYearId: currentAcademicYear?.id ?? '' },
     );
+    // currentAcademicYear is in the deps so a reset that ran before the options arrived is
+    // redone once they do — otherwise opening the dialog on a cold cache leaves the year
+    // blank and the admin has to pick the obvious answer by hand.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, user, defaultRole, form]);
+  }, [open, user, defaultRole, currentAcademicYear?.id, form]);
 
   const role = form.watch('role');
 
@@ -82,9 +93,10 @@ export function UserFormDialog({
         email: values.email,
         fullName: values.fullName,
         role: values.role,
-        // Only meaningful on create, where it becomes the student's first enrollment.
+        // Only meaningful on create, where they become the student's first enrollment.
         // Cleared for other roles so the server never sees a stale pairing.
         classId: values.role === 'Student' ? values.classId : null,
+        academicYearId: values.role === 'Student' ? values.academicYearId : null,
         password: values.password || undefined,
       },
     });
@@ -149,6 +161,40 @@ export function UserFormDialog({
               </div>
             )}
           </div>
+
+          {role === 'Student' && !isEdit && (
+            <div className="space-y-2">
+              <Label htmlFor="academicYearId">Academic year</Label>
+              <Combobox
+                id="academicYearId"
+                value={form.watch('academicYearId') ?? ''}
+                onChange={(value) =>
+                  form.setValue('academicYearId', value, { shouldValidate: true })
+                }
+                options={(academicYears.data ?? []).map((year) => ({
+                  value: year.id,
+                  label: year.name,
+                  hint: year.isCurrent ? 'Current' : undefined,
+                }))}
+                placeholder={
+                  academicYears.isLoading
+                    ? 'Loading…'
+                    : (academicYears.data ?? []).length === 0
+                      ? 'No academic years yet — create one first'
+                      : 'Choose the academic year'
+                }
+                searchPlaceholder="Search academic years…"
+                emptyMessage="No academic years match"
+                aria-invalid={!!errors.academicYearId}
+              />
+              <p className="text-xs text-muted-foreground">
+                The session this enrollment belongs to. Defaults to the current year.
+              </p>
+              {errors.academicYearId && (
+                <p className="text-xs text-danger">{errors.academicYearId.message}</p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="password">{isEdit ? 'New password' : 'Password'}</Label>

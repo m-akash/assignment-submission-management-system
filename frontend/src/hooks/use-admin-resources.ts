@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { apiDelete, apiGetPaged, apiPost, apiPut, toQuery } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 import type {
+  AcademicYear,
   ClassCourse,
   ClassRoom,
   Course,
@@ -53,6 +54,8 @@ export interface UserInput {
   role: Role;
   /** Only read on create: the student's first class, enrolled in the same transaction. */
   classId?: string | null;
+  /** The session that first enrollment belongs to. Omitted, the server uses the current one. */
+  academicYearId?: string | null;
 }
 
 export function useSaveUser() {
@@ -70,6 +73,7 @@ export function useSaveUser() {
         : apiPost<User>('/api/v1/users', {
             ...input,
             classId: input.classId || null,
+            academicYearId: input.academicYearId || null,
           }),
     onSuccess: (_data, variables) => {
       // Creating a student writes an enrollment too, so that list is stale as well.
@@ -84,6 +88,60 @@ export function useSaveUser() {
 
 export function useDeleteUser() {
   return useResourceDelete('/api/v1/users', queryKeys.users.all, 'User deactivated');
+}
+
+// ── Academic years ──────────────────────────────────────────────────────────
+
+export function useAcademicYears(filters: ListFilters) {
+  return useQuery({
+    queryKey: queryKeys.academicYears.list(filters),
+    queryFn: () => apiGetPaged<AcademicYear>(`/api/v1/academic-years${toQuery({ ...filters })}`),
+  });
+}
+
+export function useAcademicYearOptions() {
+  return useQuery({
+    queryKey: queryKeys.academicYears.options,
+    queryFn: () => apiGetPaged<AcademicYear>('/api/v1/academic-years?pageSize=100'),
+    staleTime: 5 * 60 * 1000,
+    select: (page: Paged<AcademicYear>) => page.items,
+  });
+}
+
+/**
+ * The session the school is running, for forms that should open on it. Undefined while the
+ * options are loading and when no year is flagged current — the callers treat both the same
+ * way (nothing preselected), because both mean "there is no answer yet".
+ */
+export function useCurrentAcademicYear() {
+  const years = useAcademicYearOptions();
+  return years.data?.find((year) => year.isCurrent);
+}
+
+export interface AcademicYearInput {
+  name: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+}
+
+export function useSaveAcademicYear() {
+  return useResourceSave<AcademicYear, AcademicYearInput>(
+    '/api/v1/academic-years',
+    queryKeys.academicYears.all,
+    'Academic year',
+    // Marking a different year current changes what every enrollment form preselects, and
+    // the enrollment lists render the year's name, so both go stale on any save.
+    queryKeys.enrollments.all,
+  );
+}
+
+export function useDeleteAcademicYear() {
+  return useResourceDelete(
+    '/api/v1/academic-years',
+    queryKeys.academicYears.all,
+    'Academic year deleted',
+  );
 }
 
 // ── Classes ─────────────────────────────────────────────────────────────────
@@ -255,6 +313,7 @@ export function useDeleteClassCourse() {
 export interface EnrollmentFilters extends ListFilters {
   studentId?: string | string[];
   classId?: string | string[];
+  academicYearId?: string | string[];
 }
 
 export function useEnrollments(filters: EnrollmentFilters, options?: { enabled?: boolean }) {
@@ -269,7 +328,7 @@ export function useCreateEnrollment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { studentId: string; classId: string }) =>
+    mutationFn: (input: { studentId: string; classId: string; academicYearId: string }) =>
       apiPost<Enrollment>('/api/v1/enrollments', input),
     onSuccess: () => {
       // Enrollment changes what a student can see and what a class counts, so both the
@@ -316,6 +375,7 @@ function useResourceSave<TResult, TInput>(
   baseUrl: string,
   invalidateKey: readonly unknown[],
   label: string,
+  ...alsoInvalidate: readonly (readonly unknown[])[]
 ) {
   const queryClient = useQueryClient();
 
@@ -323,7 +383,9 @@ function useResourceSave<TResult, TInput>(
     mutationFn: ({ id, input }: { id?: string; input: TInput }) =>
       id ? apiPut<TResult>(`${baseUrl}/${id}`, input) : apiPost<TResult>(baseUrl, input),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: invalidateKey });
+      for (const key of [invalidateKey, ...alsoInvalidate]) {
+        queryClient.invalidateQueries({ queryKey: key });
+      }
       toast.success(`${label} ${variables.id ? 'updated' : 'created'}`);
     },
     onError: (error: Error) => toast.error(error.message),
