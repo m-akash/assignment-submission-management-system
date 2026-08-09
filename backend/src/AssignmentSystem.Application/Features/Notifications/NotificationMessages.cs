@@ -61,7 +61,8 @@ internal static class NotificationMessages
         var rows = new List<(string, string)>
         {
             ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-            ("Class", Esc(offering.Class.Name)),
+            ("Class", Esc(ClassGrade(offering))),
+            ("Section", Esc(ClassSection(offering))),
         };
         if (!string.IsNullOrWhiteSpace(teacherName))
         {
@@ -109,7 +110,8 @@ internal static class NotificationMessages
         var rows = new List<(string, string)>
         {
             ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-            ("Class", Esc(offering.Class.Name)),
+            ("Class", Esc(ClassGrade(offering))),
+            ("Section", Esc(ClassSection(offering))),
             ("Student", Esc(studentName)),
         };
         if (!string.IsNullOrWhiteSpace(studentIdNumber))
@@ -164,7 +166,8 @@ internal static class NotificationMessages
         var rows = new List<(string, string)>
         {
             ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-            ("Class", Esc(offering.Class.Name)),
+            ("Class", Esc(ClassGrade(offering))),
+            ("Section", Esc(ClassSection(offering))),
             ("Score", Esc(FormatScore(submission))),
         };
         if (submission.Marks is { } marks)
@@ -298,12 +301,13 @@ internal static class NotificationMessages
         string? teacherIdNumber = null,
         int? enrolledStudentCount = null)
     {
-        var subject = $"You have been assigned to teach {offering.Course.Name} ({offering.Class.Name})";
+        var subject = $"You have been assigned to teach {offering.Course.Name} ({offering.Class.DisplayName})";
 
         var rows = new List<(string, string)>
         {
             ("Course", $"{Esc(offering.Course.Name)} ({Esc(offering.Course.Code)})"),
-            ("Class", Esc(offering.Class.Name)),
+            ("Class", Esc(ClassGrade(offering))),
+            ("Section", Esc(ClassSection(offering))),
         };
         if (!string.IsNullOrWhiteSpace(teacherIdNumber))
         {
@@ -316,14 +320,14 @@ internal static class NotificationMessages
 
         var content = new StringBuilder()
             .Append(EmailTemplates.Eyebrow("New course assignment"))
-            .Append(EmailTemplates.Title($"{Esc(offering.Course.Name)} — {Esc(offering.Class.Name)}"))
+            .Append(EmailTemplates.Title($"{Esc(offering.Course.Name)} — {Esc(offering.Class.DisplayName)}"))
             .Append(Paragraph($"Hello {Esc(teacherName)},"))
             .Append(Paragraph("You have been assigned to teach a course. You can now create and publish assignments for this class, and grade the work that comes in."))
             .Append(DetailTable([.. rows]))
             .Append(Cta(appBaseUrl, "/assignments", "Open your assignments"))
             .ToString();
 
-        return (subject, Wrap($"You have been assigned to teach {offering.Course.Name} for {offering.Class.Name}.", content));
+        return (subject, Wrap($"You have been assigned to teach {offering.Course.Name} for {offering.Class.DisplayName}.", content));
     }
 
     /// <summary>
@@ -342,11 +346,12 @@ internal static class NotificationMessages
         string appBaseUrl,
         int? classmateCount = null)
     {
-        var subject = $"You have been enrolled in {@class.Name}";
+        var subject = $"You have been enrolled in {@class.DisplayName}";
 
         var rows = new List<(string, string)>
         {
-            ("Class", Esc(@class.Name)),
+            ("Class", Esc(GradeOf(@class))),
+            ("Section", Esc(SectionOf(@class))),
         };
         if (!string.IsNullOrWhiteSpace(studentIdNumber))
         {
@@ -360,7 +365,7 @@ internal static class NotificationMessages
 
         var content = new StringBuilder()
             .Append(EmailTemplates.Eyebrow("Class enrollment"))
-            .Append(EmailTemplates.Title($"Welcome to {Esc(@class.Name)}"))
+            .Append(EmailTemplates.Title($"Welcome to {Esc(@class.DisplayName)}"))
             .Append(Paragraph($"Hello {Esc(studentName)},"))
             .Append(Paragraph("You have been enrolled in a class."))
             .Append(DetailTable([.. rows]));
@@ -380,10 +385,26 @@ internal static class NotificationMessages
 
         content.Append(Cta(appBaseUrl, "/assignments", "Open your assignments"));
 
-        return (subject, Wrap($"You have been enrolled in {@class.Name}.", content.ToString()));
+        return (subject, Wrap($"You have been enrolled in {@class.DisplayName}.", content.ToString()));
     }
 
     // ── Compose helpers (build fragments, then wrap in the shell) ───────────────────
+
+    /// <summary>
+    /// The grade and the section as two separate detail rows. A mail is the one place a
+    /// class cannot be two dropdowns, but it can still be two labelled rows — which is what
+    /// the reader actually wants to see, and it keeps the numeral out of the grade.
+    /// </summary>
+    private static string ClassGrade(ClassCourse offering) => GradeOf(offering.Class);
+
+    private static string ClassSection(ClassCourse offering) => SectionOf(offering.Class);
+
+    private static string GradeOf(Class @class) =>
+        @class.Level.ToString(CultureInfo.InvariantCulture);
+
+    private static string SectionOf(Class @class) =>
+        string.IsNullOrWhiteSpace(@class.Section) ? "—" : @class.Section;
+
 
     private static string Wrap(string preheader, string content) =>
         EmailTemplates.Shell(preheader, content);

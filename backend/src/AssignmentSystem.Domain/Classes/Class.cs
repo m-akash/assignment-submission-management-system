@@ -3,20 +3,20 @@ using AssignmentSystem.Domain.Common;
 namespace AssignmentSystem.Domain.Classes;
 
 /// <summary>
-/// A class cohort (e.g. "Class IX - Section A"). Students join through
+/// A class cohort — a grade and a section, kept as two separate values. Students join through
 /// <see cref="Enrollments.StudentEnrollment"/>, the courses the class studies through
 /// <see cref="ClassCourses.ClassCourse"/>, and teachers reach it through the offering via
 /// <see cref="TeacherAssignments.TeacherAssignment"/>.
 /// Named <c>Class</c> deliberately — it is the domain term. Persisted as table
 /// <c>classes</c> to avoid the SQL reserved word.
 ///
-/// The grade is stored as a number and rendered as a Roman numeral. Keeping the numeral
-/// out of storage leaves one source of truth: ordering and the "does this grade have
-/// groups?" rule become arithmetic rather than string parsing.
+/// There is no composed name column. The grade is a number and the section is a letter, and
+/// every caller receives them as two fields: a UI picks a grade and then a section, a list
+/// gives each its own column, and sorting is arithmetic rather than string parsing. A single
+/// stored "Class IX - Section A" could only disagree with the pair it was built from.
 ///
 /// A grade may hold any number of sections, but only one cohort per (grade, section) —
-/// enforced by the handlers and backed by a unique index. The name is composed from the
-/// two, so uniqueness of the pair makes the name unique too.
+/// enforced by the handlers and backed by a unique index.
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716:Identifiers should not match keywords",
     Justification = "'Class' is the correct domain term for a school class/course.")]
@@ -26,22 +26,21 @@ public sealed class Class : BaseEntity
     private const int MaxLevel = 12;
     private const int MaxSectionLength = 50;
 
-    private static readonly string[] RomanNumerals =
-        ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
-
-    /// <summary>The display name, always derived from the grade and section — never supplied
-    /// by a caller. See <see cref="BuildName"/>.</summary>
-    public string Name { get; private set; } = null!;
-
-    /// <summary>Grade as a number, 1..12. Rendered through <see cref="GradeLabel"/>.</summary>
+    /// <summary>Grade as a number, 1..12 — rendered as the number itself, never a numeral.</summary>
     public int Level { get; private set; }
 
     /// <summary>Required. Nullable only because rows predating that rule may still hold NULL.</summary>
     public string? Section { get; private set; }
 
-    /// <summary>The grade in Roman numerals ("IX") — what the school calls it, and what
-    /// student ids are built from.</summary>
-    public string GradeLabel => RomanNumerals[Level - 1];
+    /// <summary>
+    /// A one-line rendering for prose only — email subjects and bodies, where a grade and a
+    /// section cannot be two fields. Derived, never stored, and never returned by the API:
+    /// every DTO carries <see cref="Level"/> and <see cref="Section"/> separately so screens
+    /// can lay them out themselves.
+    /// </summary>
+    public string DisplayName => string.IsNullOrWhiteSpace(Section)
+        ? $"Class {Level}"
+        : $"Class {Level} - Section {Section}";
 
     // Navigation collections (read-only externally; mutated through methods).
     private readonly List<Enrollments.StudentEnrollment> _enrollments = [];
@@ -55,33 +54,21 @@ public sealed class Class : BaseEntity
     public static Class Create(int level, string section)
     {
         Validate(level, section);
-        var trimmed = section.Trim();
 
         return new Class
         {
             Level = level,
-            Section = trimmed,
-            Name = BuildName(level, trimmed),
+            Section = section.Trim(),
         };
     }
 
     public void Update(int level, string section)
     {
         Validate(level, section);
-        var trimmed = section.Trim();
 
         Level = level;
-        Section = trimmed;
-        Name = BuildName(level, trimmed);
+        Section = section.Trim();
     }
-
-    /// <summary>
-    /// The one place a class name is composed. Admins supply only the grade and the section;
-    /// the "Class" and "Section" words are ours, so every cohort reads the same way and the
-    /// name can never drift from the grade and section it describes.
-    /// </summary>
-    private static string BuildName(int level, string section) =>
-        $"Class {RomanNumerals[level - 1]} - Section {section}";
 
     private static void Validate(int level, string section)
     {

@@ -9,7 +9,8 @@ namespace AssignmentSystem.Application.Features.Assignments;
 /// <summary>
 /// An assignment as every screen reads it. The class and course are flattened out of the
 /// offering: the client should not have to know that <c>ClassCourseId</c> is the thing the
-/// row actually points at in order to render "Mathematics · Class X - Section A".
+/// row actually points at in order to render the course beside the class. The class arrives
+/// as a grade and a section, never as one joined string.
 /// </summary>
 public sealed record AssignmentDto(
     Guid Id,
@@ -20,7 +21,8 @@ public sealed record AssignmentDto(
     string CourseName,
     string CourseCode,
     Guid ClassId,
-    string ClassName,
+    int ClassLevel,
+    string? ClassSection,
     string Title,
     string Description,
     DateTime DeadlineUtc,

@@ -8,7 +8,8 @@ namespace AssignmentSystem.Application.Features.TeacherAssignments;
 /// <summary>
 /// "This teacher teaches this course to this class." <c>ClassCourseId</c> is the row it
 /// actually points at; the class and course are flattened out of the offering so the
-/// client can render the mapping without a second lookup.
+/// client can render the mapping without a second lookup. The class arrives as a grade and
+/// a section, never as one joined string — see <see cref="Domain.Classes.Class"/>.
 /// </summary>
 public sealed record TeacherAssignmentDto(
     Guid Id,
@@ -20,7 +21,8 @@ public sealed record TeacherAssignmentDto(
     string CourseName,
     string CourseCode,
     Guid ClassId,
-    string ClassName
+    int ClassLevel,
+    string? ClassSection
 );
 
 [RequiresRole(Role.Admin)]

@@ -74,6 +74,9 @@ internal sealed class TeacherAssignmentsPagedSpecification : Specification<Teach
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
+        // A search term that is a whole number means a grade ("9"); anything else can only
+        // be a section letter. Parsed once here so the grade arm switches itself off.
+        var searchLevel = int.TryParse(searchLower, out var parsedLevel) ? parsedLevel : (int?)null;
         var teacherFilter = MultiValueFilter(teacherIds);
         var classCourseFilter = MultiValueFilter(classCourseIds);
         var courseFilter = MultiValueFilter(courseIds);
@@ -91,7 +94,8 @@ internal sealed class TeacherAssignmentsPagedSpecification : Specification<Teach
             (string.IsNullOrWhiteSpace(searchLower) ||
              ta.Teacher.FullName.ToLower().Contains(searchLower) ||
              ta.ClassCourse.Course.Name.ToLower().Contains(searchLower) ||
-             ta.ClassCourse.Class.Name.ToLower().Contains(searchLower));
+             (searchLevel != null && ta.ClassCourse.Class.Level == searchLevel) ||
+             (ta.ClassCourse.Class.Section != null && ta.ClassCourse.Class.Section.ToLower().Contains(searchLower)));
 #pragma warning restore CA1304, CA1311
     }
 }

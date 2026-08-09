@@ -27,7 +27,6 @@ public sealed record StudentCourseDto(
     string CourseName,
     string CourseCode,
     Guid ClassId,
-    string ClassName,
     int ClassLevel,
     string? ClassSection,
     IReadOnlyList<StudentCourseTeacherDto> Teachers

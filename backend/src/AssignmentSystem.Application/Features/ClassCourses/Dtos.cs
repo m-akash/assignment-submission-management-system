@@ -6,14 +6,14 @@ using AssignmentSystem.Shared.Common;
 namespace AssignmentSystem.Application.Features.ClassCourses;
 
 /// <summary>
-/// A course offering. Flattens the class and course names in rather than nesting them:
-/// every screen that shows an offering shows "Mathematics · Class X - Section A", so a
-/// nested shape would only mean the client re-joining what the server already knows.
+/// A course offering. Flattens the class and course in rather than nesting them: every
+/// screen that shows an offering shows the course beside the class, so a nested shape would
+/// only mean the client re-joining what the server already knows. The class comes through as
+/// a grade and a section, two fields, never one joined string.
 /// </summary>
 public sealed record ClassCourseDto(
     Guid Id,
     Guid ClassId,
-    string ClassName,
     int ClassLevel,
     string? ClassSection,
     Guid CourseId,

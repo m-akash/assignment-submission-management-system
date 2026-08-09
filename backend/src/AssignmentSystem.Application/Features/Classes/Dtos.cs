@@ -5,19 +5,20 @@ using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Features.Classes;
 
+/// <summary>
+/// A class cohort as the API returns it: the grade and the section as two fields, never
+/// joined into one. Clients that want a label build it themselves; clients that want two
+/// dropdowns or two columns — which is all of them — get exactly what they need.
+/// </summary>
 public sealed record ClassDto(
     Guid Id,
-    /// <summary>"Class IX - Section A" — composed from the grade and section, never entered.</summary>
-    string Name,
+    /// <summary>Grade as a number, 1..12. Shown as the number, not a numeral.</summary>
     int Level,
-    /// <summary>The level as a Roman numeral ("IX") — derived, never stored.</summary>
-    string GradeLabel,
     string? Section,
     int StudentCount = 0
 );
 
-// Create/Update take only the grade and section — the name is composed by the domain, so
-// there is nothing for an admin to type and nothing that can disagree with the pair.
+// Create/Update take the grade and the section, which is all a class is.
 [RequiresRole(Role.Admin)]
 public sealed record CreateClassCommand(
     int Level,

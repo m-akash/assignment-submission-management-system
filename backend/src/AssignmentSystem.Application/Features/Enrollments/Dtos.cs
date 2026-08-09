@@ -13,7 +13,6 @@ public sealed record EnrollmentDto(
     string StudentEmail,
     string? StudentNumber,
     Guid ClassId,
-    string ClassName,
     int ClassLevel,
     string? ClassSection,
     Guid AcademicYearId,
@@ -28,7 +27,6 @@ public sealed record EnrollmentDto(
 public sealed record EnrolledClassDto(
     Guid EnrollmentId,
     Guid ClassId,
-    string ClassName,
     int ClassLevel,
     string? ClassSection,
     Guid AcademicYearId,

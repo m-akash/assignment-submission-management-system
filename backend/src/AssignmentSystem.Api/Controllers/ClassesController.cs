@@ -71,7 +71,7 @@ public sealed class ClassesController : ControllerBase
     }
 }
 
-// No Name: the display name is composed server-side from the grade and section.
+// A class is a grade and a section, and nothing else — there is no name to send.
 public sealed record CreateClassRequest(int Level, string Section);
 public sealed record UpdateClassRequest(int Level, string Section);
 

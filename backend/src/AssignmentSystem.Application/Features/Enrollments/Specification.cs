@@ -80,6 +80,9 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
             ? null
             : new HashSet<Guid>(allowedClassIds);
         var restrictByClass = classIdSet is not null;
+        // A search term that is a whole number means a grade ("9"); anything else can only
+        // be a section letter. Parsed once here so the grade arm switches itself off.
+        var searchLevel = int.TryParse(searchLower, out var parsedLevel) ? parsedLevel : (int?)null;
         var studentFilter = MultiValueFilter(studentIds);
         var classFilter = MultiValueFilter(classIds);
         var academicYearFilter = MultiValueFilter(academicYearIds);
@@ -97,7 +100,8 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
              e.Student.FullName.ToLower().Contains(searchLower) ||
              e.Student.Email.Value.Contains(searchLower) ||
              (e.Student.StudentId != null && e.Student.StudentId.ToLower().Contains(searchLower)) ||
-             e.Class.Name.ToLower().Contains(searchLower) ||
+             (searchLevel != null && e.Class.Level == searchLevel) ||
+             (e.Class.Section != null && e.Class.Section.ToLower().Contains(searchLower)) ||
              e.AcademicYear.Name.ToLower().Contains(searchLower));
 #pragma warning restore CA1304, CA1311
     }

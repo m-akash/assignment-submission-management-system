@@ -12,7 +12,7 @@ namespace AssignmentSystem.Domain.Enrollments;
 /// remain visible) and so the moment they joined is recorded.
 ///
 /// The academic year is part of the row rather than of the class: cohorts outlive sessions,
-/// so "Class IX - Section A" is the same cohort every year and it is the enrollment that
+/// so grade 9 section A is the same cohort every year and it is the enrollment that
 /// says which year a student sat in it. That is what lets the same student appear in Class
 /// IX for 2025-2026 and Class X for 2026-2027 with both memberships intact, and what makes
 /// a repeated grade expressible at all — the same (student, class) pair in two years.

@@ -62,7 +62,7 @@ internal sealed class ClassCoursesPagedSpecification : Specification<ClassCourse
         AddInclude(cc => cc.Class);
         AddInclude(cc => cc.Course);
         // By grade then course name: an offering list is read class-by-class, and class
-        // names carry Roman numerals, so sorting them as text puts "Class IX" before "Class VI".
+        // grade is a number, so it is ordered as one — otherwise 10 would sort before 9.
         if (!ApplySort(Sortable, sortBy, sortDir))
         {
             ApplyOrderBy(cc => cc.Class.Level);
@@ -71,6 +71,9 @@ internal sealed class ClassCoursesPagedSpecification : Specification<ClassCourse
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
+        // A search term that is a whole number means a grade ("9"); anything else can only
+        // be a section letter. Parsed once here so the grade arm switches itself off.
+        var searchLevel = int.TryParse(searchLower, out var parsedLevel) ? parsedLevel : (int?)null;
         var classFilter = MultiValueFilter(classIds);
         var courseFilter = MultiValueFilter(courseIds);
 
@@ -82,7 +85,8 @@ internal sealed class ClassCoursesPagedSpecification : Specification<ClassCourse
             (classFilter == null || classFilter.Contains(cc.ClassId)) &&
             (courseFilter == null || courseFilter.Contains(cc.CourseId)) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
-             cc.Class.Name.ToLower().Contains(searchLower) ||
+             (searchLevel != null && cc.Class.Level == searchLevel) ||
+             (cc.Class.Section != null && cc.Class.Section.ToLower().Contains(searchLower)) ||
              cc.Course.Name.ToLower().Contains(searchLower) ||
              cc.Course.Code.ToLower().Contains(searchLower));
 #pragma warning restore CA1304, CA1311

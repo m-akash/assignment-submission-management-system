@@ -15,7 +15,6 @@ public partial class UserMapper
     // Mapperly uses this to project each enrollment in the collection above. Declared here
     // rather than reusing EnrollmentMapper because a mapper can only reach methods on itself.
     [MapProperty(nameof(StudentEnrollment.Id), nameof(EnrolledClassDto.EnrollmentId))]
-    [MapProperty("Class.Name", nameof(EnrolledClassDto.ClassName))]
     [MapProperty("Class.Level", nameof(EnrolledClassDto.ClassLevel))]
     [MapProperty("Class.Section", nameof(EnrolledClassDto.ClassSection))]
     private partial EnrolledClassDto MapEnrolledClass(StudentEnrollment enrollment);

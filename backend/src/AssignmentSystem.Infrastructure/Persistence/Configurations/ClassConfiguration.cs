@@ -13,12 +13,11 @@ internal sealed class ClassConfiguration : IEntityTypeConfiguration<Class>
         builder.HasKey(c => c.Id);
         builder.Property(c => c.Id).HasDefaultValueSql("gen_random_uuid()");
 
-        builder.Property(c => c.Name).HasMaxLength(150).IsRequired();
         builder.Property(c => c.Level).IsRequired();
         builder.Property(c => c.Section).HasMaxLength(50);
 
-        // GradeLabel is computed from Level — nothing to persist.
-        builder.Ignore(c => c.GradeLabel);
+        // DisplayName is composed from Level and Section for email prose — nothing to persist.
+        builder.Ignore(c => c.DisplayName);
 
         builder.Property(c => c.CreatedAtUtc).IsRequired();
         builder.Property(c => c.UpdatedAtUtc).IsRequired();
@@ -26,8 +25,6 @@ internal sealed class ClassConfiguration : IEntityTypeConfiguration<Class>
         builder.Property(c => c.UpdatedBy);
 
         builder.Property(c => c.RowVersion).IsRowVersion();
-
-        builder.HasIndex(c => c.Name);
 
         // One cohort per (grade, section): a grade may have any number of sections, but not
         // the same one twice. The handlers reject duplicates case-insensitively and with a

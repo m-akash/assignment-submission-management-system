@@ -12,7 +12,8 @@ public partial class AssignmentMapper
     [MapProperty("ClassCourse.Course.Name", nameof(AssignmentDto.CourseName))]
     [MapProperty("ClassCourse.Course.Code", nameof(AssignmentDto.CourseCode))]
     [MapProperty("ClassCourse.ClassId", nameof(AssignmentDto.ClassId))]
-    [MapProperty("ClassCourse.Class.Name", nameof(AssignmentDto.ClassName))]
+    [MapProperty("ClassCourse.Class.Level", nameof(AssignmentDto.ClassLevel))]
+    [MapProperty("ClassCourse.Class.Section", nameof(AssignmentDto.ClassSection))]
     public partial AssignmentDto MapToDto(Assignment assignment);
 
     public partial AssignmentFileDto MapToFileDto(AssignmentFile file);

@@ -27,7 +27,7 @@ internal sealed class ClassesPagedSpecification : Specification<Class>
     private static readonly SortMap<Class> Sortable = new(
         new Dictionary<string, System.Linq.Expressions.Expression<Func<Class, object>>>
         {
-            ["name"] = c => c.Name,
+            ["grade"] = c => c.Level,
             ["level"] = c => c.Level,
             ["section"] = c => c.Section!,
             ["createdAt"] = c => c.CreatedAtUtc,
@@ -39,24 +39,25 @@ internal sealed class ClassesPagedSpecification : Specification<Class>
         ApplyNoTracking();
         if (!ApplySort(Sortable, sortBy, sortDir))
         {
-            // By level then section, not by name: names carry Roman numerals, so sorting them
-            // as text puts "Class IX" before "Class VI".
+            // Grade first, then section — the two columns the list shows, in the order it
+            // shows them. Numeric on the grade, so 9 sorts before 10.
             ApplyOrderBy(c => c.Level);
             ApplyThenBy(c => c.Section!);
         }
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
+        // "9" should find grade 9, and "a" should find section A. Parsed once here rather
+        // than cast in SQL: a non-numeric term simply leaves the grade arm switched off.
+        var searchLevel = int.TryParse(searchLower, out var parsed) ? parsed : (int?)null;
 
-        // The grade is a number now, so it is not searched directly — the name carries the
-        // numeral ("Class IX - Section A"), which is what someone would type anyway.
         // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
         // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
         // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
 #pragma warning disable CA1304, CA1311
         Criteria = c =>
             string.IsNullOrWhiteSpace(searchLower) ||
-            c.Name.ToLower().Contains(searchLower) ||
+            (searchLevel != null && c.Level == searchLevel) ||
             (c.Section != null && c.Section.ToLower().Contains(searchLower));
 #pragma warning restore CA1304, CA1311
     }

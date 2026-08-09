@@ -12,6 +12,7 @@ public partial class TeacherAssignmentMapper
     [MapProperty("ClassCourse.Course.Name", nameof(TeacherAssignmentDto.CourseName))]
     [MapProperty("ClassCourse.Course.Code", nameof(TeacherAssignmentDto.CourseCode))]
     [MapProperty("ClassCourse.ClassId", nameof(TeacherAssignmentDto.ClassId))]
-    [MapProperty("ClassCourse.Class.Name", nameof(TeacherAssignmentDto.ClassName))]
+    [MapProperty("ClassCourse.Class.Level", nameof(TeacherAssignmentDto.ClassLevel))]
+    [MapProperty("ClassCourse.Class.Section", nameof(TeacherAssignmentDto.ClassSection))]
     public partial TeacherAssignmentDto MapToDto(TeacherAssignment teacherAssignment);
 }

@@ -78,8 +78,8 @@ public sealed class DbSeeder
     /// Offerings left without a teacher on purpose, identified by (grade, section, course code).
     /// The admin's "Teacher Mappings" screen is the feature being demonstrated, so the seed
     /// stops just short of finishing the job and leaves five real gaps to fill by hand.
-    /// Chosen to avoid Class X - Section A entirely (every seeded assignment is hosted there)
-    /// and Class X - Section B's Higher Mathematics (the late-submission assignment), because an
+    /// Chosen to avoid grade 10 section A entirely (every seeded assignment is hosted there)
+    /// and grade 10 section B's Higher Mathematics (the late-submission assignment), because an
     /// assignment cannot exist without the teacher mapping it is authored under.
     /// </summary>
     private static readonly (int Grade, string Section, string CourseCode)[] UnassignedOfferings =
@@ -199,12 +199,12 @@ public sealed class DbSeeder
         _context.Users.Add(admin);
 
         // ── Students (5 per class+section) ─────────────────────────────────────────
-        // Mirrors the production rule in CreateUserHandler: "{grade numeral}-{section}-{sequence}",
+        // Mirrors the production rule in CreateUserHandler: "{grade}-{section}-{sequence}",
         // sequence numbers restarting at 1 per grade+section.
         var studentSequence = new Dictionary<string, int>(StringComparer.Ordinal);
         string NextStudentId(Class classRoom)
         {
-            var prefix = $"{classRoom.GradeLabel}-{classRoom.Section}";
+            var prefix = $"{classRoom.Level}-{classRoom.Section}";
             var sequence = studentSequence.GetValueOrDefault(prefix, 0) + 1;
             studentSequence[prefix] = sequence;
             return $"{prefix}-{sequence:D3}";
@@ -224,7 +224,7 @@ public sealed class DbSeeder
             "Chowdhury", "Khan", "Siddika", "Uddin", "Ahmed", "Jahan", "Akash",
         };
 
-        // One seat is the demo login, placed in Class X - Section A so the documented
+        // One seat is the demo login, placed in grade 10 section A so the documented
         // `student@assignment.test` account lands in the senior-most class.
         var students = new List<ApplicationUser>();
         var studentPlacements = new List<(ApplicationUser Student, Class Class)>();

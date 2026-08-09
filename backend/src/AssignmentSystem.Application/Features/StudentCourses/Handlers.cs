@@ -64,7 +64,6 @@ public sealed class GetStudentCoursesHandler : IQueryHandler<GetStudentCoursesQu
                     CourseName: offering.Course.Name,
                     CourseCode: offering.Course.Code,
                     ClassId: offering.ClassId,
-                    ClassName: offering.Class.Name,
                     ClassLevel: offering.Class.Level,
                     ClassSection: offering.Class.Section,
                     Teachers: group
@@ -80,18 +79,21 @@ public sealed class GetStudentCoursesHandler : IQueryHandler<GetStudentCoursesQu
 #pragma warning disable CA1311
         var search = query.Search?.Trim().ToLowerInvariant();
 #pragma warning restore CA1311
+        // A whole-number term is a grade ("9"); anything else can only be a section letter.
+        var searchLevel = int.TryParse(search, out var parsedLevel) ? parsedLevel : (int?)null;
         var filtered = string.IsNullOrEmpty(search)
             ? courses
             : courses.Where(c =>
                 c.CourseName.ToLowerInvariant().Contains(search) ||
                 c.CourseCode.ToLowerInvariant().Contains(search) ||
-                c.ClassName.ToLowerInvariant().Contains(search) ||
+                c.ClassLevel == searchLevel ||
+                (c.ClassSection?.ToLowerInvariant().Contains(search) ?? false) ||
                 c.Teachers.Any(t => t.TeacherName.ToLowerInvariant().Contains(search))).ToList();
 
         // Sorted in memory for the same reason the search is: the rows are grouped after the
         // EF query, so there is no IQueryable left to order. The allow-list is spelled out
         // rather than resolved by reflection, matching how SortMap guards the spec-based
-        // endpoints. ClassName then CourseName is the natural order when nothing is asked for.
+        // endpoints. Grade then section then course is the natural order when nothing is asked for.
         var sorted = SortStudentCourses(filtered, query.SortBy, query.SortDir);
 
         var total = sorted.Count;
@@ -108,22 +110,37 @@ public sealed class GetStudentCoursesHandler : IQueryHandler<GetStudentCoursesQu
     private static List<StudentCourseDto> SortStudentCourses(
         List<StudentCourseDto> courses, string? sortBy, string? sortDir)
     {
-        Func<StudentCourseDto, string> key = sortBy?.Trim().ToLowerInvariant() switch
+        var requested = sortBy?.Trim().ToLowerInvariant();
+        var descending = SortDirection.IsDescending(sortDir);
+
+        // "class" is two values, so it cannot go through the single-string key below: grade
+        // has to be compared as a number or 10 sorts before 9.
+        if (requested == "class")
+        {
+            var byClass = descending
+                ? courses.OrderByDescending(c => c.ClassLevel)
+                         .ThenByDescending(c => c.ClassSection, StringComparer.OrdinalIgnoreCase)
+                : courses.OrderBy(c => c.ClassLevel)
+                         .ThenBy(c => c.ClassSection, StringComparer.OrdinalIgnoreCase);
+            return [.. byClass.ThenBy(c => c.Id)];
+        }
+
+        Func<StudentCourseDto, string> key = requested switch
         {
             "course" => c => c.CourseName,
             "coursecode" => c => c.CourseCode,
-            "class" => c => c.ClassName,
             "teacher" => c => c.Teachers.Count > 0 ? c.Teachers[0].TeacherName : string.Empty,
             _ => null!,
         };
 
         if (key is null)
         {
-            return [.. courses.OrderBy(c => c.ClassName, StringComparer.OrdinalIgnoreCase)
+            return [.. courses.OrderBy(c => c.ClassLevel)
+                              .ThenBy(c => c.ClassSection, StringComparer.OrdinalIgnoreCase)
                               .ThenBy(c => c.CourseName, StringComparer.OrdinalIgnoreCase)];
         }
 
-        var ordered = SortDirection.IsDescending(sortDir)
+        var ordered = descending
             ? courses.OrderByDescending(key, StringComparer.OrdinalIgnoreCase)
             : courses.OrderBy(key, StringComparer.OrdinalIgnoreCase);
 

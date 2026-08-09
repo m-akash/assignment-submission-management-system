@@ -21,7 +21,7 @@ namespace AssignmentSystem.Application.Features.Users;
 /// membership is a separate row, so this handler is the choke point that guarantees it.
 ///
 /// That first enrollment queues the same notification as a later one does: from the
-/// student's side "you are in Class IX-A" is one event, and mailing it only when an admin
+/// student's side "you are in grade 9, section A" is one event, and mailing it only when an admin
 /// adds them to a *second* class would be an arbitrary gap.
 ///
 /// It also issues a single-use password-setup link and mails it. The admin still types an
@@ -165,15 +165,15 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
     }
 
     /// <summary>
-    /// The "IX-A" part of a student id — the grade numeral then the section. The sequence
-    /// that completes it is issued against this prefix, so the numbers are unique per
-    /// grade+section. Falls back to the class name when no section was set, so creating a
-    /// student never fails just because of that.
+    /// The "9-A" part of a student id — the grade number then the section. The sequence that
+    /// completes it is issued against this prefix, so the numbers are unique per grade+section.
+    /// Falls back to the grade alone when no section was set, so creating a student never
+    /// fails just because of that.
     /// </summary>
     private static string StudentIdPrefix(Class classObj) =>
         !string.IsNullOrWhiteSpace(classObj.Section)
-            ? $"{classObj.GradeLabel}-{classObj.Section.Trim()}"
-            : classObj.Name.Trim().Replace(' ', '-');
+            ? $"{classObj.Level}-{classObj.Section.Trim()}"
+            : $"{classObj.Level}";
 
     /// <summary>
     /// The academic year the first enrollment belongs to: the one asked for, or the school's
