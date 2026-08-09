@@ -291,6 +291,116 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Rich text
+
+   One prose style, worn by two things: the Tiptap editor a teacher writes an
+   assignment brief in, and the rendered description a student reads. They share
+   the class rather than mirroring each other's rules, so the two cannot drift and
+   what you type is literally what the class sees.
+
+   Tailwind's preflight strips list markers, heading sizes and quote indents — all
+   of which are the point here — so this section puts them back, scoped to the one
+   place raw HTML is rendered. Nothing below styles a tag the server's sanitizer
+   would not let through, and nothing the sanitizer allows is left unstyled.
+   --------------------------------------------------------------------------- */
+
+.rich-text {
+  @apply text-sm leading-relaxed;
+}
+
+/* Space *between* blocks only: no leading gap above the first line, and no
+   trailing one that would push a panel's padding out of true. */
+.rich-text > * + * {
+  margin-top: 0.75em;
+}
+
+.rich-text h2,
+.rich-text h3 {
+  @apply font-heading font-semibold tracking-tight;
+  margin-top: 1.4em;
+}
+
+.rich-text > :first-child {
+  margin-top: 0;
+}
+
+.rich-text h2 {
+  font-size: 1.05rem;
+}
+
+.rich-text h3 {
+  font-size: 0.95rem;
+}
+
+.rich-text ul,
+.rich-text ol {
+  padding-left: 1.35em;
+}
+
+.rich-text ul {
+  list-style: disc;
+}
+
+.rich-text ol {
+  list-style: decimal;
+}
+
+.rich-text li::marker {
+  color: var(--muted-foreground);
+}
+
+/* A list's own items sit tighter than the gap between blocks. */
+.rich-text li + li {
+  margin-top: 0.25em;
+}
+
+.rich-text li > ul,
+.rich-text li > ol {
+  margin-top: 0.25em;
+}
+
+.rich-text blockquote {
+  @apply text-muted-foreground;
+  border-left: 3px solid var(--border);
+  padding-left: 0.9em;
+}
+
+.rich-text code {
+  @apply font-mono;
+  border-radius: calc(var(--radius) * 0.4);
+  background: var(--muted);
+  padding: 0.1em 0.35em;
+  font-size: 0.875em;
+}
+
+.rich-text a {
+  @apply text-primary underline underline-offset-2;
+}
+
+.rich-text a:hover {
+  @apply text-primary/80;
+}
+
+.rich-text strong {
+  @apply font-semibold;
+}
+
+/* ProseMirror's own surface: the border and focus ring belong to the wrapper that
+   frames the toolbar too, so the editable area itself draws neither. */
+.rich-text.tiptap:focus,
+.rich-text.tiptap:focus-visible {
+  outline: none;
+}
+
+.rich-text.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--muted-foreground);
+}
+
+/* ---------------------------------------------------------------------------
    Toasts
 
    Sonner ships its own grey/rich-colour palette, which lands next to — but never
