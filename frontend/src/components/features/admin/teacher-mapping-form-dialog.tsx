@@ -14,13 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import {
   useClassCourseOptions,
   useCreateTeacherMapping,
@@ -83,45 +77,38 @@ export function TeacherMappingFormDialog({
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="teacherId">Teacher</Label>
-            <Select
+            <Combobox
+              id="teacherId"
               value={form.watch('teacherId')}
-              onValueChange={(value) => form.setValue('teacherId', value, { shouldValidate: true })}
-            >
-              <SelectTrigger id="teacherId">
-                <SelectValue placeholder={teachers.isLoading ? 'Loading…' : 'Choose a teacher'} />
-              </SelectTrigger>
-              <SelectContent>
-                {teacherOptions.map((teacher) => (
-                  <SelectItem key={teacher.id} value={teacher.id}>
-                    {teacher.fullName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(value) => form.setValue('teacherId', value, { shouldValidate: true })}
+              options={teacherOptions.map((teacher) => ({
+                value: teacher.id,
+                label: teacher.fullName,
+                hint: teacher.email,
+              }))}
+              placeholder={teachers.isLoading ? 'Loading…' : 'Choose a teacher'}
+              searchPlaceholder="Search name or email…"
+              emptyMessage="No teachers match"
+              aria-invalid={!!errors.teacherId}
+            />
             {errors.teacherId && <p className="text-xs text-danger">{errors.teacherId.message}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="classCourseId">Class and course</Label>
-            <Select
+            <Combobox
+              id="classCourseId"
               value={form.watch('classCourseId')}
-              onValueChange={(value) =>
-                form.setValue('classCourseId', value, { shouldValidate: true })
-              }
-            >
-              <SelectTrigger id="classCourseId">
-                <SelectValue
-                  placeholder={offerings.isLoading ? 'Loading…' : 'Choose a class and course'}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {offeringOptions.map((offering) => (
-                  <SelectItem key={offering.id} value={offering.id}>
-                    {offering.className} · {offering.courseName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(value) => form.setValue('classCourseId', value, { shouldValidate: true })}
+              options={offeringOptions.map((offering) => ({
+                value: offering.id,
+                label: `${offering.className} · ${offering.courseName}`,
+              }))}
+              placeholder={offerings.isLoading ? 'Loading…' : 'Choose a class and course'}
+              searchPlaceholder="Search class or course…"
+              emptyMessage="No offerings match"
+              aria-invalid={!!errors.classCourseId}
+            />
             {errors.classCourseId && (
               <p className="text-xs text-danger">{errors.classCourseId.message}</p>
             )}

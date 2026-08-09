@@ -12,13 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { DetailSkeleton, FileRow } from '@/components/shared/detail';
 import { PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
@@ -206,24 +200,23 @@ function Form({
                   control={form.control}
                   name="teachingMappingId"
                   render={({ field }) => (
-                    <Select
+                    <Combobox
+                      id="teachingMappingId"
                       value={field.value}
-                      onValueChange={field.onChange}
+                      onChange={field.onChange}
+                      options={options.map((mapping) => ({
+                        value: mapping.id,
+                        label: `${mapping.className} · ${mapping.courseName}`,
+                        // Shown only when the list spans teachers, i.e. for an admin.
+                        hint: showsTeacherNames ? mapping.teacherName : undefined,
+                      }))}
+                      placeholder="Choose class and course"
+                      searchPlaceholder="Search class or course…"
+                      emptyMessage="No offerings match"
                       disabled={isEdit || options.length === 0}
-                    >
-                      <SelectTrigger id="teachingMappingId" className="w-full">
-                        <SelectValue placeholder="Choose class and course" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {options.map((mapping) => (
-                          <SelectItem key={mapping.id} value={mapping.id}>
-                            {mapping.className} · {mapping.courseName}
-                            {/* Shown only when the list spans teachers, i.e. for an admin. */}
-                            {showsTeacherNames && ` · ${mapping.teacherName}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      aria-invalid={!!errors.teachingMappingId}
+                      className="w-full"
+                    />
                   )}
                 />
                 {isEdit && (

@@ -10,13 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { MultiCombobox } from '@/components/ui/combobox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import {
@@ -43,7 +37,7 @@ export function ClassRosterDialog({
   onOpenChange: (open: boolean) => void;
   classRoom: ClassRoom | null;
 }) {
-  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
   const enabled = open && !!classRoom;
   const roster = useEnrollments({ classId: classRoom?.id, pageSize: 100 }, { enabled });
@@ -64,10 +58,28 @@ export function ClassRosterDialog({
     return (allStudents.data?.items ?? []).filter((student) => !already.has(student.id));
   }, [enrolled, allStudents.data]);
 
+  /**
+   * Enrols everyone picked, one request at a time. Sequential rather than parallel: each
+   * enrollment is checked against the class as it stands, and the server's rules are easier
+   * to reason about when the writes do not race.
+   *
+   * A failure stops the run — the mutation has already reported it as a toast — and the
+   * selection is trimmed to whoever is left, so retrying does not re-send the ones that
+   * went through and collect a 409 for each.
+   */
   async function onEnrol() {
-    if (!classRoom || !selectedStudentId) return;
-    await enrol.mutateAsync({ studentId: selectedStudentId, classId: classRoom.id });
-    setSelectedStudentId('');
+    if (!classRoom || selectedStudentIds.length === 0) return;
+
+    const pending = [...selectedStudentIds];
+    try {
+      while (pending.length > 0) {
+        await enrol.mutateAsync({ studentId: pending[0], classId: classRoom.id });
+        pending.shift();
+      }
+    } catch {
+      // Reported by the mutation itself; here it only ends the run.
+    }
+    setSelectedStudentIds(pending);
   }
 
   return (
@@ -83,35 +95,34 @@ export function ClassRosterDialog({
 
         <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1">
-            <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
-              <SelectTrigger aria-label="Student to enrol">
-                <SelectValue
-                  placeholder={
-                    allStudents.isLoading
-                      ? 'Loading…'
-                      : addable.length === 0
-                        ? 'Every student is already enrolled'
-                        : 'Choose a student to enrol'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {addable.map((student) => (
-                  <SelectItem key={student.id} value={student.id}>
-                    {student.fullName}
-                    {student.studentId ? ` · ${student.studentId}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiCombobox
+              values={selectedStudentIds}
+              onChange={setSelectedStudentIds}
+              options={addable.map((student) => ({
+                value: student.id,
+                label: student.fullName,
+                hint: student.studentId ?? student.email,
+              }))}
+              aria-label="Students to enrol"
+              placeholder={
+                allStudents.isLoading
+                  ? 'Loading…'
+                  : addable.length === 0
+                    ? 'Every student is already enrolled'
+                    : 'Choose students to enrol'
+              }
+              searchPlaceholder="Search name, ID or email…"
+              emptyMessage="No students match"
+              className="w-full"
+            />
           </div>
-          <Button onClick={onEnrol} disabled={!selectedStudentId || enrol.isPending}>
+          <Button onClick={onEnrol} disabled={selectedStudentIds.length === 0 || enrol.isPending}>
             {enrol.isPending ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <UserPlus className="size-4" />
             )}
-            Enrol
+            Enrol{selectedStudentIds.length > 1 ? ` ${selectedStudentIds.length}` : ''}
           </Button>
         </div>
 

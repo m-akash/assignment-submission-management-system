@@ -15,13 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { useClassOptions } from '@/hooks/use-admin-resources';
 import { useSaveUser } from '@/hooks/use-admin-resources';
 import { userSchema, type UserValues } from '@/schemas';
@@ -128,43 +122,29 @@ export function UserFormDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
-              <Select
+              <Combobox
+                id="role"
                 value={role}
-                onValueChange={(value) => form.setValue('role', value as Role, { shouldValidate: true })}
+                onChange={(value) => form.setValue('role', value as Role, { shouldValidate: true })}
+                options={ROLES.map((r) => ({ value: r, label: r }))}
                 disabled={isEdit}
-              >
-                <SelectTrigger id="role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {r}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
               {isEdit && <p className="text-xs text-muted-foreground">Role cannot be changed.</p>}
             </div>
 
             {role === 'Student' && !isEdit && (
               <div className="space-y-2">
                 <Label htmlFor="classId">Class</Label>
-                <Select
-                  value={form.watch('classId')}
-                  onValueChange={(value) => form.setValue('classId', value, { shouldValidate: true })}
-                >
-                  <SelectTrigger id="classId">
-                    <SelectValue placeholder="Choose a class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(classes.data ?? []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Combobox
+                  id="classId"
+                  value={form.watch('classId') ?? ''}
+                  onChange={(value) => form.setValue('classId', value, { shouldValidate: true })}
+                  options={(classes.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
+                  placeholder={classes.isLoading ? 'Loading…' : 'Choose a class'}
+                  searchPlaceholder="Search classes…"
+                  emptyMessage="No classes match"
+                  aria-invalid={!!errors.classId}
+                />
                 {errors.classId && <p className="text-xs text-danger">{errors.classId.message}</p>}
               </div>
             )}

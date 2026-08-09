@@ -14,13 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import {
   useClassOptions,
   useCourseOptions,
@@ -79,41 +73,40 @@ export function ClassCourseFormDialog({
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="classId">Class</Label>
-            <Select
+            <Combobox
+              id="classId"
               value={form.watch('classId')}
-              onValueChange={(value) => form.setValue('classId', value, { shouldValidate: true })}
-            >
-              <SelectTrigger id="classId">
-                <SelectValue placeholder={classes.isLoading ? 'Loading…' : 'Choose a class'} />
-              </SelectTrigger>
-              <SelectContent>
-                {(classes.data ?? []).map((classRoom) => (
-                  <SelectItem key={classRoom.id} value={classRoom.id}>
-                    {classRoom.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(value) => form.setValue('classId', value, { shouldValidate: true })}
+              options={(classes.data ?? []).map((classRoom) => ({
+                value: classRoom.id,
+                label: classRoom.name,
+              }))}
+              placeholder={classes.isLoading ? 'Loading…' : 'Choose a class'}
+              searchPlaceholder="Search classes…"
+              emptyMessage="No classes match"
+              aria-invalid={!!errors.classId}
+            />
             {errors.classId && <p className="text-xs text-danger">{errors.classId.message}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="courseId">Course</Label>
-            <Select
+            <Combobox
+              id="courseId"
               value={form.watch('courseId')}
-              onValueChange={(value) => form.setValue('courseId', value, { shouldValidate: true })}
-            >
-              <SelectTrigger id="courseId">
-                <SelectValue placeholder={courses.isLoading ? 'Loading…' : 'Choose a course'} />
-              </SelectTrigger>
-              <SelectContent>
-                {(courses.data ?? []).map((course) => (
-                  <SelectItem key={course.id} value={course.id}>
-                    {course.name} ({course.code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(value) => form.setValue('courseId', value, { shouldValidate: true })}
+              // The code is a hint rather than part of the label so that searching for it
+              // works without the option list reading as a wall of parenthesised codes.
+              options={(courses.data ?? []).map((course) => ({
+                value: course.id,
+                label: course.name,
+                hint: course.code,
+              }))}
+              placeholder={courses.isLoading ? 'Loading…' : 'Choose a course'}
+              searchPlaceholder="Search name or code…"
+              emptyMessage="No courses match"
+              aria-invalid={!!errors.courseId}
+            />
             {errors.courseId && <p className="text-xs text-danger">{errors.courseId.message}</p>}
           </div>
 
