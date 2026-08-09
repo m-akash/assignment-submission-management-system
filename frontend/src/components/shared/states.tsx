@@ -47,7 +47,16 @@ export function EmptyState({
   );
 }
 
-export function ErrorState({ message, className }: { message?: string; className?: string }) {
+export function ErrorState({
+  title = 'Could not load this list',
+  message,
+  className,
+}: {
+  /** Override when the failed thing is not a list — a details page, say. */
+  title?: string;
+  message?: string;
+  className?: string;
+}) {
   return (
     <div
       className={cn(
@@ -59,7 +68,7 @@ export function ErrorState({ message, className }: { message?: string; className
         <AlertCircle className="size-6" />
       </div>
       <div className="space-y-1.5">
-        <p className="font-heading font-medium">Could not load this list</p>
+        <p className="font-heading font-medium">{title}</p>
         <p className="mx-auto max-w-sm text-sm text-muted-foreground">
           {message ?? 'Please try again in a moment.'}
         </p>

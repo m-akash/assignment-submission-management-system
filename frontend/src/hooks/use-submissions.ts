@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiDelete, apiGetBlob, apiGetPaged, apiPost, apiPostForm, apiPut, toQuery } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
+import { useAssignment } from './use-assignments';
 import type {
   Assignment,
   Paged,
@@ -87,6 +88,30 @@ export function useStudentAssignments(filters: {
     isLoading: assignments.isLoading || submissions.isLoading,
     isError: assignments.isError || submissions.isError,
     error: assignments.error ?? submissions.error,
+  };
+}
+
+/**
+ * One assignment plus this student's own submission — the details-page counterpart of
+ * `useStudentAssignments`. Both halves are already cached by the grid the student came
+ * from, so opening a card usually paints from cache and revalidates behind them.
+ */
+export function useStudentAssignment(id: string) {
+  const assignment = useAssignment(id);
+  const submissions = useMySubmissions();
+
+  const item: StudentAssignment | null = assignment.data
+    ? {
+        ...assignment.data,
+        submission: (submissions.data ?? []).find((s) => s.assignmentId === id) ?? null,
+      }
+    : null;
+
+  return {
+    assignment: item,
+    isLoading: assignment.isLoading || submissions.isLoading,
+    isError: assignment.isError || submissions.isError,
+    error: assignment.error ?? submissions.error,
   };
 }
 
