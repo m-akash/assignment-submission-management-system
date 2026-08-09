@@ -201,7 +201,7 @@ public sealed class PasswordSetupTests : IntegrationTestBase
         var email = $"{tag}@test.local";
 
         var response = await admin.PostAsJsonAsync("/api/v1/users",
-            new CreateUserRequest(email, $"Teacher {tag}", TestPassword, Role.Teacher, null));
+            new CreateUserRequest(email, $"Teacher {tag}", TestPassword, Role.Teacher, null, null));
         response.EnsureSuccessStatusCode();
 
         var created = await ReadAsync<CreatedUser>(response);

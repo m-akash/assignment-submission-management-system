@@ -160,7 +160,7 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var response = await admin.PostAsJsonAsync("/api/v1/enrollments",
-            new CreateEnrollmentRequest(world.StudentId, world.ClassId));
+            new CreateEnrollmentRequest(world.StudentId, world.ClassId, world.AcademicYearId));
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
@@ -196,7 +196,7 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
         var originalEnrollmentId = await OnlyEnrollmentIdAsync(admin, from.StudentId);
 
         var added = await admin.PostAsJsonAsync("/api/v1/enrollments",
-            new CreateEnrollmentRequest(from.StudentId, to.ClassId));
+            new CreateEnrollmentRequest(from.StudentId, to.ClassId, to.AcademicYearId));
         added.IsSuccessStatusCode.Should().BeTrue();
 
         var removed = await admin.DeleteAsync($"/api/v1/enrollments/{originalEnrollmentId}");
@@ -223,7 +223,7 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
         (await student.GetAsync("/api/v1/enrollments")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         var selfEnrol = await student.PostAsJsonAsync("/api/v1/enrollments",
-            new CreateEnrollmentRequest(world.StudentId, world.ClassId));
+            new CreateEnrollmentRequest(world.StudentId, world.ClassId, world.AcademicYearId));
         selfEnrol.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
@@ -256,7 +256,7 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
 
         // Writing is still admin-only.
         var write = await teacher.PostAsJsonAsync("/api/v1/enrollments",
-            new CreateEnrollmentRequest(mine.StudentId, mine.ClassId));
+            new CreateEnrollmentRequest(mine.StudentId, mine.ClassId, mine.AcademicYearId));
         write.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
@@ -275,7 +275,7 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
         var tag = $"unassigned-{Guid.NewGuid():N}"[..18];
         var teacherEmail = $"teacher-{tag}@test.local";
         await admin.PostAsJsonAsync("/api/v1/users",
-            new CreateUserRequest(teacherEmail, $"Teacher {tag}", TestPassword, Role.Teacher, null));
+            new CreateUserRequest(teacherEmail, $"Teacher {tag}", TestPassword, Role.Teacher, null, null));
 
         using var unassignedTeacher = await SignInAsync(teacherEmail);
 
@@ -298,7 +298,7 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var response = await admin.PostAsJsonAsync("/api/v1/enrollments",
-            new CreateEnrollmentRequest(world.TeacherId, world.ClassId));
+            new CreateEnrollmentRequest(world.TeacherId, world.ClassId, world.AcademicYearId));
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
@@ -325,7 +325,7 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
         beforeEnrolment.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         var enrol = await admin.PostAsJsonAsync("/api/v1/enrollments",
-            new CreateEnrollmentRequest(home.StudentId, extra.ClassId));
+            new CreateEnrollmentRequest(home.StudentId, extra.ClassId, extra.AcademicYearId));
         enrol.IsSuccessStatusCode.Should().BeTrue();
 
         var afterEnrolment = await student.GetAsync($"/api/v1/assignments/{otherClassAssignment.Id}");
@@ -349,7 +349,7 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var enrol = await admin.PostAsJsonAsync("/api/v1/enrollments",
-            new CreateEnrollmentRequest(first.StudentId, second.ClassId));
+            new CreateEnrollmentRequest(first.StudentId, second.ClassId, second.AcademicYearId));
         enrol.IsSuccessStatusCode.Should().BeTrue();
 
         foreach (var classId in new[] { first.ClassId, second.ClassId })

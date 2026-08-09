@@ -255,7 +255,7 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
         before.Should().Be(1, "creating the student with a class already mailed them once");
 
         var enrol = await admin.PostAsJsonAsync("/api/v1/enrollments",
-            new CreateEnrollmentRequest(world.StudentId, otherWorld.ClassId));
+            new CreateEnrollmentRequest(world.StudentId, otherWorld.ClassId, otherWorld.AcademicYearId));
         enrol.IsSuccessStatusCode.Should().BeTrue();
 
         var enrolled = (await NotificationsForRecipientAsync(admin, world.StudentId))

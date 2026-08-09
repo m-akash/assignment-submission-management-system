@@ -35,7 +35,7 @@ public sealed class LoginThrottlingTests : IntegrationTestBase
         var email = $"{tag}@throttle.local";
 
         await PostAsync<UserRef>(admin, "/api/v1/users",
-            new CreateUserRequest(email, $"Throttle {tag}", TestPassword, Role.Teacher, null));
+            new CreateUserRequest(email, $"Throttle {tag}", TestPassword, Role.Teacher, null, null));
 
         return email;
     }

@@ -122,6 +122,11 @@ public abstract class IntegrationTestBase
         var @class = await PostAsync<ClassRef>(admin, "/api/v1/classes",
             new CreateClassRequest(8, tag));
 
+        // Every world shares the seeded school's current session rather than creating its
+        // own: a year is reference data, and minting one per world would leave the academic
+        // years list full of fixtures without making any test more independent.
+        var academicYearId = await CurrentAcademicYearIdAsync(admin);
+
         var course = await PostAsync<CourseRef>(admin, "/api/v1/courses",
             new CreateCourseRequest($"Course {tag}", $"CRS-{tag}"));
 
@@ -132,12 +137,12 @@ public abstract class IntegrationTestBase
 
         var teacherEmail = $"teacher-{tag}@test.local";
         var teacher = await PostAsync<UserRef>(admin, "/api/v1/users",
-            new CreateUserRequest(teacherEmail, $"00-Teacher {tag}", TestPassword, Role.Teacher, null));
+            new CreateUserRequest(teacherEmail, $"00-Teacher {tag}", TestPassword, Role.Teacher, null, null));
 
         // Creating a student with a class enrols them in it, in the same transaction.
         var studentEmail = $"student-{tag}@test.local";
         var student = await PostAsync<UserRef>(admin, "/api/v1/users",
-            new CreateUserRequest(studentEmail, $"Student {tag}", TestPassword, Role.Student, @class.Id));
+            new CreateUserRequest(studentEmail, $"Student {tag}", TestPassword, Role.Student, @class.Id, academicYearId));
 
         var teacherAssignment = await PostAsync<TeacherAssignmentRef>(admin, "/api/v1/teacher-assignments",
             new CreateTeacherAssignmentRequest(teacher.Id, offering.Id));
@@ -150,7 +155,8 @@ public abstract class IntegrationTestBase
             teacher.Id,
             teacherEmail,
             student.Id,
-            studentEmail);
+            studentEmail,
+            academicYearId);
     }
 
     /// <summary>Creates a draft assignment as the world's teacher.</summary>
@@ -211,10 +217,25 @@ public abstract class IntegrationTestBase
 
         using var admin = await SignInAsAdminAsync();
         var response = await admin.PostAsJsonAsync("/api/v1/users",
-            new CreateUserRequest(email, $"Student {tag}", TestPassword, Role.Student, classId));
+            new CreateUserRequest(email, $"Student {tag}", TestPassword, Role.Student, classId, null));
 
         response.EnsureSuccessStatusCode();
         return email;
+    }
+
+    /// <summary>
+    /// The school's current session. Enrollment writes name a year explicitly, and the suite
+    /// shares one seeded school, so this is the year every test means by "enrol them".
+    /// </summary>
+    protected static async Task<Guid> CurrentAcademicYearIdAsync(HttpClient client)
+    {
+        var response = await client.GetAsync("/api/v1/academic-years?pageSize=100");
+        response.EnsureSuccessStatusCode();
+
+        var years = await ReadAsync<List<AcademicYearRef>>(response);
+        var current = years.Find(y => y.IsCurrent);
+        current.Should().NotBeNull("the seeder flags one academic year as current");
+        return current!.Id;
     }
 
     /// <summary>The signed-in caller's own id, read from the token rather than assumed.</summary>
@@ -309,9 +330,11 @@ public abstract class IntegrationTestBase
         Guid TeacherId,
         string TeacherEmail,
         Guid StudentId,
-        string StudentEmail);
+        string StudentEmail,
+        Guid AcademicYearId);
 
     private sealed record ClassRef(Guid Id);
+    private sealed record AcademicYearRef(Guid Id, bool IsCurrent);
     private sealed record CourseRef(Guid Id);
     private sealed record ClassCourseRef(Guid Id);
     protected sealed record UserRef(Guid Id);

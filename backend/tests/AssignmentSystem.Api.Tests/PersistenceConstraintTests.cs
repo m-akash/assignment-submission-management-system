@@ -168,7 +168,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
 
         var secondTeacherEmail = $"second-teacher-{Guid.NewGuid():N}@test.local";
         var secondTeacherResponse = await admin.PostAsJsonAsync("/api/v1/users",
-            new CreateUserRequest(secondTeacherEmail, "Second Teacher", TestPassword, Role.Teacher, null));
+            new CreateUserRequest(secondTeacherEmail, "Second Teacher", TestPassword, Role.Teacher, null, null));
         secondTeacherResponse.EnsureSuccessStatusCode();
         var secondTeacher = await ReadAsync<CreatedUserRef>(secondTeacherResponse);
 
