@@ -20,6 +20,7 @@
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="11.10.0" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
+    <PackageReference Include="HtmlSanitizer" Version="9.1.982" />
     <PackageReference Include="Riok.Mapperly" Version="4.1.1" />
     <PackageReference Include="Scrutor" Version="4.2.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />

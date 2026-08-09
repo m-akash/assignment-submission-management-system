@@ -7,12 +7,24 @@ namespace AssignmentSystem.Application.Features.Submissions;
 // domain can see — a request-shape validator would have to trust the client for that.
 // Submission.Create / UpdateContent enforce it and surface a 422.
 
+/// <summary>
+/// The ceiling on an answer's markup. The editor stops typing well before this, so it bounds
+/// what a hand-crafted request may put in the column rather than what a student may write.
+/// </summary>
+file static class ContentLimits
+{
+    public const int MaxLength = 20_000;
+}
+
 public sealed class SubmitAssignmentCommandValidator : AbstractValidator<SubmitAssignmentCommand>
 {
     public SubmitAssignmentCommandValidator()
     {
         RuleFor(x => x.AssignmentId)
             .NotEmpty().WithMessage("Assignment id is required.");
+
+        RuleFor(x => x.Content)
+            .MaximumLength(ContentLimits.MaxLength).WithMessage("That answer is too long.");
     }
 }
 
@@ -22,6 +34,9 @@ public sealed class UpdateSubmissionCommandValidator : AbstractValidator<UpdateS
     {
         RuleFor(x => x.Id)
             .NotEmpty().WithMessage("Submission id is required.");
+
+        RuleFor(x => x.Content)
+            .MaximumLength(ContentLimits.MaxLength).WithMessage("That answer is too long.");
     }
 }
 

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Text;
+using AssignmentSystem.Application.Common.Html;
 using AssignmentSystem.Domain.Assignments;
 using AssignmentSystem.Domain.ClassCourses;
 using AssignmentSystem.Domain.Classes;
@@ -30,13 +31,21 @@ namespace AssignmentSystem.Application.Features.Notifications;
 /// assembled strings would escape the template's own tags, so escaping is per-value at the point
 /// of use.
 ///
+/// The two rich-text fields are the exception, because they are the fields authored <i>as</i>
+/// markup: an assignment's description and a student's written answer. Escaping those would mail
+/// a brief with its tags showing. They go through <see cref="HtmlContent.Sanitize"/> instead —
+/// the same allowlist applied when they were written — which keeps the invariant intact (nothing
+/// user-authored reaches the templates unprocessed) and additionally covers values stored before
+/// that allowlist existed, which no write path can retroactively have cleaned.
+///
 /// Subjects stay plain text on purpose: they are not rendered as HTML anywhere, and the test
 /// suite asserts on them as substrings.
 /// </summary>
 internal static class NotificationMessages
 {
-    /// <summary>Submitted text answers are shown in full up to this length; longer ones are
-    /// clipped with a pointer to the app, so one very long answer cannot blow up the mail.</summary>
+    /// <summary>Submitted answers are shown in full — formatting and all — up to this many
+    /// words; longer ones are clipped to plain text with a pointer to the app, so one very
+    /// long answer cannot blow up the mail.</summary>
     private const int ContentPreviewLimit = 600;
 
     /// <summary>Teacher feedback is shown in full up to this length, mirroring the content
@@ -71,7 +80,7 @@ internal static class NotificationMessages
             .Append(Paragraph("A new assignment has been published for your class. Here are the details:"))
             .Append(DetailTable([.. rows]))
             .Append(Heading("Description"))
-            .Append(Paragraph(Esc(assignment.Description)));
+            .Append(EmailTemplates.RichText(HtmlContent.Sanitize(assignment.Description)));
 
         if (assignment.Files.Count > 0)
         {
@@ -129,7 +138,7 @@ internal static class NotificationMessages
         if (!string.IsNullOrWhiteSpace(submission.Content))
         {
             content.Append(Heading("Written answer"))
-                   .Append(Quote(EscTruncated(submission.Content, ContentPreviewLimit)));
+                   .Append(RichPreview(submission.Content, ContentPreviewLimit));
         }
 
         if (submission.Files.Count > 0)
@@ -459,6 +468,24 @@ internal static class NotificationMessages
         submission.Marks is { } marks
             ? $"{FormatMarks(marks)} / {FormatMarks(submission.MarksOutOf ?? 0m)}"
             : "not recorded";
+
+    /// <summary>
+    /// A quoted preview of author-formatted prose, kept within <paramref name="limit"/>.
+    ///
+    /// Length is judged on the words rather than the markup, so a short answer written as a
+    /// list is not clipped for being formatted. Clipping itself has to drop the formatting
+    /// entirely: cutting markup at a character offset lands mid-tag as readily as not, and a
+    /// mail whose body ends in a half-open element is a worse outcome than a plain-text
+    /// excerpt. Short answers — which is nearly all of them — keep their structure.
+    /// </summary>
+    private static string RichPreview(string? html, int limit)
+    {
+        var text = HtmlContent.ToPlainText(html);
+
+        return text.Length <= limit
+            ? EmailTemplates.RichQuote(HtmlContent.Sanitize(html))
+            : Quote(EscTruncated(text, limit));
+    }
 
     /// <summary>HTML-escape a user-supplied value for safe insertion into the template.</summary>
     private static string Esc(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);

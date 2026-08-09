@@ -31,7 +31,21 @@ public sealed class Assignment : BaseEntity, ISoftDeletable
     public ApplicationUser Teacher { get; private set; } = null!;
 
     public string Title { get; private set; } = null!;
+
+    /// <summary>
+    /// The brief, as sanitized HTML — authored in the client's rich-text editor and reduced
+    /// to an allowlist before it ever reaches this property.
+    /// </summary>
     public string Description { get; private set; } = null!;
+
+    /// <summary>
+    /// <see cref="Description"/> with its tags stripped, so searching for a word in a brief
+    /// finds the brief rather than every assignment whose markup happens to contain the
+    /// letters. Never assigned here: it is a stored column the database generates from
+    /// <see cref="Description"/>, which is what makes it impossible for the two to disagree
+    /// and why rows written before the editor existed are covered without a backfill.
+    /// </summary>
+    public string DescriptionText { get; private set; } = null!;
 
     /// <summary>Stored in UTC; comparisons against "now" must use UTC.</summary>
     public DateTime DeadlineUtc { get; private set; }

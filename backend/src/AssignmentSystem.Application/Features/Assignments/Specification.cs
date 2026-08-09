@@ -93,7 +93,10 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
             (!status.HasValue || a.Status == status.Value) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              a.Title.ToLower().Contains(searchLower) ||
-             a.Description.ToLower().Contains(searchLower));
+             // DescriptionText, not Description: the description is markup, and matching
+             // against it would turn a search for "li" into "every assignment containing a
+             // list". The database keeps the stripped copy in step with the original.
+             a.DescriptionText.ToLower().Contains(searchLower));
 #pragma warning restore CA1304, CA1311
     }
 }

@@ -1,6 +1,7 @@
 using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Application.Common.Authorization;
 using AssignmentSystem.Application.Common.Handlers;
+using AssignmentSystem.Application.Common.Html;
 using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Assignments;
 using AssignmentSystem.Domain.ClassCourses;
@@ -74,7 +75,10 @@ public sealed class CreateAssignmentHandler : ICommandHandler<CreateAssignmentCo
                 teacherId,
                 command.ClassCourseId,
                 command.Title,
-                command.Description,
+                // The description is authored as HTML and rendered as HTML into every
+                // student's browser, so the allowlist is applied here, once, before the
+                // value is ever stored. See HtmlContent.
+                HtmlContent.Sanitize(command.Description),
                 command.DeadlineUtc,
                 command.MaxMarks,
                 command.AllowResubmission,
@@ -149,7 +153,7 @@ public sealed class UpdateAssignmentHandler : ICommandHandler<UpdateAssignmentCo
 
             assignment.Update(
                 command.Title,
-                command.Description,
+                HtmlContent.Sanitize(command.Description),
                 command.DeadlineUtc,
                 command.MaxMarks,
                 command.AllowResubmission,

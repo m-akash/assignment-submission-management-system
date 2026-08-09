@@ -19,6 +19,23 @@ internal sealed class AssignmentConfiguration : IEntityTypeConfiguration<Assignm
 
         builder.Property(a => a.Title).HasMaxLength(200).IsRequired();
         builder.Property(a => a.Description).IsRequired();
+
+        // A stored generated column rather than a value the write path maintains. The
+        // description is HTML, and searching it directly matches tag names — "li" would find
+        // every assignment written as a list. Stripping the tags in the database instead of in
+        // a handler means the two columns cannot drift, and means rows written before the
+        // editor existed are stripped on the next read rather than needing a backfill.
+        //
+        // Tags become a space so adjacent list items do not run together into one word, and
+        // the four entities the sanitizer can emit are decoded so searching for "&" or "<"
+        // finds what the author actually typed. Every function here is IMMUTABLE, which
+        // PostgreSQL requires of a generated column.
+        builder.Property(a => a.DescriptionText)
+            .HasComputedColumnSql(
+                "replace(replace(replace(replace(regexp_replace(description, '<[^>]*>', ' ', 'g'), " +
+                "'&nbsp;', ' '), '&lt;', '<'), '&gt;', '>'), '&amp;', '&')",
+                stored: true);
+
         builder.Property(a => a.DeadlineUtc).IsRequired();
 
         builder.Property(a => a.MaxMarks)

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace AssignmentSystem.Application.Features.Notifications;
 
@@ -228,6 +229,64 @@ internal static class EmailTemplates
     public static string Paragraph(string html) =>
         $"<p style=\"margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:15px;" +
         $"line-height:1.6;color:{Ink};\">{html}</p>";
+
+    /// <summary>
+    /// A block of author-formatted prose — an assignment brief written in the app's rich-text
+    /// editor, reproduced in the mail with its headings, lists and emphasis intact.
+    ///
+    /// Unlike every other fragment here this one receives markup rather than text, so it is
+    /// the one place the caller must hand over a value that has been through the sanitizer
+    /// (<c>HtmlContent.Sanitize</c>) rather than through <c>HtmlEncode</c> — escaping it would
+    /// print the author's tags at the recipient instead of applying them.
+    ///
+    /// The tags arrive bare, and this class does not get to fall back on a stylesheet, so the
+    /// styling is pushed onto each one on the way out. The set below is the sanitizer's
+    /// allowlist minus the tags that need no help: <c>strong</c>, <c>em</c> and friends inherit
+    /// everything they need from the wrapper.
+    /// </summary>
+    public static string RichText(string safeHtml)
+    {
+        if (string.IsNullOrWhiteSpace(safeHtml))
+        {
+            return string.Empty;
+        }
+
+        var styled = RichTextTagPattern.Replace(
+            safeHtml,
+            match => $"<{match.Groups[1].Value} style=\"{RichTextStyles[match.Groups[1].Value]}\"");
+
+        return $"<div style=\"margin:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;" +
+               $"line-height:1.6;color:{Ink};\">{styled}</div>";
+    }
+
+    /// <summary>
+    /// A <see cref="Quote"/> hosting author-formatted prose rather than a run of text — a
+    /// student's written answer, which is composed in the same editor an assignment brief is.
+    /// Same trust contract as <see cref="RichText"/>: sanitized markup, not escaped text.
+    /// </summary>
+    public static string RichQuote(string safeHtml) => Quote(RichText(safeHtml));
+
+    /// <summary>
+    /// Opening tags only — the lookahead is what keeps <c>&lt;ol&gt;</c> from being matched as
+    /// the start of something longer, and a leading <c>/</c> already excludes closing tags.
+    /// </summary>
+    private static readonly Regex RichTextTagPattern = new(
+        @"<(p|h2|h3|ul|ol|li|blockquote|code|a)(?=[\s>])",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Dictionary<string, string> RichTextStyles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["p"] = "margin:0 0 10px;",
+        ["h2"] = $"margin:16px 0 6px;font-size:16px;font-weight:700;color:{Ink};",
+        ["h3"] = $"margin:14px 0 6px;font-size:15px;font-weight:700;color:{Ink};",
+        ["ul"] = "margin:0 0 10px;padding-left:22px;",
+        ["ol"] = "margin:0 0 10px;padding-left:22px;",
+        ["li"] = "margin:0 0 4px;",
+        ["blockquote"] = $"margin:0 0 10px;padding-left:12px;border-left:3px solid {Border};color:{Muted};",
+        ["code"] = $"background-color:{PanelBg};border-radius:4px;padding:1px 4px;" +
+                   "font-family:Consolas,Monaco,monospace;font-size:13px;",
+        ["a"] = $"color:{BrandDark};text-decoration:underline;",
+    };
 
     /// <summary>A muted helper line (e.g. an "expires on…" note) under a paragraph.</summary>
     public static string Note(string html) =>

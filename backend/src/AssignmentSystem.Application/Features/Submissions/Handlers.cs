@@ -1,6 +1,7 @@
 using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Application.Common.Authorization;
 using AssignmentSystem.Application.Common.Handlers;
+using AssignmentSystem.Application.Common.Html;
 using AssignmentSystem.Application.Common.Interfaces;
 // AssignmentWithScopeSpecification: the submission paths need the assignment's offering to
 // resolve its class (rule B1) and to name the course in a notification. Reused rather than
@@ -78,6 +79,12 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
         // submitted state is news, so the teacher is not mailed on every keystroke-save.
         var wasAlreadySubmitted = submission is { Status: SubmissionStatus.Submitted or SubmissionStatus.Late };
 
+        // The answer is authored as HTML in the rich-text editor and rendered as HTML to the
+        // teacher marking it, so the allowlist is applied here, before it is stored. Reduced to
+        // null when it carries no words: an emptied editor still posts "<p></p>", and the "text
+        // answer or a file" rule below counts anything non-null as an answer.
+        var content = HtmlContent.SanitizeOrNull(command.Content);
+
         try
         {
             if (submission is not null)
@@ -85,7 +92,7 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
                 // Submission already exists (files were uploaded first). Update it.
                 // "Has files" comes from what is stored, not from what the client claims.
                 var hasFiles = submission.Files.Count > 0;
-                submission.UpdateContent(command.Content, hasFiles, assignment.AllowResubmission, assignment.DeadlineUtc, _clock);
+                submission.UpdateContent(content, hasFiles, assignment.AllowResubmission, assignment.DeadlineUtc, _clock);
                 _submissionRepository.Update(submission);
             }
             else
@@ -95,7 +102,7 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
                 submission = Submission.Create(
                     command.AssignmentId,
                     _currentUser.UserId.GetValueOrDefault(),
-                    command.Content,
+                    content,
                     hasFiles,
                     assignment,
                     _clock,
@@ -175,7 +182,12 @@ public sealed class UpdateSubmissionHandler : ICommandHandler<UpdateSubmissionCo
         try
         {
             var hasFiles = submission.Files.Count > 0;
-            submission.UpdateContent(command.Content, hasFiles, assignment.AllowResubmission, assignment.DeadlineUtc, _clock);
+            submission.UpdateContent(
+                HtmlContent.SanitizeOrNull(command.Content),
+                hasFiles,
+                assignment.AllowResubmission,
+                assignment.DeadlineUtc,
+                _clock);
 
             _submissionRepository.Update(submission);
             await _unitOfWork.SaveChangesAsync(ct);
