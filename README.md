@@ -47,7 +47,7 @@ All seeded accounts share one password.
 | Teacher | `teacher@assignment.test` | `Password123!` |
 | Student | `student@assignment.test` | `Password123!` |
 
-The demo teacher is `INS-001`; the demo student is `X-A-001` in *Class X - Section A*, where
+The demo teacher is `INS-001`; the demo student is `10-A-001` — grade 10, section A — where
 the seeded assignments and submissions live — so that login shows a populated dashboard at once.
 Also seeded, same password: `teacher2…teacher5@assignment.test`, and
 `student1…student30` + `student32…student40@assignment.test` (the 31st seat is the demo login).
@@ -130,7 +130,7 @@ Enforced server-side, and covered by tests.
 | | Marks are bounded by the assignment maximum and cannot be negative; feedback ≤ 2000 chars. |
 | | A teacher may change a submission's status, except to `Late` — that is derived from the deadline. |
 | | Attachments capped per owner (3 per submission, 5 per assignment); removing the last file from a submitted submission is refused. |
-| **Organisation** | A grade holds any number of sections but only one class per section — `Grade 9 - A` cannot exist twice. The class name is composed server-side as `Class IX - Section A`; admins supply only the grade and section. |
+| **Organisation** | A class *is* a grade and a section, held apart: the API returns `level` and `section` as two fields and there is no composed name anywhere. A grade holds any number of sections but only one class per section — grade 9 section A cannot exist twice. Grades are numbers, never numerals. |
 | | A class studies a course once; an offering has at most one teacher. |
 | | An offering cannot be dropped while a teacher or any assignment still references it (`409`, with what to unwind). |
 | | A student cannot lose their only class — enrol in the new one first. A student is created together with their first enrollment in one transaction, into the academic year given or the current one. |
@@ -215,8 +215,7 @@ erDiagram
     }
     classes {
         uuid id PK
-        varchar name "derived: Class IX - Section A"
-        int level "grade 1..12, shown as a Roman numeral"
+        int level "grade 1..12, shown as the number"
         varchar section "UK with level"
     }
     courses {
@@ -327,8 +326,8 @@ Two junction tables carry the design:
 Other decisions:
 
 - **The academic year hangs off the enrollment, not the class** — a cohort outlives a session,
-  so "Class IX - Section A" is the same row every year and it is the enrollment that says which
-  year a student sat in it. That is what lets one student hold Class IX for 2025-2026 and Class X
+  so grade 9 section A is the same row every year and it is the enrollment that says which
+  year a student sat in it. That is what lets one student hold grade 9 for 2025-2026 and grade 10
   for 2026-2027 with both intact, and what makes a repeated grade expressible at all: the same
   (student, class) pair in two years. `academic_years.is_current` carries a partial unique index
   (`WHERE is_current`) so the session the enrollment forms open on can never be ambiguous.
