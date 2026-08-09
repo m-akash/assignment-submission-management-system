@@ -291,6 +291,135 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Toasts
+
+   Sonner ships its own grey/rich-colour palette, which lands next to — but never
+   quite on — the app's tokens. These rules replace it: a toast is the same card
+   as every other floating surface (popover fill, `--elev-4`), and its type is
+   carried by one hue used twice — a tinted icon chip and a hairline rail down
+   the leading edge — instead of a full colour wash that would shout over the
+   page it covers. The hues are the same `--success`/`--danger`/… tokens a status
+   badge uses, so "saved" is one green everywhere.
+
+   Selectors are nested under `[data-sonner-toaster]` purely for specificity:
+   sonner injects its stylesheet at runtime, so matching its weight is not enough
+   to reliably win. The rail is an inset shadow rather than a `::before`, because
+   sonner already owns both pseudo-elements for swipe and stack hit areas.
+   --------------------------------------------------------------------------- */
+
+[data-sonner-toaster] {
+  [data-sonner-toast][data-styled="true"].cn-toast {
+    --toast-accent: var(--primary);
+
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.875rem 2.5rem 0.875rem 1rem;
+    border-radius: var(--radius);
+    box-shadow:
+      inset 3px 0 0 var(--toast-accent),
+      var(--elev-4);
+
+    /* Two lines of copy read better hung from the top than centred against it. */
+    &:has([data-description]) {
+      align-items: flex-start;
+    }
+
+    &[data-type="success"] {
+      --toast-accent: var(--success);
+    }
+    &[data-type="error"] {
+      --toast-accent: var(--danger);
+    }
+    &[data-type="warning"] {
+      --toast-accent: var(--warning);
+    }
+    &[data-type="info"] {
+      --toast-accent: var(--info);
+    }
+
+    [data-icon] {
+      height: 1.75rem;
+      width: 1.75rem;
+      margin: 0;
+      justify-content: center;
+      border-radius: calc(var(--radius) * 0.6);
+      background: color-mix(in oklch, var(--toast-accent) 16%, transparent);
+      color: var(--toast-accent);
+
+      & svg {
+        margin: 0;
+      }
+    }
+
+    [data-content] {
+      gap: 0.15rem;
+      min-width: 0;
+    }
+
+    [data-title] {
+      font-size: 0.875rem;
+      font-weight: 500;
+      line-height: 1.35;
+      letter-spacing: -0.006em;
+    }
+
+    [data-description] {
+      font-size: 0.8125rem;
+      line-height: 1.45;
+      color: var(--muted-foreground);
+    }
+
+    /* Sonner's close button is a circle notched into the corner; this one is a
+       quiet square inside the padding, so it stops competing with the icon. */
+    [data-close-button] {
+      inset: 0.5rem 0.5rem auto auto;
+      height: 1.5rem;
+      width: 1.5rem;
+      transform: none;
+      border: 0;
+      border-radius: calc(var(--radius) * 0.6);
+      background: transparent;
+      color: var(--muted-foreground);
+
+      & svg {
+        height: 0.875rem;
+        width: 0.875rem;
+      }
+
+      &:hover {
+        background: var(--accent);
+        border-color: transparent;
+        color: var(--foreground);
+      }
+
+      &:focus-visible {
+        box-shadow: none;
+        outline: 2px solid var(--ring);
+        outline-offset: 1px;
+      }
+    }
+
+    [data-button] {
+      height: 1.75rem;
+      padding-inline: 0.625rem;
+      border-radius: calc(var(--radius) * 0.6);
+      font-size: 0.75rem;
+      background: var(--primary);
+      color: var(--primary-foreground);
+
+      &:hover {
+        opacity: 0.9;
+      }
+    }
+
+    [data-cancel] {
+      background: var(--secondary);
+      color: var(--secondary-foreground);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Motion
 
    Short, single-direction entrances. Everything is opt-out under

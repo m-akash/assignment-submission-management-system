@@ -41,7 +41,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <AuthProvider>
           <TooltipProvider delayDuration={200}>
             {children}
-            <Toaster position="bottom-right" richColors closeButton />
+            {/* `richColors` is deliberately off: the toast palette comes from the
+                app's own status tokens instead (see the Toasts section in globals.css). */}
+            <Toaster position="bottom-right" closeButton gap={10} />
           </TooltipProvider>
         </AuthProvider>
       </ThemeProvider>

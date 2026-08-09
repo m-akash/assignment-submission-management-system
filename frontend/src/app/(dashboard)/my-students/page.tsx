@@ -67,25 +67,23 @@ function MyStudentsView() {
             ? 'Filtered to one class. Choose another, or clear the filter.'
             : 'The students in each class you teach. Pick a class to begin.'
         }
-        actions={
-          <FilterSelect
-            value={classId}
-            onChange={withPageReset(setClassId)}
-            options={classOptions}
-            allLabel="All my classes"
-            className="w-[200px]"
-            disabled={!mappings.isSuccess}
-          />
-        }
       />
 
       <div className="panel overflow-hidden">
-        <div className="border-b p-4">
+        <div className="flex flex-col gap-2 border-b p-4 sm:flex-row">
           <SearchInput
             value={search}
             onChange={withPageReset(setSearch)}
             placeholder="Search student name or email…"
             className="sm:max-w-xs"
+          />
+          <FilterSelect
+            value={classId}
+            onChange={withPageReset(setClassId)}
+            options={classOptions}
+            allLabel="All my classes"
+            className="w-full sm:w-[200px]"
+            disabled={!mappings.isSuccess}
           />
         </div>
 
