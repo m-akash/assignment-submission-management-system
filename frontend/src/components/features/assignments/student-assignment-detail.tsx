@@ -20,8 +20,9 @@ import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { RichText } from '@/components/ui/rich-text';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import { EmptyState, ErrorState } from '@/components/shared/states';
@@ -46,6 +47,7 @@ import {
   formatMarks,
   formatRelative,
 } from '@/lib/format';
+import { isRichTextEmpty } from '@/lib/rich-text';
 import type { StudentAssignment } from '@/types/api';
 
 /** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
@@ -116,11 +118,14 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
   const removeFile = useDeleteSubmissionFile();
 
   const content = draft ?? submission?.content ?? '';
+  // The editor reports "" for an emptied document, but a saved answer of "<p></p>" would
+  // otherwise read as an answer — so what counts as written is judged on the words.
+  const hasAnswer = !isRichTextEmpty(content);
   const urgency = deadlineUrgency(assignment.deadlineUtc);
   const isGraded = submission?.status === 'Graded';
   const readOnly = isGraded || (urgency === 'overdue' && !assignment.allowResubmission);
   const attachmentCount = files.length + pendingFiles.length;
-  const hasSomething = content.trim().length > 0 || attachmentCount > 0;
+  const hasSomething = hasAnswer || attachmentCount > 0;
   const isBusy = submit.isPending || upload.isPending;
 
   function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
@@ -141,7 +146,9 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
       await submit.mutateAsync({
         assignmentId: assignment.id,
         submissionId: submission?.id,
-        content: content.trim(),
+        // Sent empty when the answer holds no words, so a file-only submission is not
+        // recorded as having an answer made of empty paragraphs.
+        content: hasAnswer ? content : '',
       });
 
       // Uploads need a submission to hang off, so they follow the answer. Each file
@@ -182,7 +189,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
       <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
         <div className="space-y-6 lg:col-span-2">
           <SectionPanel title="Instructions" icon={FileText} bodyClassName="p-5">
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">{assignment.description}</p>
+            <RichText content={assignment.description} />
           </SectionPanel>
 
           {assignment.files.length > 0 && (
@@ -249,11 +256,10 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
 
             <div className="space-y-2">
               <Label htmlFor="answer">Your answer</Label>
-              <Textarea
+              <RichTextEditor
                 id="answer"
-                rows={8}
                 value={content}
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={setDraft}
                 disabled={readOnly}
                 placeholder="Type your answer, or attach a file below."
               />

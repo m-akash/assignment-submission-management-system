@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { isRichTextEmpty } from '@/lib/rich-text';
+
 /**
  * Client-side schemas mirroring the server's request contracts. These exist for
  * immediate feedback while typing — the API re-validates everything and remains the
@@ -136,7 +138,17 @@ export const assignmentSchema = z.object({
    */
   teachingMappingId: z.string().min(1, 'Choose the class and course'),
   title: z.string().trim().min(3, 'Enter a title').max(200, 'Title cannot exceed 200 characters'),
-  description: z.string().trim().min(1, 'Describe what students must do'),
+  /**
+   * HTML from the rich-text editor. "Not empty" cannot be a length check on the raw
+   * value — an editor that has been typed into and cleared still serialises to markup —
+   * so emptiness is judged on the text inside the tags. The cap is on the markup rather
+   * than that text because it is the markup the column has to hold; the editor stops
+   * typing at 5000 characters, which no amount of formatting can inflate this far.
+   */
+  description: z
+    .string()
+    .refine((value) => !isRichTextEmpty(value), 'Describe what students must do')
+    .refine((value) => value.length <= 20_000, 'That description is too long'),
   // datetime-local produces "YYYY-MM-DDTHH:mm" in the browser's zone.
   deadlineLocal: z.string().min(1, 'Set a deadline').refine(isAtLeastAnHourAhead, {
     message: 'The deadline must be at least an hour from now',

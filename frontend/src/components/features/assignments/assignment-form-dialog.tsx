@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { Download, Loader2, Paperclip, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import {
   downloadAssignmentFile,
   useDeleteAssignmentFile,
@@ -258,12 +258,22 @@ export function AssignmentFormDialog({
 
           <div className="space-y-2">
             <Label htmlFor="description">Instructions</Label>
-            <Textarea
-              id="description"
-              rows={4}
-              placeholder="What should students do, and how will it be marked?"
-              disabled={readOnly}
-              {...form.register('description')}
+            {/* Controlled rather than registered: the editor's value is HTML it builds
+                itself, not something a DOM ref can be read off. */}
+            <Controller
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <RichTextEditor
+                  id="description"
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  disabled={readOnly}
+                  invalid={!!errors.description}
+                  placeholder="What should students do, and how will it be marked?"
+                />
+              )}
             />
             {errors.description && <p className="text-xs text-danger">{errors.description.message}</p>}
           </div>

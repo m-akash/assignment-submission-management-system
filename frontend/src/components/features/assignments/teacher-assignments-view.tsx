@@ -23,6 +23,7 @@ import { AssignmentStatusBadge, DeadlineBadge } from '@/components/shared/status
 import { useAssignments, useDeleteAssignment, usePublishAssignment } from '@/hooks/use-assignments';
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
 import { deadlineUrgency, formatDateTime } from '@/lib/format';
+import { richTextToPlainText } from '@/lib/rich-text';
 import { AssignmentFormDialog } from './assignment-form-dialog';
 import type { Assignment, AssignmentStatus } from '@/types/api';
 
@@ -192,7 +193,7 @@ export function TeacherAssignmentsView() {
                         <TableCell className="max-w-[260px]">
                           <p className="truncate font-medium">{assignment.title}</p>
                           <p className="truncate text-xs text-muted-foreground">
-                            {assignment.description}
+                            {richTextToPlainText(assignment.description)}
                           </p>
                         </TableCell>
                         <TableCell className="text-sm">{assignment.className}</TableCell>

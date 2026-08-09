@@ -9,6 +9,7 @@ import {
   SubmissionStatusBadge,
 } from '@/components/shared/status-badge';
 import { deadlineUrgency, formatDateTime, formatMarks, formatRelative } from '@/lib/format';
+import { richTextToPlainText } from '@/lib/rich-text';
 import { cn } from '@/lib/utils';
 import type { StudentAssignment } from '@/types/api';
 
@@ -67,7 +68,11 @@ export function AssignmentCard({
             </p>
           </div>
 
-          <p className="line-clamp-2 text-sm text-muted-foreground">{assignment.description}</p>
+          {/* Flattened, not rendered: two clamped lines have no room for headings or
+              lists, and a card is a pointer to the brief rather than the brief itself. */}
+          <p className="line-clamp-2 text-sm text-muted-foreground">
+            {richTextToPlainText(assignment.description)}
+          </p>
 
           {isGraded && (
             <div className="space-y-2 rounded-lg bg-success-muted/50 p-3 ring-1 ring-success/20 ring-inset">

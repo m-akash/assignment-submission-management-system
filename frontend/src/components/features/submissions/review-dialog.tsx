@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RichText } from '@/components/ui/rich-text';
 import { Textarea } from '@/components/ui/textarea';
 import { SubmissionStatusBadge } from '@/components/shared/status-badge';
 import { downloadSubmissionFile, useReviewSubmission } from '@/hooks/use-submissions';
@@ -93,9 +94,10 @@ export function ReviewDialog({
               Answer
             </h3>
             {submission.content ? (
-              <p className="rounded-lg border bg-muted/40 p-4 text-sm whitespace-pre-wrap">
-                {submission.content}
-              </p>
+              <RichText
+                content={submission.content}
+                className="rounded-lg border bg-muted/40 p-4"
+              />
             ) : (
               <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                 No written answer — see the attachments.
