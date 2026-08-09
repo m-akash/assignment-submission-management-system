@@ -6,43 +6,48 @@ using Xunit;
 namespace AssignmentSystem.Application.Tests.DomainTests;
 
 /// <summary>
-/// The class name is derived, not entered — an admin supplies only the grade and the section.
-/// These cover the composition and the invariants that make it possible.
+/// A class is a grade and a section, held apart. Nothing composes the two into a stored name,
+/// so these cover the two values themselves, the invariants that guard them, and the one
+/// derived label that exists for email prose.
 /// </summary>
 public class ClassTests
 {
     [Fact]
-    public void Creating_ComposesTheNameFromGradeAndSection()
+    public void Creating_KeepsTheGradeAndSectionApart()
     {
         var klass = Class.Create(9, "A");
 
-        klass.Name.Should().Be("Class IX - Section A");
         klass.Level.Should().Be(9);
         klass.Section.Should().Be("A");
-        klass.GradeLabel.Should().Be("IX");
     }
 
     [Fact]
-    public void Creating_TrimsTheSectionBeforeComposing()
+    public void Creating_TrimsTheSection()
     {
         var klass = Class.Create(1, "  B  ");
 
         klass.Section.Should().Be("B");
-        klass.Name.Should().Be("Class I - Section B");
     }
 
-    /// <summary>
-    /// Renaming is not a separate operation: moving the class to another grade or section
-    /// recomposes the name, so the two can never disagree.
-    /// </summary>
     [Fact]
-    public void Updating_RecomposesTheName()
+    public void Updating_MovesBothTheGradeAndTheSection()
     {
         var klass = Class.Create(9, "A");
 
         klass.Update(12, "C");
 
-        klass.Name.Should().Be("Class XII - Section C");
+        klass.Level.Should().Be(12);
+        klass.Section.Should().Be("C");
+    }
+
+    /// <summary>
+    /// The one place the two are joined — for email subjects, which cannot hold two fields.
+    /// The grade is the number, never a numeral.
+    /// </summary>
+    [Fact]
+    public void DisplayName_ReadsAsTheGradeNumberAndTheSection()
+    {
+        Class.Create(9, "A").DisplayName.Should().Be("Class 9 - Section A");
     }
 
     [Theory]

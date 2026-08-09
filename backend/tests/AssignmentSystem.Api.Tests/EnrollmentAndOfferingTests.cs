@@ -386,7 +386,7 @@ public sealed class EnrollmentAndOfferingTests : IntegrationTestBase
         return rows[0].Id;
     }
 
-    private sealed record EnrollmentRow(Guid Id, Guid StudentId, Guid ClassId, string ClassName);
+    private sealed record EnrollmentRow(Guid Id, Guid StudentId, Guid ClassId, int ClassLevel, string? ClassSection);
     private sealed record UserRow(Guid Id, Role Role);
     private sealed record ClassRow(Guid Id, string Name, int StudentCount);
 }

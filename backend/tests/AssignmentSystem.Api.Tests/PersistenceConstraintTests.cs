@@ -211,8 +211,9 @@ public class PersistenceConstraintTests : IntegrationTestBase
         a.StatusCode.Should().Be(HttpStatusCode.Created);
         b.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        var created = await ReadAsync<ClassNameRef>(a);
-        created.Name.Should().Be($"Class V - Section {tag}-A", "the name is composed, not supplied");
+        var created = await ReadAsync<ClassRef>(a);
+        created.Level.Should().Be(5, "the grade comes back as a number, not a numeral");
+        created.Section.Should().Be($"{tag}-A", "the section comes back on its own, never joined to the grade");
     }
 
     /// <summary>
@@ -227,7 +228,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
 
         var created = await admin.PostAsJsonAsync("/api/v1/classes", new CreateClassRequest(4, section));
         created.StatusCode.Should().Be(HttpStatusCode.Created);
-        var klass = await ReadAsync<ClassNameRef>(created);
+        var klass = await ReadAsync<ClassRef>(created);
 
         var updated = await admin.PutAsJsonAsync($"/api/v1/classes/{klass.Id}", new UpdateClassRequest(4, section));
 
@@ -245,7 +246,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
 
         var mover = await admin.PostAsJsonAsync("/api/v1/classes", new CreateClassRequest(3, $"{tag}-B"));
         mover.StatusCode.Should().Be(HttpStatusCode.Created);
-        var klass = await ReadAsync<ClassNameRef>(mover);
+        var klass = await ReadAsync<ClassRef>(mover);
 
         var response = await admin.PutAsJsonAsync($"/api/v1/classes/{klass.Id}", new UpdateClassRequest(3, $"{tag}-A"));
 
@@ -262,7 +263,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
-    private sealed record ClassNameRef(Guid Id, string Name);
+    private sealed record ClassRef(Guid Id, int Level, string? Section);
 
     private sealed record CreatedUserRef(Guid Id);
 

@@ -44,7 +44,8 @@ public class AuthSessionTests : IntegrationTestBase
         // The login body omits these; the frontend reads them from here. Membership is a
         // list now, because a student can be enrolled in more than one class.
         payload.Data.Classes.Should().NotBeNullOrEmpty();
-        payload.Data.Classes[0].ClassName.Should().NotBeNullOrWhiteSpace();
+        payload.Data.Classes[0].ClassLevel.Should().BeInRange(1, 12);
+        payload.Data.Classes[0].ClassSection.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -165,5 +166,5 @@ public class AuthSessionTests : IntegrationTestBase
         bool IsActive,
         List<EnrolledClass> Classes);
 
-    private sealed record EnrolledClass(Guid ClassId, string ClassName);
+    private sealed record EnrolledClass(Guid ClassId, int ClassLevel, string? ClassSection);
 }
