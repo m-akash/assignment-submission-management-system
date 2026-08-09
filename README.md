@@ -3,7 +3,7 @@
 A role-based assignment and submission system for a school or college — ASP.NET Core Web API
 over PostgreSQL, with a Next.js frontend.
 
-**Admins** manage users, classes, courses, course offerings, enrollments and teacher
+**Admins** manage users, academic years, classes, courses, course offerings, enrollments and teacher
 assignments, and see everything. **Teachers** create and publish assignments for an offering
 they teach, then grade submissions with marks and feedback. **Students** see assignments for
 their enrolled classes, submit text and/or files, and read their marks once graded. Six events
@@ -133,7 +133,8 @@ Enforced server-side, and covered by tests.
 | **Organisation** | A grade holds any number of sections but only one class per section — `Grade 9 - A` cannot exist twice. The class name is composed server-side as `Class IX - Section A`; admins supply only the grade and section. |
 | | A class studies a course once; an offering has at most one teacher. |
 | | An offering cannot be dropped while a teacher or any assignment still references it (`409`, with what to unwind). |
-| | A student cannot lose their only class — enrol in the new one first. A student is created together with their first enrollment in one transaction. |
+| | A student cannot lose their only class — enrol in the new one first. A student is created together with their first enrollment in one transaction, into the academic year given or the current one. |
+| | An enrollment names its academic year. A student sits in a class once **per year**, so repeating a grade is expressible; a year with enrollments against it cannot be deleted, and at most one year is the current session. |
 | | Unique emails and course codes; only teachers hold a staff id, only students a student id; a mapping can only name an active teacher. |
 
 ## Technology stack
@@ -169,7 +170,7 @@ docker-compose.yml                  postgres + mailpit + api + web
 
 ## Data model
 
-Thirteen tables. Audit columns (`created_at_utc`, `updated_at_utc`, `created_by`, `updated_by`)
+Fourteen tables. Audit columns (`created_at_utc`, `updated_at_utc`, `created_by`, `updated_by`)
 and the `xmin` concurrency token exist on all of them and are omitted here; the file tables also
 carry `content_type`, `file_size_bytes` and `stored_file_name`.
 
@@ -177,6 +178,7 @@ carry `content_type`, `file_size_bytes` and `stored_file_name`.
 erDiagram
     users ||--o{ student_enrollments : "is enrolled by"
     classes ||--o{ student_enrollments : "has roster"
+    academic_years ||--o{ student_enrollments : "dates"
     classes ||--o{ class_courses : studies
     courses ||--o{ class_courses : "is offered to"
     class_courses ||--o| teacher_assignments : "is taught via"
@@ -204,6 +206,13 @@ erDiagram
         timestamptz lockout_end_utc
         boolean is_deleted "soft delete"
     }
+    academic_years {
+        uuid id PK
+        varchar name UK "the session label, like 2026-2027"
+        date start_date
+        date end_date
+        boolean is_current "partial UK, at most one true"
+    }
     classes {
         uuid id PK
         varchar name "derived: Class IX - Section A"
@@ -224,6 +233,7 @@ erDiagram
         uuid id PK
         uuid student_id FK
         uuid class_id FK
+        uuid academic_year_id FK "UK with student_id and class_id"
         timestamptz enrolled_at_utc
     }
     teacher_assignments {
@@ -309,12 +319,19 @@ Two junction tables carry the design:
   Teaching mappings and assignments both point at it, so a teacher can never be mapped to a pair
   the class does not study, and an assignment's class and course cannot disagree: one column, not
   two.
-- **`student_enrollments` is class membership** — a row per (student, class) rather than a
-  `users.class_id` column, so a student can sit in more than one class and the join date is
-  recorded. This is the gate for "a student only sees their own classes".
+- **`student_enrollments` is class membership for one session** — a row per
+  (student, class, academic year) rather than a `users.class_id` column, so a student can sit in
+  more than one class and the join date is recorded. This is the gate for "a student only sees
+  their own classes".
 
 Other decisions:
 
+- **The academic year hangs off the enrollment, not the class** — a cohort outlives a session,
+  so "Class IX - Section A" is the same row every year and it is the enrollment that says which
+  year a student sat in it. That is what lets one student hold Class IX for 2025-2026 and Class X
+  for 2026-2027 with both intact, and what makes a repeated grade expressible at all: the same
+  (student, class) pair in two years. `academic_years.is_current` carries a partial unique index
+  (`WHERE is_current`) so the session the enrollment forms open on can never be ambiguous.
 - **`uuid` keys, not `bigint`** — ids travel in URLs and JWTs, so non-enumerable beats compact.
 - **`assignments` stores its author directly** and holds no link to the teaching mapping, so
   removing a mapping cannot orphan authorship of work already set.
@@ -326,15 +343,18 @@ Other decisions:
 - **One `users` table for all roles**, with `student_id` / `teacher_id` unique but nullable —
   Postgres allows many nulls in a unique index, so each constraint binds only its own role.
 
-**Eleven unique constraints** back the rules above: `users.email`, `users.student_id`,
-`users.teacher_id`, `courses.code`, `classes(level, section)`, `class_courses(class_id, course_id)`,
-`teacher_assignments.class_course_id`, `student_enrollments(student_id, class_id)`,
+**Thirteen unique constraints** back the rules above: `users.email`, `users.student_id`,
+`users.teacher_id`, `courses.code`, `classes(level, section)`, `academic_years.name`,
+`academic_years.is_current` (partial, `WHERE is_current`), `class_courses(class_id, course_id)`,
+`teacher_assignments.class_course_id`,
+`student_enrollments(student_id, class_id, academic_year_id)`,
 `submissions(assignment_id, student_id)`, and the two token hashes.
 
 **Delete behaviour is per relationship**, not left at the default: Cascade where a row is a pure
 link or a child (`classes`→offerings, assignment→submissions/files, submission→files, user→
 enrollments/tokens/notifications); Restrict where deleting would destroy meaning
-(`courses`→offerings, offering→assignments, user→authored assignments); Set null for historical
+(`courses`→offerings, offering→assignments, user→authored assignments,
+`academic_years`→enrollments); Set null for historical
 attribution (`reviewed_by_id`, `uploaded_by_id`). `users` and `assignments` are soft-deleted in
 practice, so the Restrict rules only guard a genuine hard delete. The `notifications` index is
 partial — `WHERE status IN (0, 3)` — so the dispatcher's claim query stays proportional to the
@@ -342,19 +362,21 @@ backlog rather than to an ever-growing outbox.
 
 ### Database and seed data
 
-Schema creation is entirely EF Core migrations (11 of them, under
+Schema creation is entirely EF Core migrations (12 of them, under
 `Infrastructure/Migrations/`), applied on startup or via `dotnet ef database update`. **No SQL
-script needs running by hand.** The offering/enrollment migration backfills existing data —
-deriving offerings from the (class, course) pairs in use and copying `users.class_id` into
-`student_enrollments` before dropping the column — so an upgrade keeps its rosters instead of
-producing a valid schema full of empty GUIDs.
+script needs running by hand.** Two migrations backfill existing data rather than leaving a
+valid schema full of empty GUIDs. The offering/enrollment one derives offerings from the
+(class, course) pairs in use and copies `users.class_id` into `student_enrollments` before
+dropping the column. The academic-year one adds `academic_year_id` nullable, inserts one
+session — only where there are enrollments to point at it — flags it current so creating a
+student keeps working, backfills every row, and only then sets the column NOT NULL.
 
 `DbSeeder` runs idempotently on startup (skipped once the admin exists) and builds a plausible
 small school rather than three lonely accounts:
 
-| classes | courses | offerings | users | enrollments | teaching mappings | assignments | submissions |
-|---|---|---|---|---|---|---|---|
-| 8 | 8 | 40 | 46 | 40 | 35 | 7 (6 published, 1 draft) | 7 (across all four statuses) |
+| academic years | classes | courses | offerings | users | enrollments | teaching mappings | assignments | submissions |
+|---|---|---|---|---|---|---|---|---|
+| 2 (one current) | 8 | 8 | 40 | 46 | 40 | 35 | 7 (6 published, 1 draft) | 7 (across all four statuses) |
 
 Grades 7–10 in sections A and B; grades 7–8 study four subjects (Bangla, English, General Math,
 General Science), grades 9–10 study six (Physics, Chemistry, Higher Mathematics, Biology,
@@ -380,8 +402,8 @@ than returning everything.
 | Auth | `POST login` · `POST refresh` · `POST logout` · `GET`/`POST set-password` | Anonymous |
 | | `GET me` | Any |
 | Users | `GET`/`POST /users` · `GET`/`PUT`/`DELETE /users/{id}` | Admin (delete is soft) |
-| Classes, Courses | `GET` list and by id | Any |
-| | `POST` · `PUT` · `DELETE` | Admin |
+| Academic years, Classes, Courses | `GET` list and by id | Any |
+| | `POST` · `PUT` · `DELETE` | Admin (a year with enrollments cannot be deleted) |
 | Offerings | `GET /class-courses` | Admin, Teacher |
 | | `POST` · `DELETE` | Admin (delete refused while in use) |
 | Teaching mappings | `GET /teacher-assignments` | Admin, Teacher |
