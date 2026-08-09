@@ -42,9 +42,11 @@ public sealed record CreateEnrollmentCommand(
 public sealed record DeleteEnrollmentCommand(Guid Id) : ICommand;
 
 [RequiresRole(Role.Admin, Role.Teacher)]
+// Multi-valued filters, each bound from its singular query parameter repeated
+// (?classId=a&classId=b); empty or absent means "not filtered".
 public sealed record GetEnrollmentsQuery(
-    Guid? StudentId = null,
-    Guid? ClassId = null,
+    IReadOnlyList<Guid>? StudentIds = null,
+    IReadOnlyList<Guid>? ClassIds = null,
     string? Search = null,
     /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
     string? SortBy = null,

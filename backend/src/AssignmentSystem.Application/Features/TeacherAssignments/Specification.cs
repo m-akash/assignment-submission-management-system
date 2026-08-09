@@ -59,7 +59,8 @@ internal sealed class TeacherAssignmentsPagedSpecification : Specification<Teach
         tieBreaker: ta => ta.Id);
 
     public TeacherAssignmentsPagedSpecification(
-        Guid? teacherId, Guid? courseId, Guid? classId, Guid? classCourseId, string? search,
+        IEnumerable<Guid>? teacherIds, IEnumerable<Guid>? courseIds, IEnumerable<Guid>? classIds,
+        IEnumerable<Guid>? classCourseIds, string? search,
         string? sortBy, string? sortDir, int page, int pageSize)
     {
         ApplyNoTracking();
@@ -73,16 +74,20 @@ internal sealed class TeacherAssignmentsPagedSpecification : Specification<Teach
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
+        var teacherFilter = MultiValueFilter(teacherIds);
+        var classCourseFilter = MultiValueFilter(classCourseIds);
+        var courseFilter = MultiValueFilter(courseIds);
+        var classFilter = MultiValueFilter(classIds);
 
         // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
         // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
         // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
 #pragma warning disable CA1304, CA1311
         Criteria = ta =>
-            (!teacherId.HasValue || ta.TeacherId == teacherId.Value) &&
-            (!classCourseId.HasValue || ta.ClassCourseId == classCourseId.Value) &&
-            (!courseId.HasValue || ta.ClassCourse.CourseId == courseId.Value) &&
-            (!classId.HasValue || ta.ClassCourse.ClassId == classId.Value) &&
+            (teacherFilter == null || teacherFilter.Contains(ta.TeacherId)) &&
+            (classCourseFilter == null || classCourseFilter.Contains(ta.ClassCourseId)) &&
+            (courseFilter == null || courseFilter.Contains(ta.ClassCourse.CourseId)) &&
+            (classFilter == null || classFilter.Contains(ta.ClassCourse.ClassId)) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              ta.Teacher.FullName.ToLower().Contains(searchLower) ||
              ta.ClassCourse.Course.Name.ToLower().Contains(searchLower) ||

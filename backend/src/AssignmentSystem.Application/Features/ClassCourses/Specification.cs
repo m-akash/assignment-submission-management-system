@@ -56,7 +56,7 @@ internal sealed class ClassCoursesPagedSpecification : Specification<ClassCourse
         tieBreaker: cc => cc.Id);
 
     public ClassCoursesPagedSpecification(
-        Guid? classId, Guid? courseId, string? search, string? sortBy, string? sortDir, int page, int pageSize)
+        IEnumerable<Guid>? classIds, IEnumerable<Guid>? courseIds, string? search, string? sortBy, string? sortDir, int page, int pageSize)
     {
         ApplyNoTracking();
         AddInclude(cc => cc.Class);
@@ -71,14 +71,16 @@ internal sealed class ClassCoursesPagedSpecification : Specification<ClassCourse
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
+        var classFilter = MultiValueFilter(classIds);
+        var courseFilter = MultiValueFilter(courseIds);
 
         // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
         // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
         // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
 #pragma warning disable CA1304, CA1311
         Criteria = cc =>
-            (!classId.HasValue || cc.ClassId == classId.Value) &&
-            (!courseId.HasValue || cc.CourseId == courseId.Value) &&
+            (classFilter == null || classFilter.Contains(cc.ClassId)) &&
+            (courseFilter == null || courseFilter.Contains(cc.CourseId)) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              cc.Class.Name.ToLower().Contains(searchLower) ||
              cc.Course.Name.ToLower().Contains(searchLower) ||

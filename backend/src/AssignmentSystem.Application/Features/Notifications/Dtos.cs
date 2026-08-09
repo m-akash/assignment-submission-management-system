@@ -36,10 +36,12 @@ public sealed record NotificationSummaryDto(
 );
 
 [RequiresAuthentication]
+// Multi-valued filters, each bound from its singular query parameter repeated
+// (?status=Pending&status=Failed); empty or absent means "not filtered".
 public sealed record GetNotificationsQuery(
-    NotificationStatus? Status = null,
-    NotificationType? Type = null,
-    Guid? RecipientId = null,
+    IReadOnlyList<NotificationStatus>? Statuses = null,
+    IReadOnlyList<NotificationType>? Types = null,
+    IReadOnlyList<Guid>? RecipientIds = null,
     string? Search = null,
     /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
     string? SortBy = null,

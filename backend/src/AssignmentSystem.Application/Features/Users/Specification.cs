@@ -30,8 +30,8 @@ internal sealed class UsersPagedSpecification : Specification<ApplicationUser>
         tieBreaker: u => u.Id);
 
     public UsersPagedSpecification(
-        Domain.Enums.Role? role,
-        Guid? classId,
+        IEnumerable<Domain.Enums.Role>? roles,
+        IEnumerable<Guid>? classIds,
         string? search,
         string? sortBy,
         string? sortDir,
@@ -47,6 +47,8 @@ internal sealed class UsersPagedSpecification : Specification<ApplicationUser>
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
+        var roleFilter = MultiValueFilter(roles);
+        var classFilter = MultiValueFilter(classIds);
 
         // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
         // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
@@ -56,8 +58,8 @@ internal sealed class UsersPagedSpecification : Specification<ApplicationUser>
         // a student in two classes correctly appears under either.
 #pragma warning disable CA1304, CA1311
         Criteria = u =>
-            (!role.HasValue || u.Role == role.Value) &&
-            (!classId.HasValue || u.Enrollments.Any(e => e.ClassId == classId.Value)) &&
+            (roleFilter == null || roleFilter.Contains(u.Role)) &&
+            (classFilter == null || u.Enrollments.Any(e => classFilter.Contains(e.ClassId))) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              u.Email.Value.Contains(searchLower) ||
              u.FullName.ToLower().Contains(searchLower));

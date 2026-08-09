@@ -62,10 +62,12 @@ public sealed record GetSubmissionByIdQuery(Guid Id) : IQuery<SubmissionDto>;
 public sealed record GetStudentSubmissionQuery(Guid AssignmentId) : IQuery<SubmissionDto>;
 
 [RequiresAuthentication]
+// Multi-valued filters, each bound from its singular query parameter repeated
+// (?status=Pending&status=Late); empty or absent means "not filtered".
 public sealed record GetSubmissionsQuery(
-    Guid? AssignmentId = null,
-    Guid? StudentId = null,
-    SubmissionStatus? Status = null,
+    IReadOnlyList<Guid>? AssignmentIds = null,
+    IReadOnlyList<Guid>? StudentIds = null,
+    IReadOnlyList<SubmissionStatus>? Statuses = null,
     /// <summary>Free-text match on the student's name or the assignment title.</summary>
     string? Search = null,
     /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>

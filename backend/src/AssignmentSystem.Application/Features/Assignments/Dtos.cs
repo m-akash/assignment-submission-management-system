@@ -66,12 +66,14 @@ public sealed record PublishAssignmentCommand(Guid Id) : ICommand<AssignmentDto>
 public sealed record GetAssignmentByIdQuery(Guid Id) : IQuery<AssignmentDto>;
 
 [RequiresAuthentication]
+// Every filter here is multi-valued: each is bound from its singular query parameter
+// repeated (?classId=a&classId=b), and an empty or absent list means "not filtered".
 public sealed record GetAssignmentsQuery(
-    Guid? ClassId = null,
-    Guid? CourseId = null,
-    Guid? ClassCourseId = null,
-    Guid? TeacherId = null,
-    AssignmentStatus? Status = null,
+    IReadOnlyList<Guid>? ClassIds = null,
+    IReadOnlyList<Guid>? CourseIds = null,
+    IReadOnlyList<Guid>? ClassCourseIds = null,
+    IReadOnlyList<Guid>? TeacherIds = null,
+    IReadOnlyList<AssignmentStatus>? Statuses = null,
     string? Search = null,
     /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
     string? SortBy = null,

@@ -51,12 +51,12 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
         tieBreaker: a => a.Id);
 
     public AssignmentsPagedSpecification(
-        Guid? classId,
-        Guid? courseId,
-        Guid? classCourseId,
+        IEnumerable<Guid>? classIds,
+        IEnumerable<Guid>? courseIds,
+        IEnumerable<Guid>? classCourseIds,
         IReadOnlyList<Guid>? restrictToClassIds,
-        Guid? teacherId,
-        AssignmentStatus? status,
+        IEnumerable<Guid>? teacherIds,
+        IEnumerable<AssignmentStatus>? statuses,
         string? search,
         string? sortBy,
         string? sortDir,
@@ -75,6 +75,11 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
+        var classFilter = MultiValueFilter(classIds);
+        var courseFilter = MultiValueFilter(courseIds);
+        var classCourseFilter = MultiValueFilter(classCourseIds);
+        var teacherFilter = MultiValueFilter(teacherIds);
+        var statusFilter = MultiValueFilter(statuses);
 
         // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
         // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
@@ -82,15 +87,16 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
         //
         // restrictToClassIds is the student scope (rule B1): the classes they are enrolled
         // in. A student with no enrollment must see nothing, so an EMPTY list has to match
-        // nothing — which is why the bypass tests for null rather than for emptiness.
+        // nothing — which is why it is used raw rather than through MultiValueFilter, whose
+        // whole job is to turn an empty caller-supplied filter back into "no filter".
 #pragma warning disable CA1304, CA1311
         Criteria = a =>
-            (!classCourseId.HasValue || a.ClassCourseId == classCourseId.Value) &&
-            (!classId.HasValue || a.ClassCourse.ClassId == classId.Value) &&
-            (!courseId.HasValue || a.ClassCourse.CourseId == courseId.Value) &&
+            (classCourseFilter == null || classCourseFilter.Contains(a.ClassCourseId)) &&
+            (classFilter == null || classFilter.Contains(a.ClassCourse.ClassId)) &&
+            (courseFilter == null || courseFilter.Contains(a.ClassCourse.CourseId)) &&
             (restrictToClassIds == null || restrictToClassIds.Contains(a.ClassCourse.ClassId)) &&
-            (!teacherId.HasValue || a.TeacherId == teacherId.Value) &&
-            (!status.HasValue || a.Status == status.Value) &&
+            (teacherFilter == null || teacherFilter.Contains(a.TeacherId)) &&
+            (statusFilter == null || statusFilter.Contains(a.Status)) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              a.Title.ToLower().Contains(searchLower) ||
              // DescriptionText, not Description: the description is markup, and matching

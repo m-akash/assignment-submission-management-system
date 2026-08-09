@@ -61,9 +61,9 @@ internal sealed class NotificationsPagedSpecification : Specification<Notificati
         tieBreaker: n => n.Id);
 
     public NotificationsPagedSpecification(
-        NotificationStatus? status,
-        NotificationType? type,
-        Guid? recipientId,
+        IEnumerable<NotificationStatus>? statuses,
+        IEnumerable<NotificationType>? types,
+        IEnumerable<Guid>? recipientIds,
         string? search,
         string? sortBy,
         string? sortDir,
@@ -80,15 +80,18 @@ internal sealed class NotificationsPagedSpecification : Specification<Notificati
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
+        var statusFilter = MultiValueFilter(statuses);
+        var typeFilter = MultiValueFilter(types);
+        var recipientFilter = MultiValueFilter(recipientIds);
 
         // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
         // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
         // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
 #pragma warning disable CA1304, CA1311
         Criteria = n =>
-            (!status.HasValue || n.Status == status.Value) &&
-            (!type.HasValue || n.Type == type.Value) &&
-            (!recipientId.HasValue || n.RecipientId == recipientId.Value) &&
+            (statusFilter == null || statusFilter.Contains(n.Status)) &&
+            (typeFilter == null || typeFilter.Contains(n.Type)) &&
+            (recipientFilter == null || recipientFilter.Contains(n.RecipientId)) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              n.RecipientEmail.Contains(searchLower) ||
              n.Subject.ToLower().Contains(searchLower));

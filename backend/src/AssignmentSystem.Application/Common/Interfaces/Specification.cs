@@ -70,6 +70,30 @@ public abstract class Specification<T> : ISpecification<T> where T : class
         return true;
     }
 
+    /// <summary>
+    /// Normalises a multi-value filter for use inside a <see cref="Criteria"/> expression.
+    ///
+    /// List screens send a filter as a repeated query parameter, so "not filtering" arrives
+    /// as either an absent parameter or an empty array — both have to mean "match everything"
+    /// rather than "match nothing". Collapsing empty to null lets the criteria say
+    /// <c>filter == null || filter.Contains(x)</c>, the same shape the scope restrictions use,
+    /// where null genuinely means unrestricted.
+    ///
+    /// A <see cref="List{T}"/> comes back rather than the interface because EF Core translates
+    /// <c>Contains</c> on a captured list to SQL <c>IN (...)</c>. Duplicates are dropped: a
+    /// repeated id would otherwise widen the IN list for no effect.
+    /// </summary>
+    protected static List<TValue>? MultiValueFilter<TValue>(IEnumerable<TValue>? values)
+    {
+        if (values is null)
+        {
+            return null;
+        }
+
+        var distinct = values.Distinct().ToList();
+        return distinct.Count == 0 ? null : distinct;
+    }
+
     protected void ApplyOrderBy(Expression<Func<T, object>> orderBy) => OrderBy = orderBy;
     protected void ApplyOrderByDescending(Expression<Func<T, object>> orderByDescending) => OrderByDescending = orderByDescending;
     protected void ApplyThenBy(Expression<Func<T, object>> thenBy) => ThenBy = thenBy;

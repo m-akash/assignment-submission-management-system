@@ -147,12 +147,12 @@ public sealed class GetTeacherAssignmentsHandler : IQueryHandler<GetTeacherAssig
     {
         // A teacher may only see their own mappings; only an admin may filter by teacher.
         // Scoped server-side so the client cannot widen it via the query string.
-        var teacherId = _currentUser.Role == Domain.Enums.Role.Teacher
-            ? _currentUser.UserId
-            : query.TeacherId;
+        IReadOnlyList<Guid>? teacherIds = _currentUser.Role == Domain.Enums.Role.Teacher
+            ? _currentUser.UserId is { } userId ? [userId] : null
+            : query.TeacherIds;
 
         var spec = new TeacherAssignmentsPagedSpecification(
-            teacherId, query.CourseId, query.ClassId, query.ClassCourseId, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
+            teacherIds, query.CourseIds, query.ClassIds, query.ClassCourseIds, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var pagedAssignments = await _teacherAssignmentRepository.ListPagedAsync(spec, ct);
 
         var items = pagedAssignments.Items.Select(Mapper.MapToDto).ToList();

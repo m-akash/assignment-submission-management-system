@@ -38,9 +38,11 @@ public sealed record DeleteClassCourseCommand(Guid Id) : ICommand;
 public sealed record GetClassCourseByIdQuery(Guid Id) : IQuery<ClassCourseDto>;
 
 [RequiresRole(Role.Admin, Role.Teacher)]
+// Multi-valued filters, each bound from its singular query parameter repeated
+// (?classId=a&classId=b); empty or absent means "not filtered".
 public sealed record GetClassCoursesQuery(
-    Guid? ClassId = null,
-    Guid? CourseId = null,
+    IReadOnlyList<Guid>? ClassIds = null,
+    IReadOnlyList<Guid>? CourseIds = null,
     string? Search = null,
     /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
     string? SortBy = null,

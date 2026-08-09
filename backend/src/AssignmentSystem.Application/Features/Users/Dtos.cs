@@ -68,8 +68,10 @@ public sealed record GetCurrentUserQuery : IQuery<UserDto>;
 // Qualified: this record's own `Role` parameter shadows the enum inside its attribute list.
 [RequiresRole(Domain.Enums.Role.Admin)]
 public sealed record GetUsersQuery(
-    Domain.Enums.Role? Role = null,
-    Guid? ClassId = null,
+    /// <summary>Any of these roles; empty or absent means every role. Bound from a repeated `role` parameter.</summary>
+    IReadOnlyList<Domain.Enums.Role>? Roles = null,
+    /// <summary>Any of these classes; empty or absent means every class. Bound from a repeated `classId` parameter.</summary>
+    IReadOnlyList<Guid>? ClassIds = null,
     string? Search = null,
     /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
     string? SortBy = null,

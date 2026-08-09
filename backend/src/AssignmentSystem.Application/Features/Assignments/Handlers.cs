@@ -321,8 +321,8 @@ public sealed class GetAssignmentsHandler : IQueryHandler<GetAssignmentsQuery, P
 
     public async Task<Result<PageResult<AssignmentDto>>> HandleAsync(GetAssignmentsQuery query, CancellationToken ct = default)
     {
-        var teacherId = query.TeacherId;
-        var status = query.Status;
+        var teacherIds = query.TeacherIds;
+        var statuses = query.Statuses;
         IReadOnlyList<Guid>? restrictToClassIds = null;
 
         if (_currentUser.Role == Role.Student)
@@ -330,18 +330,21 @@ public sealed class GetAssignmentsHandler : IQueryHandler<GetAssignmentsQuery, P
             // B1 + X3: published work, and only for classes they are enrolled in. The
             // enrollment list is read here rather than taken from the token so an admin
             // moving a student between classes takes effect on their next request.
+            //
+            // The status filter is replaced, not intersected: a student asking for drafts
+            // gets published work regardless, exactly as before the filter became a list.
             restrictToClassIds = await _roster.GetEnrolledClassIdsAsync(_currentUser.UserId.GetValueOrDefault(), ct);
-            status = AssignmentStatus.Published;
+            statuses = [AssignmentStatus.Published];
         }
         else if (_currentUser.Role == Role.Teacher)
         {
             // Teacher sees assignments they own
-            teacherId = _currentUser.UserId.GetValueOrDefault();
+            teacherIds = [_currentUser.UserId.GetValueOrDefault()];
         }
 
         var spec = new AssignmentsPagedSpecification(
-            query.ClassId, query.CourseId, query.ClassCourseId, restrictToClassIds,
-            teacherId, status, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
+            query.ClassIds, query.CourseIds, query.ClassCourseIds, restrictToClassIds,
+            teacherIds, statuses, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var pagedAssignments = await _assignmentRepository.ListPagedAsync(spec, ct);
 
         var items = pagedAssignments.Items.Select(Mapper.MapToDto).ToList();

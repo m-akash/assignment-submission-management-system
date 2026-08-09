@@ -42,8 +42,8 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
         tieBreaker: e => e.Id);
 
     public EnrollmentsPagedSpecification(
-        Guid? studentId,
-        Guid? classId,
+        IEnumerable<Guid>? studentIds,
+        IEnumerable<Guid>? classIds,
         string? search,
         string? sortBy,
         string? sortDir,
@@ -72,14 +72,16 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
             ? null
             : new HashSet<Guid>(allowedClassIds);
         var restrictByClass = classIdSet is not null;
+        var studentFilter = MultiValueFilter(studentIds);
+        var classFilter = MultiValueFilter(classIds);
 
         // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
         // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
         // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
 #pragma warning disable CA1304, CA1311
         Criteria = e =>
-            (!studentId.HasValue || e.StudentId == studentId.Value) &&
-            (!classId.HasValue || e.ClassId == classId.Value) &&
+            (studentFilter == null || studentFilter.Contains(e.StudentId)) &&
+            (classFilter == null || classFilter.Contains(e.ClassId)) &&
             (!restrictByClass || (classIdSet != null && classIdSet.Contains(e.ClassId))) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              e.Student.FullName.ToLower().Contains(searchLower) ||

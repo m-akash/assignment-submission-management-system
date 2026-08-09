@@ -43,10 +43,10 @@ internal sealed class SubmissionsPagedSpecification : Specification<Submission>
         tieBreaker: s => s.Id);
 
     public SubmissionsPagedSpecification(
-        Guid? assignmentId,
-        List<Guid>? assignmentIds,
-        Guid? studentId,
-        SubmissionStatus? status,
+        IEnumerable<Guid>? assignmentIds,
+        List<Guid>? authoredAssignmentIds,
+        IEnumerable<Guid>? studentIds,
+        IEnumerable<SubmissionStatus>? statuses,
         string? search,
         string? sortBy,
         string? sortDir,
@@ -65,16 +65,23 @@ internal sealed class SubmissionsPagedSpecification : Specification<Submission>
         ApplyPaging(page, pageSize);
 
         var searchTerm = string.IsNullOrWhiteSpace(search) ? null : search.Trim().ToLowerInvariant();
+        var assignmentFilter = MultiValueFilter(assignmentIds);
+        var studentFilter = MultiValueFilter(studentIds);
+        var statusFilter = MultiValueFilter(statuses);
 
         // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
         // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
         // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
+        //
+        // authoredAssignmentIds is the teacher scope, not a caller filter: an empty list is a
+        // teacher who has written nothing and must see nothing, so it stays raw where the
+        // caller-supplied filters go through MultiValueFilter.
 #pragma warning disable CA1304, CA1311
         Criteria = s =>
-            (!assignmentId.HasValue || s.AssignmentId == assignmentId.Value) &&
-            (assignmentIds == null || assignmentIds.Contains(s.AssignmentId)) &&
-            (!studentId.HasValue || s.StudentId == studentId.Value) &&
-            (!status.HasValue || s.Status == status.Value) &&
+            (assignmentFilter == null || assignmentFilter.Contains(s.AssignmentId)) &&
+            (authoredAssignmentIds == null || authoredAssignmentIds.Contains(s.AssignmentId)) &&
+            (studentFilter == null || studentFilter.Contains(s.StudentId)) &&
+            (statusFilter == null || statusFilter.Contains(s.Status)) &&
             (searchTerm == null ||
              s.Student.FullName.ToLower().Contains(searchTerm) ||
              s.Assignment.Title.ToLower().Contains(searchTerm));

@@ -33,11 +33,13 @@ public sealed record CreateTeacherAssignmentCommand(
 public sealed record DeleteTeacherAssignmentCommand(Guid Id) : ICommand;
 
 [RequiresRole(Role.Admin, Role.Teacher)]
+// Multi-valued filters, each bound from its singular query parameter repeated
+// (?classId=a&classId=b); empty or absent means "not filtered".
 public sealed record GetTeacherAssignmentsQuery(
-    Guid? TeacherId = null,
-    Guid? CourseId = null,
-    Guid? ClassId = null,
-    Guid? ClassCourseId = null,
+    IReadOnlyList<Guid>? TeacherIds = null,
+    IReadOnlyList<Guid>? CourseIds = null,
+    IReadOnlyList<Guid>? ClassIds = null,
+    IReadOnlyList<Guid>? ClassCourseIds = null,
     string? Search = null,
     /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
     string? SortBy = null,

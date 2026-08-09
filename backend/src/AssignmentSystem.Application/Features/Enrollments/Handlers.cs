@@ -172,7 +172,10 @@ public sealed class GetEnrollmentsHandler : IQueryHandler<GetEnrollmentsQuery, P
             // is the join row; the class id lives on the offering, so the spec includes it.
             allowedClassIds = await ResolveTaughtClassIdsAsync(teacherId, ct);
 
-            if (query.ClassId.HasValue && !allowedClassIds.Contains(query.ClassId.Value))
+            // Every class named has to be one they teach. Asking for a mix of taught and
+            // untaught classes is still a widening attempt, so it is refused outright
+            // rather than silently narrowed to the taught subset.
+            if (query.ClassIds?.Any(id => !allowedClassIds.Contains(id)) == true)
             {
                 return Result<PageResult<EnrollmentDto>>.Failure(Error.Forbidden(
                     "Enrollment.Forbidden", "You do not teach this class."));
@@ -180,7 +183,7 @@ public sealed class GetEnrollmentsHandler : IQueryHandler<GetEnrollmentsQuery, P
         }
 
         var spec = new EnrollmentsPagedSpecification(
-            query.StudentId, query.ClassId, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize, allowedClassIds);
+            query.StudentIds, query.ClassIds, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize, allowedClassIds);
         var paged = await _enrollmentRepository.ListPagedAsync(spec, ct);
 
         var items = paged.Items.Select(Mapper.MapToDto).ToList();

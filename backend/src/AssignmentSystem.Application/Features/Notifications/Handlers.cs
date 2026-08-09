@@ -27,12 +27,13 @@ public sealed class GetNotificationsHandler : IQueryHandler<GetNotificationsQuer
 
     public async Task<Result<PageResult<NotificationDto>>> HandleAsync(GetNotificationsQuery query, CancellationToken ct = default)
     {
-        var recipientId = _currentUser.Role == Role.Admin
-            ? query.RecipientId
-            : _currentUser.UserId;
+        // Anyone but an admin is pinned to their own row, whatever recipients they asked for.
+        IReadOnlyList<Guid>? recipientIds = _currentUser.Role == Role.Admin
+            ? query.RecipientIds
+            : _currentUser.UserId is { } userId ? [userId] : null;
 
         var spec = new NotificationsPagedSpecification(
-            query.Status, query.Type, recipientId, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
+            query.Statuses, query.Types, recipientIds, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var paged = await _notifications.ListPagedAsync(spec, ct);
 
         var items = paged.Items.Select(Mapper.MapToDto).ToList();

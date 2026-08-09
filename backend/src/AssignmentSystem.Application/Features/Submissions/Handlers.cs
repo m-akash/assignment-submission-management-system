@@ -357,8 +357,8 @@ public sealed class GetSubmissionsHandler : IQueryHandler<GetSubmissionsQuery, P
 
     public async Task<Result<PageResult<SubmissionDto>>> HandleAsync(GetSubmissionsQuery query, CancellationToken ct = default)
     {
-        var studentId = query.StudentId;
-        var assignmentId = query.AssignmentId;
+        var studentIds = query.StudentIds;
+        var assignmentIds = query.AssignmentIds;
 
         // The assignments a teacher authored — used to restrict the list to submissions
         // against their own work. Named for what it holds: these are assignment ids, not
@@ -369,17 +369,23 @@ public sealed class GetSubmissionsHandler : IQueryHandler<GetSubmissionsQuery, P
         if (_currentUser.Role == Role.Student)
         {
             // Student sees only their own
-            studentId = _currentUser.UserId.GetValueOrDefault();
+            studentIds = [_currentUser.UserId.GetValueOrDefault()];
         }
         else if (_currentUser.Role == Role.Teacher)
         {
             var teacherId = _currentUser.UserId.GetValueOrDefault();
-            if (assignmentId.HasValue)
+            if (assignmentIds is { Count: > 0 })
             {
-                var assignment = await _assignmentRepository.GetByIdAsync(assignmentId.Value, ct);
-                if (assignment is null || !assignment.IsOwnedBy(teacherId))
+                // Every named assignment must be theirs. Naming one they do not own is a
+                // forbidden widening rather than a filter to quietly narrow, which is the
+                // same answer a single unowned id got before this filter took a list.
+                foreach (var id in assignmentIds.Distinct())
                 {
-                    return Result<PageResult<SubmissionDto>>.Failure(Error.Forbidden("Submission.Forbidden", "You do not own this assignment."));
+                    var assignment = await _assignmentRepository.GetByIdAsync(id, ct);
+                    if (assignment is null || !assignment.IsOwnedBy(teacherId))
+                    {
+                        return Result<PageResult<SubmissionDto>>.Failure(Error.Forbidden("Submission.Forbidden", "You do not own this assignment."));
+                    }
                 }
             }
             else
@@ -392,7 +398,7 @@ public sealed class GetSubmissionsHandler : IQueryHandler<GetSubmissionsQuery, P
         }
 
         var spec = new SubmissionsPagedSpecification(
-            assignmentId, authoredAssignmentIds, studentId, query.Status, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
+            assignmentIds, authoredAssignmentIds, studentIds, query.Statuses, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var pagedSubmissions = await _submissionRepository.ListPagedAsync(spec, ct);
 
         var items = pagedSubmissions.Items.Select(Mapper.MapToDto).ToList();
