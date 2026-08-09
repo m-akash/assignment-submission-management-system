@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
+import { ClassPicker } from '@/components/shared/class-picker';
 import {
   useClassOptions,
   useCourseOptions,
@@ -71,20 +72,13 @@ export function ClassCourseFormDialog({
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="classId">Class</Label>
-            <Combobox
-              id="classId"
+          <div className="space-y-1">
+            <ClassPicker
+              classes={classes.data ?? []}
+              loading={classes.isLoading}
               value={form.watch('classId')}
               onChange={(value) => form.setValue('classId', value, { shouldValidate: true })}
-              options={(classes.data ?? []).map((classRoom) => ({
-                value: classRoom.id,
-                label: classRoom.name,
-              }))}
-              placeholder={classes.isLoading ? 'Loading…' : 'Choose a class'}
-              searchPlaceholder="Search classes…"
-              emptyMessage="No classes match"
-              aria-invalid={!!errors.classId}
+              invalid={!!errors.classId}
             />
             {errors.classId && <p className="text-xs text-danger">{errors.classId.message}</p>}
           </div>

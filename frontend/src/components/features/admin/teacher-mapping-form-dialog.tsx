@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
+import { classLabel } from '@/lib/format';
 import {
   useClassCourseOptions,
   useCreateTeacherMapping,
@@ -102,10 +103,10 @@ export function TeacherMappingFormDialog({
               onChange={(value) => form.setValue('classCourseId', value, { shouldValidate: true })}
               options={offeringOptions.map((offering) => ({
                 value: offering.id,
-                label: `${offering.className} · ${offering.courseName}`,
+                label: `${classLabel(offering.classLevel, offering.classSection)} · ${offering.courseName}`,
               }))}
               placeholder={offerings.isLoading ? 'Loading…' : 'Choose a class and course'}
-              searchPlaceholder="Search class or course…"
+              searchPlaceholder="Search grade, section or course…"
               emptyMessage="No offerings match"
               aria-invalid={!!errors.classCourseId}
             />

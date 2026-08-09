@@ -5,30 +5,36 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Combobox } from '@/components/ui/combobox';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSaveClass } from '@/hooks/use-admin-resources';
+import { GRADE_CHOICES, SECTION_CHOICES } from '@/lib/classes';
+import { gradeLabel } from '@/lib/format';
 import { classSchema, type ClassInput, type ClassValues } from '@/schemas';
 import type { ClassRoom } from '@/types/api';
 
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+const DEFAULT_GRADE = 6;
 
 /**
- * Mirrors the name the server composes, so the admin can see what they are about to create
- * even though the name is no longer a field. Returns null while the inputs are incomplete.
+ * Both fields are chosen, never typed: a grade is one of the seven the school runs and a
+ * section is a letter, so a free-text box could only produce cohorts that read differently
+ * from every other one ("9" vs "IX", "a" vs "A").
+ *
+ * A value already on the class that is not in the standard list is kept as an extra option
+ * rather than dropped — editing a class must never quietly move it somewhere else.
  */
-function previewName(level: unknown, section: string): string | null {
-  const grade = Number(level);
-  const trimmed = section.trim();
-  if (!Number.isInteger(grade) || grade < 1 || grade > 12 || !trimmed) return null;
-  return `Class ${ROMAN[grade - 1]} - Section ${trimmed}`;
+function withCurrent<T extends string | number>(choices: readonly T[], current: T | null | undefined) {
+  return current !== null && current !== undefined && current !== ('' as T) && !choices.includes(current)
+    ? [current, ...choices]
+    : [...choices];
 }
 
 export function ClassFormDialog({
@@ -47,7 +53,7 @@ export function ClassFormDialog({
   // so the first and last are not the same type.
   const form = useForm<ClassInput, unknown, ClassValues>({
     resolver: zodResolver(classSchema),
-    defaultValues: { level: 6, section: '' },
+    defaultValues: { level: DEFAULT_GRADE, section: '' },
   });
 
   useEffect(() => {
@@ -55,7 +61,7 @@ export function ClassFormDialog({
     form.reset(
       classRoom
         ? { level: classRoom.level, section: classRoom.section ?? '' }
-        : { level: 6, section: '' },
+        : { level: DEFAULT_GRADE, section: '' },
     );
   }, [open, classRoom, form]);
 
@@ -68,35 +74,65 @@ export function ClassFormDialog({
   }
 
   const errors = form.formState.errors;
-  const preview = previewName(form.watch('level'), form.watch('section') ?? '');
+  const level = form.watch('level');
+  const section = form.watch('section') ?? '';
+
+  const gradeOptions = withCurrent(GRADE_CHOICES, classRoom?.level);
+  const sectionOptions = withCurrent(SECTION_CHOICES, classRoom?.section);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit class' : 'Create class'}</DialogTitle>
+          <DialogDescription>
+            A class is a grade and a section. One class per pair — a grade can hold as many
+            sections as it needs.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="level">Grade</Label>
-              <Input id="level" type="number" min={1} max={12} placeholder="10" {...form.register('level')} />
-              <p className="text-xs text-muted-foreground">1–12. Shown as a Roman numeral.</p>
+              <Combobox
+                id="level"
+                value={level === undefined || level === null ? '' : String(level)}
+                onChange={(value) =>
+                  form.setValue('level', Number(value), { shouldValidate: true })
+                }
+                options={gradeOptions.map((grade) => ({
+                  value: String(grade),
+                  label: gradeLabel(Number(grade)),
+                }))}
+                placeholder="Choose a grade"
+                searchPlaceholder="Search grades…"
+                emptyMessage="No grades match"
+                aria-invalid={!!errors.level}
+              />
               {errors.level && <p className="text-xs text-danger">{errors.level.message}</p>}
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="section">Section</Label>
-              <Input id="section" placeholder="A" {...form.register('section')} />
-              <p className="text-xs text-muted-foreground">One class per grade and section.</p>
+              <Combobox
+                id="section"
+                value={section}
+                onChange={(value) => form.setValue('section', value, { shouldValidate: true })}
+                options={sectionOptions.map((letter) => ({
+                  value: String(letter),
+                  label: String(letter),
+                }))}
+                placeholder="Choose a section"
+                // A–D are the first rows of the list; E–Z are found by typing rather than
+                // by scrolling through twenty-two letters nobody uses.
+                searchPlaceholder="A–Z — type to jump"
+                emptyMessage="No sections match"
+                aria-invalid={!!errors.section}
+              />
               {errors.section && <p className="text-xs text-danger">{errors.section.message}</p>}
             </div>
           </div>
-
-          {/* The name is composed server-side, so show what it will be rather than asking for it. */}
-          <p className="text-xs text-muted-foreground">
-            Name: <span className="font-medium text-foreground">{preview ?? '—'}</span>
-          </p>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

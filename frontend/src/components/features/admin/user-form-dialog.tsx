@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
+import { ClassPicker } from '@/components/shared/class-picker';
 import {
   useAcademicYearOptions,
   useClassOptions,
@@ -144,23 +145,20 @@ export function UserFormDialog({
               {isEdit && <p className="text-xs text-muted-foreground">Role cannot be changed.</p>}
             </div>
 
-            {role === 'Student' && !isEdit && (
-              <div className="space-y-2">
-                <Label htmlFor="classId">Class</Label>
-                <Combobox
-                  id="classId"
-                  value={form.watch('classId') ?? ''}
-                  onChange={(value) => form.setValue('classId', value, { shouldValidate: true })}
-                  options={(classes.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-                  placeholder={classes.isLoading ? 'Loading…' : 'Choose a class'}
-                  searchPlaceholder="Search classes…"
-                  emptyMessage="No classes match"
-                  aria-invalid={!!errors.classId}
-                />
-                {errors.classId && <p className="text-xs text-danger">{errors.classId.message}</p>}
-              </div>
-            )}
           </div>
+
+          {role === 'Student' && !isEdit && (
+            <div className="space-y-1">
+              <ClassPicker
+                classes={classes.data ?? []}
+                loading={classes.isLoading}
+                value={form.watch('classId') ?? ''}
+                onChange={(value) => form.setValue('classId', value, { shouldValidate: true })}
+                invalid={!!errors.classId}
+              />
+              {errors.classId && <p className="text-xs text-danger">{errors.classId.message}</p>}
+            </div>
+          )}
 
           {role === 'Student' && !isEdit && (
             <div className="space-y-2">

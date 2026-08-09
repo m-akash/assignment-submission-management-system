@@ -14,6 +14,7 @@ import { Combobox, MultiCombobox } from '@/components/ui/combobox';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState, ErrorState } from '@/components/shared/states';
+import { classLabel } from '@/lib/format';
 import {
   useAcademicYearOptions,
   useCreateEnrollment,
@@ -111,7 +112,9 @@ export function ClassRosterDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{classRoom?.name ?? 'Students'}</DialogTitle>
+          <DialogTitle>
+            {classRoom ? classLabel(classRoom.level, classRoom.section) : 'Students'}
+          </DialogTitle>
           <DialogDescription>
             {academicYearId
               ? `${enrolled.length} student${enrolled.length === 1 ? '' : 's'} enrolled for this year. `
