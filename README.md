@@ -130,7 +130,8 @@ Enforced server-side, and covered by tests.
 | | Marks are bounded by the assignment maximum and cannot be negative; feedback ≤ 2000 chars. |
 | | A teacher may change a submission's status, except to `Late` — that is derived from the deadline. |
 | | Attachments capped per owner (3 per submission, 5 per assignment); removing the last file from a submitted submission is refused. |
-| **Organisation** | A class studies a course once; an offering has at most one teacher. |
+| **Organisation** | A grade holds any number of sections but only one class per section — `Grade 9 - A` cannot exist twice. The class name is composed server-side as `Class IX - Section A`; admins supply only the grade and section. |
+| | A class studies a course once; an offering has at most one teacher. |
 | | An offering cannot be dropped while a teacher or any assignment still references it (`409`, with what to unwind). |
 | | A student cannot lose their only class — enrol in the new one first. A student is created together with their first enrollment in one transaction. |
 | | Unique emails and course codes; only teachers hold a staff id, only students a student id; a mapping can only name an active teacher. |
@@ -205,9 +206,9 @@ erDiagram
     }
     classes {
         uuid id PK
-        varchar name
+        varchar name "derived: Class IX - Section A"
         int level "grade 1..12, shown as a Roman numeral"
-        varchar section
+        varchar section "UK with level"
     }
     courses {
         uuid id PK
@@ -325,8 +326,8 @@ Other decisions:
 - **One `users` table for all roles**, with `student_id` / `teacher_id` unique but nullable —
   Postgres allows many nulls in a unique index, so each constraint binds only its own role.
 
-**Ten unique constraints** back the rules above: `users.email`, `users.student_id`,
-`users.teacher_id`, `courses.code`, `class_courses(class_id, course_id)`,
+**Eleven unique constraints** back the rules above: `users.email`, `users.student_id`,
+`users.teacher_id`, `courses.code`, `classes(level, section)`, `class_courses(class_id, course_id)`,
 `teacher_assignments.class_course_id`, `student_enrollments(student_id, class_id)`,
 `submissions(assignment_id, student_id)`, and the two token hashes.
 
