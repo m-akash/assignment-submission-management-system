@@ -61,7 +61,6 @@ export interface ProblemDetails {
 export interface EnrolledClass {
   enrollmentId: string;
   classId: string;
-  className: string;
   classLevel: number;
   classSection: string | null;
   academicYearId: string;
@@ -115,13 +114,16 @@ export interface AcademicYear {
   enrollmentCount: number;
 }
 
+/**
+ * A class cohort — `ClassDto`. The grade and the section are two separate fields and are
+ * never joined server-side: a picker chooses a grade and then a section, and a list gives
+ * each its own column. Use `classLabel` from `@/lib/format` for the few one-line places
+ * (option rows, sentences) that genuinely need both at once.
+ */
 export interface ClassRoom {
   id: string;
-  name: string;
-  /** Grade as a number, 1–12. */
+  /** Grade as a number, 1–12 — shown as the number, never a numeral. */
   level: number;
-  /** The level as a Roman numeral ("IX") — derived server-side. */
-  gradeLabel: string;
   section: string | null;
   studentCount: number;
 }
@@ -136,7 +138,6 @@ export interface Course {
 export interface ClassCourse {
   id: string;
   classId: string;
-  className: string;
   classLevel: number;
   classSection: string | null;
   courseId: string;
@@ -157,7 +158,6 @@ export interface Enrollment {
   /** The human-readable school id ("IX-A-003"), not a Guid. */
   studentNumber: string | null;
   classId: string;
-  className: string;
   classLevel: number;
   classSection: string | null;
   academicYearId: string;
@@ -176,7 +176,8 @@ export interface TeacherMapping {
   courseName: string;
   courseCode: string;
   classId: string;
-  className: string;
+  classLevel: number;
+  classSection: string | null;
 }
 
 /** One teacher on a course the student takes — `StudentCourseTeacherDto`. */
@@ -198,7 +199,6 @@ export interface StudentCourse {
   courseName: string;
   courseCode: string;
   classId: string;
-  className: string;
   classLevel: number;
   classSection: string | null;
   /** Teachers mapped to this offering — empty means none assigned yet. */
@@ -224,7 +224,8 @@ export interface Assignment {
   courseName: string;
   courseCode: string;
   classId: string;
-  className: string;
+  classLevel: number;
+  classSection: string | null;
   title: string;
   description: string;
   deadlineUtc: string;

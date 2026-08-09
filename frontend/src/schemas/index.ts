@@ -115,14 +115,16 @@ export const academicYearSchema = z
   });
 export type AcademicYearValues = z.infer<typeof academicYearSchema>;
 
-// No name field: the server composes "Class IX - Section A" from the grade and section.
+// A class is a grade and a section, and nothing else — there is no name to enter, and the
+// two are never joined. The bounds match the server's: the form offers 6–12, but a class
+// created outside that range is still editable rather than refused on sight.
 export const classSchema = z.object({
   level: z.coerce
     .number()
-    .int('Enter a whole number')
+    .int('Choose a grade')
     .min(1, 'Grade must be between 1 and 12')
     .max(12, 'Grade must be between 1 and 12'),
-  section: z.string().trim().min(1, 'Enter a section').max(50, 'Section is too long'),
+  section: z.string().trim().min(1, 'Choose a section').max(50, 'Section is too long'),
 });
 /**
  * A coerced field is read from the form as something looser than what validation
