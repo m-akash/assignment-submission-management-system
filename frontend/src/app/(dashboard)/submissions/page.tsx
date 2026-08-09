@@ -1,8 +1,8 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Inbox } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ChevronRight, Inbox } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,10 +13,9 @@ import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
 import { SubmissionStatusBadge } from '@/components/shared/status-badge';
-import { ReviewDialog } from '@/components/features/submissions/review-dialog';
 import { useSubmissions } from '@/hooks/use-submissions';
 import { formatMarks, formatRelative, initials } from '@/lib/format';
-import type { Submission, SubmissionStatus } from '@/types/api';
+import type { SubmissionStatus } from '@/types/api';
 
 const STATUS_OPTIONS = [
   { value: 'Submitted', label: 'Submitted' },
@@ -37,6 +36,7 @@ export default function SubmissionsPage() {
 function SubmissionsView() {
   const { user } = useAuth();
   const readOnly = user?.role === 'Admin';
+  const router = useRouter();
 
   const searchParams = useSearchParams();
   const assignmentId = searchParams.get('assignmentId') ?? undefined;
@@ -52,7 +52,6 @@ function SubmissionsView() {
       : '';
   });
   const [page, setPage] = useState(1);
-  const [reviewing, setReviewing] = useState<Submission | null>(null);
 
   const query = useSubmissions({ search, status, assignmentId, page, pageSize: 10 });
   const items = query.data?.items ?? [];
@@ -108,15 +107,15 @@ function SubmissionsView() {
                     <TableHead>Submitted</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Marks</TableHead>
-                    {!readOnly && <TableHead className="w-24">Action</TableHead>}
+                    <TableHead className="w-24">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={readOnly ? 5 : 6} />
+                    <TableSkeleton columns={6} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={readOnly ? 5 : 6} className="p-0">
+                      <TableCell colSpan={6} className="p-0">
                         <EmptyState
                           icon={Inbox}
                           title={isFiltered ? 'Nothing matches those filters' : 'No submissions yet'}
@@ -132,8 +131,8 @@ function SubmissionsView() {
                     items.map((submission) => (
                       <TableRow
                         key={submission.id}
-                        className={!readOnly ? 'cursor-pointer' : undefined}
-                        onClick={!readOnly ? () => setReviewing(submission) : undefined}
+                        className="cursor-pointer"
+                        onClick={() => router.push(`/submissions/${submission.id}`)}
                       >
                         <TableCell>
                           <div className="flex items-center gap-2.5">
@@ -157,13 +156,12 @@ function SubmissionsView() {
                         <TableCell className="text-right tabular-nums">
                           {formatMarks(submission.marks, submission.marksOutOf)}
                         </TableCell>
-                        {!readOnly && (
-                          <TableCell className="text-right">
-                            <span className="text-xs font-medium text-primary">
-                              {submission.status === 'Graded' ? 'View' : 'Mark'}
-                            </span>
-                          </TableCell>
-                        )}
+                        <TableCell className="text-right">
+                          <span className="inline-flex items-center gap-0.5 text-xs font-medium text-primary">
+                            {readOnly || submission.status === 'Graded' ? 'View' : 'Mark'}
+                            <ChevronRight className="size-3.5" />
+                          </span>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -181,13 +179,6 @@ function SubmissionsView() {
           </>
         )}
       </div>
-
-      <ReviewDialog
-        submission={reviewing}
-        maxMarks={reviewing?.marksOutOf ?? 100}
-        readOnly={readOnly}
-        onClose={() => setReviewing(null)}
-      />
     </div>
   );
 }

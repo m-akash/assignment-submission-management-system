@@ -2,7 +2,16 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiDelete, apiGetBlob, apiGetPaged, apiPost, apiPostForm, apiPut, toQuery } from '@/lib/api';
+import {
+  apiDelete,
+  apiGet,
+  apiGetBlob,
+  apiGetPaged,
+  apiPost,
+  apiPostForm,
+  apiPut,
+  toQuery,
+} from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 import { useAssignment } from './use-assignments';
 import type {
@@ -27,6 +36,18 @@ export function useSubmissions(filters: SubmissionFilters) {
   return useQuery({
     queryKey: queryKeys.submissions.list(filters),
     queryFn: () => apiGetPaged<Submission>(`/api/v1/submissions${toQuery({ ...filters })}`),
+  });
+}
+
+/**
+ * One submission by id, for the marking page. The server decides who may see it: the
+ * student it belongs to, the teacher who set the work, or an admin.
+ */
+export function useSubmission(id: string) {
+  return useQuery({
+    queryKey: queryKeys.submissions.detail(id),
+    queryFn: () => apiGet<Submission>(`/api/v1/submissions/${id}`),
+    enabled: !!id,
   });
 }
 

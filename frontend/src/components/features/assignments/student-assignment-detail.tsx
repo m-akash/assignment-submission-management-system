@@ -3,17 +3,14 @@
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft,
   Award,
   ClipboardList,
-  Download,
   FileText,
   Info,
   Loader2,
   MessageSquareQuote,
   Paperclip,
   PenLine,
-  Trash2,
   Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RichText } from '@/components/ui/rich-text';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
-import { Skeleton } from '@/components/ui/skeleton';
+import { BackLink, DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
 import { PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import { EmptyState, ErrorState } from '@/components/shared/states';
@@ -40,13 +37,7 @@ import {
   useUploadSubmissionFile,
 } from '@/hooks/use-submissions';
 import { ApiError } from '@/lib/api';
-import {
-  deadlineUrgency,
-  formatBytes,
-  formatDateTime,
-  formatMarks,
-  formatRelative,
-} from '@/lib/format';
+import { deadlineUrgency, formatDateTime, formatMarks, formatRelative } from '@/lib/format';
 import { isRichTextEmpty } from '@/lib/rich-text';
 import type { StudentAssignment } from '@/types/api';
 
@@ -72,7 +63,7 @@ export function StudentAssignmentDetail({ assignmentId }: { assignmentId: string
 
     return (
       <div className="space-y-6">
-        <BackLink />
+        <BackLink href="/assignments" label="All assignments" />
         {missing ? (
           <EmptyState
             icon={ClipboardList}
@@ -169,7 +160,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
 
   return (
     <div className="space-y-6">
-      <BackLink />
+      <BackLink href="/assignments" label="All assignments" />
 
       <PageHeader
         eyebrow={`${assignment.courseCode} · ${assignment.courseName}`}
@@ -378,117 +369,6 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
             <Fact label="Teacher">{assignment.teacherName}</Fact>
           </SectionPanel>
         </aside>
-      </div>
-    </div>
-  );
-}
-
-function BackLink() {
-  return (
-    <Button asChild variant="ghost" size="sm" className="-ml-2.5 text-muted-foreground">
-      <Link href="/assignments">
-        <ArrowLeft className="size-4" />
-        All assignments
-      </Link>
-    </Button>
-  );
-}
-
-/** One label/value line in the summary panel. */
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-4 px-5 py-3 text-sm">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className="min-w-0 text-right font-medium">{children}</span>
-    </div>
-  );
-}
-
-/**
- * A file in a list: name, size, and whichever of download/remove the caller allows.
- * Shared by the teacher's materials and the student's own attachments so both read
- * the same way.
- */
-function FileRow({
-  name,
-  size,
-  hint,
-  onDownload,
-  onRemove,
-  removeDisabled,
-}: {
-  name: string;
-  size: number;
-  hint?: string;
-  onDownload?: () => void;
-  onRemove?: () => void;
-  removeDisabled?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-3 px-5 py-3">
-      <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm">{name}</p>
-        <p className="text-xs text-muted-foreground">
-          {formatBytes(size)}
-          {hint && ` · ${hint}`}
-        </p>
-      </div>
-      {onDownload && (
-        <Button size="icon" variant="ghost" onClick={onDownload} aria-label={`Download ${name}`}>
-          <Download className="size-4" />
-        </Button>
-      )}
-      {onRemove && (
-        <Button
-          size="icon"
-          variant="ghost"
-          disabled={removeDisabled}
-          onClick={onRemove}
-          aria-label={`Remove ${name}`}
-        >
-          <Trash2 className="size-4 text-danger" />
-        </Button>
-      )}
-    </div>
-  );
-}
-
-/** Mirrors the finished layout so the page does not jump once the data lands. */
-function DetailSkeleton() {
-  return (
-    <div className="space-y-6">
-      <Skeleton className="h-7 w-32" />
-      <div className="flex items-start gap-3.5">
-        <Skeleton className="hidden size-11 rounded-xl sm:block" />
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-3 w-40" />
-          <Skeleton className="h-7 w-2/3" />
-          <Skeleton className="h-3 w-52" />
-        </div>
-      </div>
-      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
-        <div className="space-y-6 lg:col-span-2">
-          <div className="panel space-y-3 p-5">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-11/12" />
-            <Skeleton className="h-3 w-3/5" />
-          </div>
-          <div className="panel space-y-3 p-5">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-9 w-full" />
-          </div>
-        </div>
-        <div className="panel space-y-4 p-5">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="flex items-center justify-between gap-4">
-              <Skeleton className="h-3 w-20" />
-              <Skeleton className="h-3 w-24" />
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

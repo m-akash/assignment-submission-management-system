@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, ClipboardList, Inbox, MoreHorizontal, Pencil, Plus, Send, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { CheckCircle2, ClipboardList, Eye, Inbox, MoreHorizontal, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +36,7 @@ const STATUS_OPTIONS = [
 export function TeacherAssignmentsView() {
   const { user } = useAuth();
   const readOnly = user?.role === 'Admin';
+  const router = useRouter();
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<AssignmentStatus | ''>('');
@@ -67,17 +69,17 @@ export function TeacherAssignmentsView() {
   }
 
   /**
-   * Opens the edit dialog when a row is clicked. Skips clicks that originate
-   * inside an interactive control (button, link, or dropdown menu item) so
-   * those keep their own behaviour.
+   * Opens the assignment's own page when a row is clicked. Skips clicks that originate
+   * inside an interactive control (button, link, or dropdown menu item) so those keep
+   * their own behaviour.
    */
-  function openEditRow(assignment: Assignment) {
+  function openRow(assignment: Assignment) {
     return (event: React.MouseEvent) => {
       const target = event.target as HTMLElement;
       if (target.closest('a, button, [role="menuitem"], [role="menu"]')) {
         return;
       }
-      openEdit(assignment);
+      router.push(`/assignments/${assignment.id}`);
     };
   }
 
@@ -187,7 +189,7 @@ export function TeacherAssignmentsView() {
                     items.map((assignment) => (
                       <TableRow
                         key={assignment.id}
-                        onClick={openEditRow(assignment)}
+                        onClick={openRow(assignment)}
                         className="cursor-pointer"
                       >
                         <TableCell className="max-w-[260px]">
@@ -250,6 +252,12 @@ export function TeacherAssignmentsView() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/assignments/${assignment.id}`}>
+                                    <Eye className="size-4" />
+                                    Open
+                                  </Link>
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => openEdit(assignment)}>
                                   <Pencil className="size-4" />
                                   Edit
@@ -292,12 +300,11 @@ export function TeacherAssignmentsView() {
         )}
       </div>
 
-      <AssignmentFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        assignment={editing}
-        readOnly={readOnly}
-      />
+      {/* Creating and editing are a teacher's own; an admin reads an assignment on its
+          own page instead, which is where a row click takes them. */}
+      {!readOnly && (
+        <AssignmentFormDialog open={formOpen} onOpenChange={setFormOpen} assignment={editing} />
+      )}
 
       {!readOnly && (
         <ConfirmDialog

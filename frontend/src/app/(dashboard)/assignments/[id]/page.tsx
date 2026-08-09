@@ -1,19 +1,24 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { RoleGuard } from '@/components/shared/role-guard';
+import { useAuth } from '@/context/AuthContext';
 import { StudentAssignmentDetail } from '@/components/features/assignments/student-assignment-detail';
+import { TeacherAssignmentDetail } from '@/components/features/assignments/teacher-assignment-detail';
 
 /**
- * A student's view of one assignment. Teachers manage their own work from the list and
- * its submissions inbox, so this route is the student's alone.
+ * One assignment, two very different questions: a student asks what to do and hands it
+ * in, a teacher asks how the class is getting on with it. An admin sees the teacher's
+ * view without the controls.
  */
 export default function AssignmentDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
 
-  return (
-    <RoleGuard allow={['Student']}>
-      <StudentAssignmentDetail assignmentId={id} />
-    </RoleGuard>
+  if (!user) return null;
+
+  return user.role === 'Student' ? (
+    <StudentAssignmentDetail assignmentId={id} />
+  ) : (
+    <TeacherAssignmentDetail assignmentId={id} readOnly={user.role === 'Admin'} />
   );
 }

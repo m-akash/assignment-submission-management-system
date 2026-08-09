@@ -143,7 +143,9 @@ export function TeacherOverview({ name }: { name: string }) {
                   </span>
                   <SubmissionStatusBadge status={submission.status} />
                   <Button asChild size="sm" variant="outline">
-                    <Link href={`/submissions?assignmentId=${submission.assignmentId}`}>Mark</Link>
+                    <Link href={`/submissions/${submission.id}`}>
+                      {submission.status === 'Graded' ? 'View' : 'Mark'}
+                    </Link>
                   </Button>
                 </li>
               ))}
