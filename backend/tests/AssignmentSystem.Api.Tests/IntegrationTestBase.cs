@@ -120,7 +120,7 @@ public abstract class IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var @class = await PostAsync<ClassRef>(admin, "/api/v1/classes",
-            new CreateClassRequest($"Class {tag}", 8, tag));
+            new CreateClassRequest(8, tag));
 
         var course = await PostAsync<CourseRef>(admin, "/api/v1/courses",
             new CreateCourseRequest($"Course {tag}", $"CRS-{tag}"));

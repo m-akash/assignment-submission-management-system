@@ -178,6 +178,92 @@ public class PersistenceConstraintTests : IntegrationTestBase
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
+    // ── One class per (grade, section) ────────────────────────────────────────
+
+    /// <summary>
+    /// A grade may hold any number of sections, but the same section twice is not a class —
+    /// it is the same class entered twice. The comparison ignores case, so "a" cannot slip
+    /// past an existing "A".
+    /// </summary>
+    [Fact]
+    public async Task SecondClassInTheSameGradeAndSection_ShouldReturn409()
+    {
+        using var admin = await SignInAsAdminAsync();
+        var section = $"S{Guid.NewGuid():N}"[..9];
+
+        var first = await admin.PostAsJsonAsync("/api/v1/classes", new CreateClassRequest(7, section));
+        first.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var duplicate = await admin.PostAsJsonAsync("/api/v1/classes", new CreateClassRequest(7, section.ToUpperInvariant()));
+
+        duplicate.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task MoreSectionsWithinTheSameGrade_ShouldBeAllowed()
+    {
+        using var admin = await SignInAsAdminAsync();
+        var tag = $"{Guid.NewGuid():N}"[..6];
+
+        var a = await admin.PostAsJsonAsync("/api/v1/classes", new CreateClassRequest(5, $"{tag}-A"));
+        var b = await admin.PostAsJsonAsync("/api/v1/classes", new CreateClassRequest(5, $"{tag}-B"));
+
+        a.StatusCode.Should().Be(HttpStatusCode.Created);
+        b.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var created = await ReadAsync<ClassNameRef>(a);
+        created.Name.Should().Be($"Class V - Section {tag}-A", "the name is composed, not supplied");
+    }
+
+    /// <summary>
+    /// The self-collision case: saving a class without moving it must not trip the duplicate
+    /// check against the class's own row.
+    /// </summary>
+    [Fact]
+    public async Task UpdatingAClassWithoutChangingItsSlot_ShouldSucceed()
+    {
+        using var admin = await SignInAsAdminAsync();
+        var section = $"S{Guid.NewGuid():N}"[..9];
+
+        var created = await admin.PostAsJsonAsync("/api/v1/classes", new CreateClassRequest(4, section));
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        var klass = await ReadAsync<ClassNameRef>(created);
+
+        var updated = await admin.PutAsJsonAsync($"/api/v1/classes/{klass.Id}", new UpdateClassRequest(4, section));
+
+        updated.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task MovingAClassOntoAnOccupiedSlot_ShouldReturn409()
+    {
+        using var admin = await SignInAsAdminAsync();
+        var tag = $"{Guid.NewGuid():N}"[..6];
+
+        var occupied = await admin.PostAsJsonAsync("/api/v1/classes", new CreateClassRequest(3, $"{tag}-A"));
+        occupied.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var mover = await admin.PostAsJsonAsync("/api/v1/classes", new CreateClassRequest(3, $"{tag}-B"));
+        mover.StatusCode.Should().Be(HttpStatusCode.Created);
+        var klass = await ReadAsync<ClassNameRef>(mover);
+
+        var response = await admin.PutAsJsonAsync($"/api/v1/classes/{klass.Id}", new UpdateClassRequest(3, $"{tag}-A"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task CreatingAClassWithoutASection_ShouldBeRejected()
+    {
+        using var admin = await SignInAsAdminAsync();
+
+        var response = await admin.PostAsJsonAsync("/api/v1/classes", new CreateClassRequest(6, "  "));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    private sealed record ClassNameRef(Guid Id, string Name);
+
     private sealed record CreatedUserRef(Guid Id);
 
     private sealed class SystemUtcClock : IClock

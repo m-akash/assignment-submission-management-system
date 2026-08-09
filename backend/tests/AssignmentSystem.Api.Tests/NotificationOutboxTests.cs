@@ -191,7 +191,8 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
         assigned[0].RecipientId.Should().Be(world.TeacherId);
         assigned[0].Status.Should().Be(NotificationStatus.Pending);
         assigned[0].Body.Should().Contain("Course notif-ta");
-        assigned[0].Body.Should().Contain("Class notif-ta");
+        // The class name is composed from grade and section, so the world's tag lands in the section.
+        assigned[0].Body.Should().Contain("Section notif-ta");
 
         // No assignment or submission exists yet — the context ids must stay null rather than
         // being filled with something incidental.
@@ -233,7 +234,7 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
         var enrolled = queued.Where(n => n.Type == NotificationType.StudentEnrolled).ToList();
 
         enrolled.Should().ContainSingle();
-        enrolled[0].Subject.Should().Contain("Class notif-enr");
+        enrolled[0].Subject.Should().Contain("Section notif-enr");
         enrolled[0].Body.Should().Contain("Course notif-enr");
         enrolled[0].AssignmentId.Should().BeNull();
     }
