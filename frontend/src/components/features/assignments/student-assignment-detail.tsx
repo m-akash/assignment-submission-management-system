@@ -19,8 +19,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RichText } from '@/components/ui/rich-text';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
-import { BackLink, DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
-import { PageHeader } from '@/components/shared/page-header';
+import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
+import { BackLink, PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import {
@@ -160,12 +160,10 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
 
   return (
     <div className="space-y-6">
-      <BackLink href="/assignments" label="All assignments" />
-
       <PageHeader
+        back={{ href: '/assignments', label: 'All assignments' }}
         eyebrow={`${assignment.courseCode} · ${assignment.courseName}`}
         title={assignment.title}
-        icon={ClipboardList}
         description={`Set by ${assignment.teacherName} for ${assignment.className}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">

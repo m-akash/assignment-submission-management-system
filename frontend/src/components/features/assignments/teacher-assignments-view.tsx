@@ -25,7 +25,6 @@ import { useAssignments, useDeleteAssignment, usePublishAssignment } from '@/hoo
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
 import { deadlineUrgency, formatDateTime } from '@/lib/format';
 import { richTextToPlainText } from '@/lib/rich-text';
-import { AssignmentFormDialog } from './assignment-form-dialog';
 import type { Assignment, AssignmentStatus } from '@/types/api';
 
 const STATUS_OPTIONS = [
@@ -43,8 +42,6 @@ export function TeacherAssignmentsView() {
   const [classId, setClassId] = useState('');
   const [page, setPage] = useState(1);
 
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Assignment | null>(null);
   const [deleting, setDeleting] = useState<Assignment | null>(null);
 
   const mappings = useMyTeacherMappings();
@@ -57,16 +54,6 @@ export function TeacherAssignmentsView() {
   const classOptions = [
     ...new Map((mappings.data ?? []).map((m) => [m.classId, m.className])).entries(),
   ].map(([value, label]) => ({ value, label }));
-
-  function openCreate() {
-    setEditing(null);
-    setFormOpen(true);
-  }
-
-  function openEdit(assignment: Assignment) {
-    setEditing(assignment);
-    setFormOpen(true);
-  }
 
   /**
    * Opens the assignment's own page when a row is clicked. Skips clicks that originate
@@ -97,9 +84,9 @@ export function TeacherAssignmentsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Coursework"
         title="Assignments"
-        icon={ClipboardList}
         description={
           readOnly
             ? 'Browse assignments across the school.'
@@ -107,9 +94,11 @@ export function TeacherAssignmentsView() {
         }
         actions={
           !readOnly && (
-            <Button onClick={openCreate}>
-              <Plus className="size-4" />
-              New assignment
+            <Button asChild>
+              <Link href="/assignments/new">
+                <Plus className="size-4" />
+                New assignment
+              </Link>
             </Button>
           )
         }
@@ -176,9 +165,11 @@ export function TeacherAssignmentsView() {
                           action={
                             !isFiltered &&
                             !readOnly && (
-                              <Button onClick={openCreate} size="sm">
-                                <Plus className="size-4" />
-                                New assignment
+                              <Button asChild size="sm">
+                                <Link href="/assignments/new">
+                                  <Plus className="size-4" />
+                                  New assignment
+                                </Link>
                               </Button>
                             )
                           }
@@ -258,9 +249,11 @@ export function TeacherAssignmentsView() {
                                     Open
                                   </Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openEdit(assignment)}>
-                                  <Pencil className="size-4" />
-                                  Edit
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/assignments/${assignment.id}/edit`}>
+                                    <Pencil className="size-4" />
+                                    Edit
+                                  </Link>
                                 </DropdownMenuItem>
                                 {assignment.submissionCount > 0 && (
                                   <DropdownMenuItem asChild>
@@ -300,12 +293,8 @@ export function TeacherAssignmentsView() {
         )}
       </div>
 
-      {/* Creating and editing are a teacher's own; an admin reads an assignment on its
-          own page instead, which is where a row click takes them. */}
-      {!readOnly && (
-        <AssignmentFormDialog open={formOpen} onOpenChange={setFormOpen} assignment={editing} />
-      )}
-
+      {/* Deleting is the one thing still worth interrupting for: it is immediate and
+          cannot be undone, so it asks in place rather than on a page of its own. */}
       {!readOnly && (
         <ConfirmDialog
           open={!!deleting}

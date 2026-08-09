@@ -20,8 +20,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { RichText } from '@/components/ui/rich-text';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { BackLink, DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
-import { PageHeader } from '@/components/shared/page-header';
+import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
+import { BackLink, PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import {
@@ -47,7 +47,6 @@ import {
   initials,
 } from '@/lib/format';
 import type { Assignment } from '@/types/api';
-import { AssignmentFormDialog } from './assignment-form-dialog';
 
 /** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
@@ -110,7 +109,6 @@ export function TeacherAssignmentDetail({
 function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: boolean }) {
   const router = useRouter();
 
-  const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -148,12 +146,10 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
 
   return (
     <div className="space-y-6">
-      <BackLink href="/assignments" label="All assignments" />
-
       <PageHeader
+        back={{ href: '/assignments', label: 'All assignments' }}
         eyebrow={`${assignment.courseCode} · ${assignment.courseName}`}
         title={assignment.title}
-        icon={ClipboardList}
         description={
           readOnly
             ? `Set by ${assignment.teacherName} for ${assignment.className}`
@@ -182,9 +178,11 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
                     Publish
                   </Button>
                 )}
-                <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-                  <Pencil className="size-4" />
-                  Edit
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/assignments/${assignment.id}/edit`}>
+                    <Pencil className="size-4" />
+                    Edit
+                  </Link>
                 </Button>
                 <Button
                   size="sm"
@@ -371,23 +369,19 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
       </div>
 
       {!readOnly && (
-        <>
-          <AssignmentFormDialog open={editing} onOpenChange={setEditing} assignment={assignment} />
-
-          <ConfirmDialog
-            open={confirmingDelete}
-            onOpenChange={setConfirmingDelete}
-            title="Delete this assignment?"
-            description={`"${assignment.title}" will be hidden from students. Submissions already made are kept.`}
-            pending={remove.isPending}
-            onConfirm={() =>
-              remove.mutate(assignment.id, {
-                // The record this page is about is gone, so there is nothing to return to.
-                onSuccess: () => router.replace('/assignments'),
-              })
-            }
-          />
-        </>
+        <ConfirmDialog
+          open={confirmingDelete}
+          onOpenChange={setConfirmingDelete}
+          title="Delete this assignment?"
+          description={`"${assignment.title}" will be hidden from students. Submissions already made are kept.`}
+          pending={remove.isPending}
+          onConfirm={() =>
+            remove.mutate(assignment.id, {
+              // The record this page is about is gone, so there is nothing to return to.
+              onSuccess: () => router.replace('/assignments'),
+            })
+          }
+        />
       )}
     </div>
   );

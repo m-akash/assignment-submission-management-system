@@ -19,8 +19,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RichText } from '@/components/ui/rich-text';
 import { Textarea } from '@/components/ui/textarea';
-import { BackLink, DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
-import { PageHeader } from '@/components/shared/page-header';
+import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
+import { BackLink, PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import { SubmissionStatusBadge } from '@/components/shared/status-badge';
@@ -115,12 +115,10 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
 
   return (
     <div className="space-y-6">
-      <BackLink href="/submissions" label="All submissions" />
-
       <PageHeader
+        back={{ href: '/submissions', label: 'All submissions' }}
         eyebrow="Submission"
         title={submission.studentName}
-        icon={Inbox}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <SubmissionStatusBadge status={submission.status} />

@@ -72,9 +72,9 @@ export function StudentAssignmentsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Coursework"
         title="Assignments"
-        icon={ClipboardList}
         description="Everything set for your class. Submit before the deadline to avoid a late mark."
       />
 
