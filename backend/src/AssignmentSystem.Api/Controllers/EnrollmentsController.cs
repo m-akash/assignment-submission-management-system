@@ -28,8 +28,8 @@ public sealed class EnrollmentsController : ControllerBase
     [HttpGet]
     [Authorize(Roles = "Admin,Teacher")]
     public async Task<IActionResult> GetEnrollments(
-        [FromQuery] Guid? studentId,
-        [FromQuery] Guid? classId,
+        [FromQuery(Name = "studentId")] Guid[]? studentIds,
+        [FromQuery(Name = "classId")] Guid[]? classIds,
         [FromQuery] string? search,
         [FromQuery] string? sortBy,
         [FromQuery] string? sortDir,
@@ -37,7 +37,7 @@ public sealed class EnrollmentsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetEnrollmentsQuery(studentId, classId, search, sortBy, sortDir, page, pageSize);
+        var query = new GetEnrollmentsQuery(studentIds, classIds, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

@@ -34,9 +34,9 @@ public sealed class NotificationsController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> GetNotifications(
-        [FromQuery] NotificationStatus? status,
-        [FromQuery] NotificationType? type,
-        [FromQuery] Guid? recipientId,
+        [FromQuery(Name = "status")] NotificationStatus[]? statuses,
+        [FromQuery(Name = "type")] NotificationType[]? types,
+        [FromQuery(Name = "recipientId")] Guid[]? recipientIds,
         [FromQuery] string? search,
         [FromQuery] string? sortBy,
         [FromQuery] string? sortDir,
@@ -44,7 +44,7 @@ public sealed class NotificationsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetNotificationsQuery(status, type, recipientId, search, sortBy, sortDir, page, pageSize);
+        var query = new GetNotificationsQuery(statuses, types, recipientIds, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

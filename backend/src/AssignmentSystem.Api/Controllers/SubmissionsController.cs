@@ -19,9 +19,9 @@ public sealed class SubmissionsController : ControllerBase
 
     [HttpGet("submissions")]
     public async Task<IActionResult> GetSubmissions(
-        [FromQuery] Guid? assignmentId,
-        [FromQuery] Guid? studentId,
-        [FromQuery] SubmissionStatus? status,
+        [FromQuery(Name = "assignmentId")] Guid[]? assignmentIds,
+        [FromQuery(Name = "studentId")] Guid[]? studentIds,
+        [FromQuery(Name = "status")] SubmissionStatus[]? statuses,
         [FromQuery] string? search,
         [FromQuery] string? sortBy,
         [FromQuery] string? sortDir,
@@ -29,7 +29,7 @@ public sealed class SubmissionsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetSubmissionsQuery(assignmentId, studentId, status, search, sortBy, sortDir, page, pageSize);
+        var query = new GetSubmissionsQuery(assignmentIds, studentIds, statuses, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

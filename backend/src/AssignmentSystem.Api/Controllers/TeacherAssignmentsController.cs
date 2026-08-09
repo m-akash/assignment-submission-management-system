@@ -18,10 +18,10 @@ public sealed class TeacherAssignmentsController : ControllerBase
     [HttpGet]
     [Authorize(Roles = "Admin,Teacher")]
     public async Task<IActionResult> GetTeacherAssignments(
-        [FromQuery] Guid? teacherId,
-        [FromQuery] Guid? courseId,
-        [FromQuery] Guid? classId,
-        [FromQuery] Guid? classCourseId,
+        [FromQuery(Name = "teacherId")] Guid[]? teacherIds,
+        [FromQuery(Name = "courseId")] Guid[]? courseIds,
+        [FromQuery(Name = "classId")] Guid[]? classIds,
+        [FromQuery(Name = "classCourseId")] Guid[]? classCourseIds,
         [FromQuery] string? search,
         [FromQuery] string? sortBy,
         [FromQuery] string? sortDir,
@@ -29,7 +29,7 @@ public sealed class TeacherAssignmentsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetTeacherAssignmentsQuery(teacherId, courseId, classId, classCourseId, search, sortBy, sortDir, page, pageSize);
+        var query = new GetTeacherAssignmentsQuery(teacherIds, courseIds, classIds, classCourseIds, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

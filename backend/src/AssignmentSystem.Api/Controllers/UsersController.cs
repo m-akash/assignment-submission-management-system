@@ -17,9 +17,11 @@ public sealed class UsersController : ControllerBase
     public UsersController(IDispatcher dispatcher) => _dispatcher = dispatcher;
 
     [HttpGet]
+    // The multi-value filters keep their singular parameter name and are repeated to widen —
+    // ?role=Teacher&role=Student. A single-valued link built before they existed still binds.
     public async Task<IActionResult> GetUsers(
-        [FromQuery] Role? role,
-        [FromQuery] Guid? classId,
+        [FromQuery(Name = "role")] Role[]? roles,
+        [FromQuery(Name = "classId")] Guid[]? classIds,
         [FromQuery] string? search,
         [FromQuery] string? sortBy,
         [FromQuery] string? sortDir,
@@ -27,7 +29,7 @@ public sealed class UsersController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetUsersQuery(role, classId, search, sortBy, sortDir, page, pageSize);
+        var query = new GetUsersQuery(roles, classIds, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {
