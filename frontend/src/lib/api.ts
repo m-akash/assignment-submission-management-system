@@ -181,12 +181,23 @@ export async function apiPostForm<T>(url: string, form: FormData): Promise<T> {
 
 const emptyPagination: PaginationMeta = { page: 1, pageSize: 0, total: 0, totalPages: 0 };
 
-/** Drops empty filter values so they never reach the query string. */
-export function toQuery(params: Record<string, string | number | boolean | null | undefined>): string {
+export type QueryValue = string | number | boolean | null | undefined;
+
+/**
+ * Drops empty filter values so they never reach the query string.
+ *
+ * An array is appended once per entry — `{ classId: ['a', 'b'] }` becomes
+ * `?classId=a&classId=b`, which is what the API's multi-value filters bind to. The
+ * parameter name stays singular so a single-value link (`/users?role=Teacher`, as the
+ * sidebar builds) is still a valid request.
+ */
+export function toQuery(params: Record<string, QueryValue | readonly QueryValue[]>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null && value !== '') {
-      search.set(key, String(value));
+    for (const entry of Array.isArray(value) ? value : [value]) {
+      if (entry !== undefined && entry !== null && entry !== '') {
+        search.append(key, String(entry));
+      }
     }
   }
   const query = search.toString();

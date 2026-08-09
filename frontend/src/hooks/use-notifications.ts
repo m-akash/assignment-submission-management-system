@@ -12,9 +12,9 @@ import type {
 } from '@/types/api';
 
 export interface NotificationFilters {
-  status?: NotificationStatus | '';
-  type?: NotificationType | '';
-  recipientId?: string;
+  status?: NotificationStatus | '' | NotificationStatus[];
+  type?: NotificationType | '' | NotificationType[];
+  recipientId?: string | string[];
   search?: string;
   page?: number;
   pageSize?: number;

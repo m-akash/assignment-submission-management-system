@@ -16,7 +16,15 @@ import type {
   User,
 } from '@/types/api';
 
-/** Shared shape of every list screen's server-side filter state. */
+/**
+ * Shared shape of every list screen's server-side filter state.
+ *
+ * The narrowing fields below are named for the query parameter they become, and each
+ * accepts an array as well as a single value: `toQuery` repeats it
+ * (`?classId=a&classId=b`) and the endpoint matches their union. A screen's multi-select
+ * therefore hands its selection straight through, while the call sites that pin a list to
+ * one id keep passing that id.
+ */
 export interface ListFilters {
   search?: string;
   page?: number;
@@ -24,8 +32,8 @@ export interface ListFilters {
 }
 
 export interface UserFilters extends ListFilters {
-  role?: Role | '';
-  classId?: string;
+  role?: Role | '' | Role[];
+  classId?: string | string[];
 }
 
 // ── Users ───────────────────────────────────────────────────────────────────
@@ -144,10 +152,10 @@ export function useDeleteCourse() {
 // ── Teacher mappings ────────────────────────────────────────────────────────
 
 export interface TeacherMappingFilters extends ListFilters {
-  teacherId?: string;
-  courseId?: string;
-  classId?: string;
-  classCourseId?: string;
+  teacherId?: string | string[];
+  courseId?: string | string[];
+  classId?: string | string[];
+  classCourseId?: string | string[];
 }
 
 export function useTeacherMappings(filters: TeacherMappingFilters) {
@@ -199,8 +207,8 @@ export function useDeleteTeacherMapping() {
 // ── Course offerings (which courses a class studies) ────────────────────────
 
 export interface ClassCourseFilters extends ListFilters {
-  classId?: string;
-  courseId?: string;
+  classId?: string | string[];
+  courseId?: string | string[];
 }
 
 export function useClassCourses(filters: ClassCourseFilters) {
@@ -245,8 +253,8 @@ export function useDeleteClassCourse() {
 // ── Enrollments (which classes a student is in) ─────────────────────────────
 
 export interface EnrollmentFilters extends ListFilters {
-  studentId?: string;
-  classId?: string;
+  studentId?: string | string[];
+  classId?: string | string[];
 }
 
 export function useEnrollments(filters: EnrollmentFilters, options?: { enabled?: boolean }) {

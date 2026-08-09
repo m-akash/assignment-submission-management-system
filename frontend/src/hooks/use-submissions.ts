@@ -25,8 +25,8 @@ import type {
 
 export interface SubmissionFilters {
   search?: string;
-  assignmentId?: string;
-  status?: SubmissionStatus | '';
+  assignmentId?: string | string[];
+  status?: SubmissionStatus | '' | SubmissionStatus[];
   page?: number;
   pageSize?: number;
 }
@@ -76,7 +76,7 @@ export function useMySubmissions() {
  */
 export function useStudentAssignments(filters: {
   search?: string;
-  courseId?: string;
+  courseId?: string | string[];
   page?: number;
   pageSize?: number;
 }) {

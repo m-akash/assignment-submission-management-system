@@ -6,12 +6,18 @@ import { apiDelete, apiGet, apiGetBlob, apiGetPaged, apiPost, apiPostForm, apiPu
 import { queryKeys } from '@/lib/query-keys';
 import type { Assignment, AssignmentFile, AssignmentStatus } from '@/types/api';
 
+/**
+ * Each field is named for the query parameter it becomes. Where the screen offers a
+ * multi-select the value is an array, which `toQuery` repeats — `?classId=a&classId=b`,
+ * matched as a union server-side. A lone value stays legal for the call sites that pin a
+ * list to one id.
+ */
 export interface AssignmentFilters {
   search?: string;
-  classId?: string;
-  courseId?: string;
-  classCourseId?: string;
-  status?: AssignmentStatus | '';
+  classId?: string | string[];
+  courseId?: string | string[];
+  classCourseId?: string | string[];
+  status?: AssignmentStatus | '' | AssignmentStatus[];
   page?: number;
   pageSize?: number;
 }
