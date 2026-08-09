@@ -5,6 +5,7 @@ import { ClipboardList, SearchX } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FilterSelect } from '@/components/shared/filter-select';
 import { PageHeader } from '@/components/shared/page-header';
+import { PaginationBar } from '@/components/shared/pagination-bar';
 import { SearchInput } from '@/components/shared/search-input';
 import { CardGridSkeleton, EmptyState, ErrorState } from '@/components/shared/states';
 import { useStudentAssignments } from '@/hooks/use-submissions';
@@ -23,26 +24,55 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'overdue', label: 'Overdue' },
 ];
 
+const PAGE_SIZE = 12;
+
 export function StudentAssignmentsView() {
   const [search, setSearch] = useState('');
   const [courseId, setCourseId] = useState('');
   const [tab, setTab] = useState<Tab>('all');
+  const [page, setPage] = useState(1);
   const [active, setActive] = useState<StudentAssignment | null>(null);
 
-  // Title search runs server-side; the status tabs are client-side because they depend
-  // on the student's own submission, which lives in a separate list.
-  const { items, isLoading, isError, error } = useStudentAssignments({ search, courseId });
+  const filters = { search, courseId };
+
+  // One page of cards for the grid — server-sliced so a student with dozens of
+  // assignments never loads them all at once.
+  const {
+    items,
+    pagination,
+    isLoading,
+    isError,
+    error,
+  } = useStudentAssignments({ ...filters, page, pageSize: PAGE_SIZE });
+
+  // The full set (within a generous cap) powers the status-tab counts and the course
+  // dropdown. Tabs are client-side because they depend on the student's own submission,
+  // which lives in a separate list — so counts must reflect every assignment, not just
+  // the current page, or the badges would under-report.
+  const { items: all } = useStudentAssignments(filters);
 
   const courseOptions = useMemo(() => {
-    const seen = new Map(items.map((item) => [item.courseId, item.courseName]));
+    const seen = new Map(all.map((item) => [item.courseId, item.courseName]));
     return [...seen].map(([value, label]) => ({ value, label }));
-  }, [items]);
+  }, [all]);
 
-  const counts = useMemo(() => countByTab(items), [items]);
+  const counts = useMemo(() => countByTab(all), [all]);
+
+  // The status tab is a client-side lens over the current page only — the counts above
+  // stay global. If a tab has no matches on this page, the grid shows the empty state
+  // rather than silently dumping the user back onto "All".
   const visible = useMemo(() => items.filter((item) => matchesTab(item, tab)), [items, tab]);
 
   // Keep the active card in sync after a submit so marks and attachments refresh in place.
   const activeAssignment = active ? (items.find((item) => item.id === active.id) ?? active) : null;
+
+  /** Any filter change invalidates the current page number. */
+  function withPageReset<T>(setter: (value: T) => void) {
+    return (value: T) => {
+      setter(value);
+      setPage(1);
+    };
+  }
 
   return (
     <div className="space-y-6">
@@ -68,13 +98,13 @@ export function StudentAssignmentsView() {
         <div className="flex flex-col gap-2 sm:flex-row">
           <SearchInput
             value={search}
-            onChange={setSearch}
+            onChange={withPageReset(setSearch)}
             placeholder="Search by title…"
             className="sm:max-w-xs"
           />
           <FilterSelect
             value={courseId}
-            onChange={setCourseId}
+            onChange={withPageReset(setCourseId)}
             options={courseOptions}
             allLabel="All courses"
           />
@@ -97,11 +127,17 @@ export function StudentAssignmentsView() {
           className="panel"
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {visible.map((assignment) => (
-            <AssignmentCard key={assignment.id} assignment={assignment} onOpen={setActive} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {visible.map((assignment) => (
+              <AssignmentCard key={assignment.id} assignment={assignment} onOpen={setActive} />
+            ))}
+          </div>
+
+          {pagination && (
+            <PaginationBar pagination={pagination} onPageChange={setPage} itemLabel="assignments" />
+          )}
+        </>
       )}
 
       {/* Keyed per assignment so the draft answer and any staged attachments are

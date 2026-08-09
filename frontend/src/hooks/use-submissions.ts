@@ -46,24 +46,44 @@ export function useMySubmissions() {
  *
  * This used to be a request per assignment (fifty assignments meant fifty-one calls,
  * most of them 404s). Two list calls answer the same question.
+ *
+ * Pass `page`/`pageSize` to fetch one page at a time — the result then carries
+ * `pagination` so the list view can render a pager. Omit them (the default) to pull
+ * everything in a single generous page; the overview uses that mode because its
+ * counts and averages need the full set.
  */
-export function useStudentAssignments(filters: { search?: string; courseId?: string }) {
+export function useStudentAssignments(filters: {
+  search?: string;
+  courseId?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  // Whether the caller is paging (list view) or pulling the full set (overview). Kept
+  // as a runtime flag because `useQuery` must be called unconditionally — hooks rule —
+  // so the paged/unpaged choice is made by what we read off `data`, not by branching.
+  const pageSize = filters.pageSize ?? 100;
+
   const assignments = useQuery({
-    queryKey: queryKeys.assignments.list({ ...filters, scope: 'student', pageSize: 100 }),
-    queryFn: () => apiGetPaged<Assignment>(`/api/v1/assignments${toQuery({ ...filters, pageSize: 100 })}`),
-    select: (page: Paged<Assignment>) => page.items,
+    queryKey: queryKeys.assignments.list({ ...filters, scope: 'student', pageSize }),
+    queryFn: () =>
+      apiGetPaged<Assignment>(`/api/v1/assignments${toQuery({ ...filters, pageSize })}`),
   });
 
   const submissions = useMySubmissions();
 
+  const page = assignments.data;
+  const paged = typeof filters.pageSize === 'number';
+
   const byAssignment = new Map((submissions.data ?? []).map((s) => [s.assignmentId, s]));
-  const items: StudentAssignment[] = (assignments.data ?? []).map((assignment) => ({
+  const items: StudentAssignment[] = (page?.items ?? []).map((assignment) => ({
     ...assignment,
     submission: byAssignment.get(assignment.id) ?? null,
   }));
 
   return {
     items,
+    // Only the paged caller cares about the pager; the overview never reads this.
+    pagination: paged ? page?.pagination : undefined,
     isLoading: assignments.isLoading || submissions.isLoading,
     isError: assignments.isError || submissions.isError,
     error: assignments.error ?? submissions.error,
