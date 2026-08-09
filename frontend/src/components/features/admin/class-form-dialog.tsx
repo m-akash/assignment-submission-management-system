@@ -18,6 +18,19 @@ import { useSaveClass } from '@/hooks/use-admin-resources';
 import { classSchema, type ClassInput, type ClassValues } from '@/schemas';
 import type { ClassRoom } from '@/types/api';
 
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+
+/**
+ * Mirrors the name the server composes, so the admin can see what they are about to create
+ * even though the name is no longer a field. Returns null while the inputs are incomplete.
+ */
+function previewName(level: unknown, section: string): string | null {
+  const grade = Number(level);
+  const trimmed = section.trim();
+  if (!Number.isInteger(grade) || grade < 1 || grade > 12 || !trimmed) return null;
+  return `Class ${ROMAN[grade - 1]} - Section ${trimmed}`;
+}
+
 export function ClassFormDialog({
   open,
   onOpenChange,
@@ -34,27 +47,28 @@ export function ClassFormDialog({
   // so the first and last are not the same type.
   const form = useForm<ClassInput, unknown, ClassValues>({
     resolver: zodResolver(classSchema),
-    defaultValues: { name: '', level: 6, section: '' },
+    defaultValues: { level: 6, section: '' },
   });
 
   useEffect(() => {
     if (!open) return;
     form.reset(
       classRoom
-        ? { name: classRoom.name, level: classRoom.level, section: classRoom.section ?? '' }
-        : { name: '', level: 6, section: '' },
+        ? { level: classRoom.level, section: classRoom.section ?? '' }
+        : { level: 6, section: '' },
     );
   }, [open, classRoom, form]);
 
   async function onSubmit(values: ClassValues) {
     await save.mutateAsync({
       id: classRoom?.id,
-      input: { name: values.name, level: values.level, section: values.section || null },
+      input: { level: values.level, section: values.section },
     });
     onOpenChange(false);
   }
 
   const errors = form.formState.errors;
+  const preview = previewName(form.watch('level'), form.watch('section') ?? '');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -64,12 +78,6 @@ export function ClassFormDialog({
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" placeholder="Class X - Section A" {...form.register('name')} />
-            {errors.name && <p className="text-xs text-danger">{errors.name.message}</p>}
-          </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="level">Grade</Label>
@@ -80,8 +88,15 @@ export function ClassFormDialog({
             <div className="space-y-2">
               <Label htmlFor="section">Section</Label>
               <Input id="section" placeholder="A" {...form.register('section')} />
+              <p className="text-xs text-muted-foreground">One class per grade and section.</p>
+              {errors.section && <p className="text-xs text-danger">{errors.section.message}</p>}
             </div>
           </div>
+
+          {/* The name is composed server-side, so show what it will be rather than asking for it. */}
+          <p className="text-xs text-muted-foreground">
+            Name: <span className="font-medium text-foreground">{preview ?? '—'}</span>
+          </p>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

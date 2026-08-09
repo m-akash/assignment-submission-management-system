@@ -98,9 +98,8 @@ export function useClassOptions() {
 }
 
 export interface ClassInput {
-  name: string;
   level: number;
-  section?: string | null;
+  section: string;
 }
 
 export function useSaveClass() {

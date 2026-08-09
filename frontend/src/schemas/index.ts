@@ -75,14 +75,14 @@ export const userSchema = z
   });
 export type UserValues = z.infer<typeof userSchema>;
 
+// No name field: the server composes "Class IX - Section A" from the grade and section.
 export const classSchema = z.object({
-  name: z.string().trim().min(2, 'Enter a class name').max(150, 'Name is too long'),
   level: z.coerce
     .number()
     .int('Enter a whole number')
     .min(1, 'Grade must be between 1 and 12')
     .max(12, 'Grade must be between 1 and 12'),
-  section: z.string().trim().max(50).optional(),
+  section: z.string().trim().min(1, 'Enter a section').max(50, 'Section is too long'),
 });
 /**
  * A coerced field is read from the form as something looser than what validation
