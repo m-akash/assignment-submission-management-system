@@ -1,6 +1,7 @@
 import {
   Backpack,
   BookOpen,
+  CalendarRange,
   ClipboardList,
   GraduationCap,
   Inbox,
@@ -94,6 +95,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Students',
     icon: Backpack,
     roleParam: 'Student',
+    roles: ['Admin'],
+    section: 'Administration',
+  },
+  {
+    href: '/academic-years',
+    label: 'Academic Years',
+    icon: CalendarRange,
     roles: ['Admin'],
     section: 'Administration',
   },
