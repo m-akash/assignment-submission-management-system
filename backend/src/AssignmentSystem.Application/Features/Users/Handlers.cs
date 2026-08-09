@@ -1,6 +1,10 @@
 using AssignmentSystem.Application.Abstractions;
 using AssignmentSystem.Application.Common.Handlers;
 using AssignmentSystem.Application.Common.Interfaces;
+// CurrentAcademicYearSpecification: reused rather than redeclared so "the school's current
+// session" has one definition — creating a student needs it to default their enrollment.
+using AssignmentSystem.Application.Features.AcademicYears;
+using AssignmentSystem.Domain.AcademicYears;
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Enrollments;
@@ -31,6 +35,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
 {
     private readonly IRepository<ApplicationUser> _userRepository;
     private readonly IRepository<Class> _classRepository;
+    private readonly IRepository<AcademicYear> _academicYearRepository;
     private readonly IRepository<StudentEnrollment> _enrollmentRepository;
     private readonly IClassRosterRepository _classRosterRepository;
     private readonly ITeacherRosterRepository _teacherRosterRepository;
@@ -44,6 +49,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
     public CreateUserHandler(
         IRepository<ApplicationUser> userRepository,
         IRepository<Class> classRepository,
+        IRepository<AcademicYear> academicYearRepository,
         IRepository<StudentEnrollment> enrollmentRepository,
         IClassRosterRepository classRosterRepository,
         ITeacherRosterRepository teacherRosterRepository,
@@ -55,6 +61,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
     {
         _userRepository = userRepository;
         _classRepository = classRepository;
+        _academicYearRepository = academicYearRepository;
         _enrollmentRepository = enrollmentRepository;
         _classRosterRepository = classRosterRepository;
         _teacherRosterRepository = teacherRosterRepository;
@@ -93,6 +100,20 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
             }
         }
 
+        // Resolved here rather than at the enrollment below so a missing or unknown year is
+        // reported before anything has been built — the same reason the class is.
+        Guid? academicYearId = null;
+        if (command.Role == Role.Student && command.ClassId.HasValue)
+        {
+            var yearResult = await ResolveAcademicYearIdAsync(command.AcademicYearId, ct);
+            if (yearResult.IsFailure)
+            {
+                return Result<UserDto>.Failure(yearResult.Error);
+            }
+
+            academicYearId = yearResult.Value;
+        }
+
         string? teacherId = null;
         if (command.Role == Role.Teacher)
         {
@@ -120,9 +141,9 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
             var setup = await _passwordSetup.IssuePasswordSetupAsync(user.Id, ct);
             await _notifications.QueueAccountCreatedAsync(user, setup, ct);
 
-            if (command.Role == Role.Student && command.ClassId is { } classId)
+            if (command.Role == Role.Student && command.ClassId is { } classId && academicYearId is { } yearId)
             {
-                var enrollment = StudentEnrollment.Create(user.Id, classId, _clock.UtcNow);
+                var enrollment = StudentEnrollment.Create(user.Id, classId, yearId, _clock.UtcNow);
                 await _enrollmentRepository.AddAsync(enrollment, ct);
                 await _notifications.QueueStudentEnrolledAsync(enrollment, ct);
             }
@@ -153,6 +174,34 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, UserD
         !string.IsNullOrWhiteSpace(classObj.Section)
             ? $"{classObj.GradeLabel}-{classObj.Section.Trim()}"
             : classObj.Name.Trim().Replace(' ', '-');
+
+    /// <summary>
+    /// The academic year the first enrollment belongs to: the one asked for, or the school's
+    /// current session when the caller did not say. Failing outright when neither is
+    /// available is the point — silently inventing a year would put the student in a session
+    /// nobody chose, and the fix (create one, or flag one as current) is an admin action
+    /// that the message names.
+    /// </summary>
+    private async Task<Result<Guid>> ResolveAcademicYearIdAsync(Guid? requestedId, CancellationToken ct)
+    {
+        if (requestedId is { } id)
+        {
+            var requested = await _academicYearRepository.GetByIdAsync(id, ct);
+            return requested is null
+                ? Result<Guid>.Failure(Error.NotFound(
+                    "AcademicYear.NotFound", "The specified academic year was not found."))
+                : Result<Guid>.Success(requested.Id);
+        }
+
+        var currentSpec = new CurrentAcademicYearSpecification();
+        var current = await _academicYearRepository.FirstOrDefaultAsync(currentSpec, ct);
+
+        return current is null
+            ? Result<Guid>.Failure(Error.Validation(
+                "AcademicYear.NoCurrent",
+                "No academic year is set as current. Create one and mark it current, or choose a year for this student."))
+            : Result<Guid>.Success(current.Id);
+    }
 }
 
 public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand, UserDto>

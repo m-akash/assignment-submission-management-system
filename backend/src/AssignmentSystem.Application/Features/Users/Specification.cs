@@ -13,6 +13,7 @@ internal sealed class UserWithClassesByIdSpecification : Specification<Applicati
     {
         Criteria = u => u.Id == id;
         AddInclude("Enrollments.Class");
+        AddInclude("Enrollments.AcademicYear");
     }
 }
 
@@ -40,6 +41,7 @@ internal sealed class UsersPagedSpecification : Specification<ApplicationUser>
     {
         ApplyNoTracking();
         AddInclude("Enrollments.Class");
+        AddInclude("Enrollments.AcademicYear");
         if (!ApplySort(Sortable, sortBy, sortDir))
         {
             ApplyOrderByDescending(u => u.CreatedAtUtc);

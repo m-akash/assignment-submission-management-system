@@ -10,14 +10,19 @@ internal sealed class EnrollmentWithDetailsSpecification : Specification<Student
         Criteria = e => e.Id == id;
         AddInclude(e => e.Student);
         AddInclude(e => e.Class);
+        AddInclude(e => e.AcademicYear);
     }
 }
 
+/// <summary>
+/// The same student in the same class in the same session — the pair alone is not a
+/// duplicate, because repeating a grade is the same (student, class) in a later year.
+/// </summary>
 internal sealed class EnrollmentDuplicateSpecification : Specification<StudentEnrollment>
 {
-    public EnrollmentDuplicateSpecification(Guid studentId, Guid classId)
+    public EnrollmentDuplicateSpecification(Guid studentId, Guid classId, Guid academicYearId)
     {
-        Criteria = e => e.StudentId == studentId && e.ClassId == classId;
+        Criteria = e => e.StudentId == studentId && e.ClassId == classId && e.AcademicYearId == academicYearId;
     }
 }
 
@@ -37,6 +42,7 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
         {
             ["student"] = e => e.Student.FullName,
             ["class"] = e => e.Class.Level,
+            ["academicYear"] = e => e.AcademicYear.StartDate,
             ["enrolledAt"] = e => e.EnrolledAtUtc,
         },
         tieBreaker: e => e.Id);
@@ -44,6 +50,7 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
     public EnrollmentsPagedSpecification(
         IEnumerable<Guid>? studentIds,
         IEnumerable<Guid>? classIds,
+        IEnumerable<Guid>? academicYearIds,
         string? search,
         string? sortBy,
         string? sortDir,
@@ -54,6 +61,7 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
         ApplyNoTracking();
         AddInclude(e => e.Student);
         AddInclude(e => e.Class);
+        AddInclude(e => e.AcademicYear);
         if (!ApplySort(Sortable, sortBy, sortDir))
         {
             ApplyOrderBy(e => e.Class.Level);
@@ -74,6 +82,7 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
         var restrictByClass = classIdSet is not null;
         var studentFilter = MultiValueFilter(studentIds);
         var classFilter = MultiValueFilter(classIds);
+        var academicYearFilter = MultiValueFilter(academicYearIds);
 
         // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
         // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
@@ -82,12 +91,14 @@ internal sealed class EnrollmentsPagedSpecification : Specification<StudentEnrol
         Criteria = e =>
             (studentFilter == null || studentFilter.Contains(e.StudentId)) &&
             (classFilter == null || classFilter.Contains(e.ClassId)) &&
+            (academicYearFilter == null || academicYearFilter.Contains(e.AcademicYearId)) &&
             (!restrictByClass || (classIdSet != null && classIdSet.Contains(e.ClassId))) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              e.Student.FullName.ToLower().Contains(searchLower) ||
              e.Student.Email.Value.Contains(searchLower) ||
              (e.Student.StudentId != null && e.Student.StudentId.ToLower().Contains(searchLower)) ||
-             e.Class.Name.ToLower().Contains(searchLower));
+             e.Class.Name.ToLower().Contains(searchLower) ||
+             e.AcademicYear.Name.ToLower().Contains(searchLower));
 #pragma warning restore CA1304, CA1311
     }
 }

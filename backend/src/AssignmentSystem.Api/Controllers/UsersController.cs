@@ -48,7 +48,8 @@ public sealed class UsersController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request, CancellationToken ct)
     {
-        var command = new CreateUserCommand(request.Email, request.FullName, request.Password, request.Role, request.ClassId);
+        var command = new CreateUserCommand(
+            request.Email, request.FullName, request.Password, request.Role, request.ClassId, request.AcademicYearId);
         var result = await _dispatcher.SendAsync(command, ct);
         if (!result.IsSuccess)
         {
@@ -73,7 +74,10 @@ public sealed class UsersController : ControllerBase
     }
 }
 
-public sealed record CreateUserRequest(string Email, string FullName, string Password, Role Role, Guid? ClassId);
+/// <summary><c>AcademicYearId</c> is optional — omitted, the student's first enrollment
+/// goes into the year flagged as current. See <c>CreateUserCommand</c>.</summary>
+public sealed record CreateUserRequest(
+    string Email, string FullName, string Password, Role Role, Guid? ClassId, Guid? AcademicYearId);
 /// <summary>
 /// No class here: moving a student between classes goes through the enrollments endpoint,
 /// which enforces that they never end up with none.

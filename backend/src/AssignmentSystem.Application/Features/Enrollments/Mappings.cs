@@ -14,11 +14,13 @@ public partial class EnrollmentMapper
     [MapProperty("Class.Name", nameof(EnrollmentDto.ClassName))]
     [MapProperty("Class.Level", nameof(EnrollmentDto.ClassLevel))]
     [MapProperty("Class.Section", nameof(EnrollmentDto.ClassSection))]
+    [MapProperty("AcademicYear.Name", nameof(EnrollmentDto.AcademicYearName))]
     public partial EnrollmentDto MapToDto(StudentEnrollment enrollment);
 
     [MapProperty(nameof(StudentEnrollment.Id), nameof(EnrolledClassDto.EnrollmentId))]
     [MapProperty("Class.Name", nameof(EnrolledClassDto.ClassName))]
     [MapProperty("Class.Level", nameof(EnrolledClassDto.ClassLevel))]
     [MapProperty("Class.Section", nameof(EnrolledClassDto.ClassSection))]
+    [MapProperty("AcademicYear.Name", nameof(EnrolledClassDto.AcademicYearName))]
     public partial EnrolledClassDto MapToEnrolledClassDto(StudentEnrollment enrollment);
 }

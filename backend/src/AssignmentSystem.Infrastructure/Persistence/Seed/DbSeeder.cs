@@ -1,4 +1,5 @@
 using AssignmentSystem.Application.Abstractions;
+using AssignmentSystem.Domain.AcademicYears;
 using AssignmentSystem.Domain.Assignments;
 using AssignmentSystem.Domain.ClassCourses;
 using AssignmentSystem.Domain.Classes;
@@ -51,6 +52,24 @@ public sealed class DbSeeder
     private static readonly string[] Sections = ["A", "B"];
     private const int StudentsPerSection = 5;
 
+    /// <summary>
+    /// The month a session starts (July), which is what decides whether "now" belongs to the
+    /// year it names or the one before. Only the seed assumes this — a real school enters its
+    /// own dates, and nothing in the domain reads it.
+    /// </summary>
+    private const int SessionStartMonth = 7;
+
+    /// <summary>
+    /// One session running July of <paramref name="startYear"/> to June of the next, named
+    /// for the pair ("2026-2027").
+    /// </summary>
+    private static AcademicYear MakeAcademicYear(int startYear, bool isCurrent) =>
+        AcademicYear.Create(
+            $"{startYear}-{startYear + 1}",
+            new DateOnly(startYear, SessionStartMonth, 1),
+            new DateOnly(startYear + 1, SessionStartMonth - 1, 30),
+            isCurrent);
+
     /// <summary>The grade the demo student login sits in — the senior-most, where the seeded
     /// assignments and submissions live.</summary>
     private const int SeniorGrade = 10;
@@ -98,6 +117,15 @@ public sealed class DbSeeder
         var clock = new SeederClock();
         var now = DateTime.UtcNow;
         var passwordHash = _passwordHasher.Hash(DefaultPassword);
+
+        // ── Academic years (2): the running session and the one before it ─────────
+        // Two rather than one so the year filter on the roster has something to filter and
+        // the "current" badge means something on sight. Derived from the clock rather than
+        // hardcoded, so a checkout in a later year still seeds a session that reads as now.
+        var sessionStartYear = now.Month >= SessionStartMonth ? now.Year : now.Year - 1;
+        var previousAcademicYear = MakeAcademicYear(sessionStartYear - 1, isCurrent: false);
+        var currentAcademicYear = MakeAcademicYear(sessionStartYear, isCurrent: true);
+        _context.AcademicYears.AddRange(previousAcademicYear, currentAcademicYear);
 
         // ── Classes (8): grade 7..10 × sections A/B ───────────────────────────────
         // Stored flat in a grade-major map so offerings and student placement can look
@@ -242,8 +270,11 @@ public sealed class DbSeeder
         // ── Enrollments: one class each, matching the placements above ─────────────
         // Materialized rather than added straight from the projection so the summary below
         // reports what was actually written instead of a number that happens to match.
+        // All in the current session: the seeded assignments and submissions belong to it,
+        // and back-dating some students into the previous year would make the demo rosters
+        // disagree with the coursework hanging off them.
         var enrollments = studentPlacements
-            .Select(p => StudentEnrollment.Create(p.Student.Id, p.Class.Id, now))
+            .Select(p => StudentEnrollment.Create(p.Student.Id, p.Class.Id, currentAcademicYear.Id, now))
             .ToList();
         _context.StudentEnrollments.AddRange(enrollments);
 

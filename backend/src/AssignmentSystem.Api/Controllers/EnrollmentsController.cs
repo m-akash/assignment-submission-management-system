@@ -30,6 +30,7 @@ public sealed class EnrollmentsController : ControllerBase
     public async Task<IActionResult> GetEnrollments(
         [FromQuery(Name = "studentId")] Guid[]? studentIds,
         [FromQuery(Name = "classId")] Guid[]? classIds,
+        [FromQuery(Name = "academicYearId")] Guid[]? academicYearIds,
         [FromQuery] string? search,
         [FromQuery] string? sortBy,
         [FromQuery] string? sortDir,
@@ -37,7 +38,7 @@ public sealed class EnrollmentsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetEnrollmentsQuery(studentIds, classIds, search, sortBy, sortDir, page, pageSize);
+        var query = new GetEnrollmentsQuery(studentIds, classIds, academicYearIds, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {
@@ -74,7 +75,7 @@ public sealed class EnrollmentsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateEnrollment([FromBody] CreateEnrollmentRequest request, CancellationToken ct)
     {
-        var command = new CreateEnrollmentCommand(request.StudentId, request.ClassId);
+        var command = new CreateEnrollmentCommand(request.StudentId, request.ClassId, request.AcademicYearId);
         var result = await _dispatcher.SendAsync(command, ct);
         if (!result.IsSuccess)
         {
@@ -96,5 +97,5 @@ public sealed class EnrollmentsController : ControllerBase
     }
 }
 
-public sealed record CreateEnrollmentRequest(Guid StudentId, Guid ClassId);
+public sealed record CreateEnrollmentRequest(Guid StudentId, Guid ClassId, Guid AcademicYearId);
 

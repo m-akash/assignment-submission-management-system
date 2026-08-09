@@ -28,6 +28,11 @@ public sealed record UserDto(
 /// handler writes the user and that first enrollment in one transaction, so a student never
 /// exists in a state where they belong to no class. Further classes are added through the
 /// enrollments endpoint.
+///
+/// <paramref name="AcademicYearId"/> is the session that enrollment belongs to. Optional
+/// because the answer is nearly always "the one the school is running": left unset, the
+/// handler uses the year flagged as current, and only refuses if there is no current year
+/// to fall back on. A caller enrolling into next year's intake names it explicitly.
 /// </summary>
 [RequiresRole(Role.Admin)]
 public sealed record CreateUserCommand(
@@ -35,7 +40,8 @@ public sealed record CreateUserCommand(
     string FullName,
     string Password,
     Domain.Enums.Role Role,
-    Guid? ClassId
+    Guid? ClassId,
+    Guid? AcademicYearId = null
 ) : ICommand<UserDto>;
 
 /// <summary>

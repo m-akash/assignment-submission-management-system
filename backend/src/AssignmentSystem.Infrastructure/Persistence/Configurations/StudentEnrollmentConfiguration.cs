@@ -15,6 +15,7 @@ internal sealed class StudentEnrollmentConfiguration : IEntityTypeConfiguration<
 
         builder.Property(e => e.StudentId).IsRequired();
         builder.Property(e => e.ClassId).IsRequired();
+        builder.Property(e => e.AcademicYearId).IsRequired();
         builder.Property(e => e.EnrolledAtUtc).IsRequired();
 
         builder.Property(e => e.CreatedAtUtc).IsRequired();
@@ -38,13 +39,26 @@ internal sealed class StudentEnrollmentConfiguration : IEntityTypeConfiguration<
             .HasForeignKey(e => e.ClassId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // A student sits in a class once.
-        builder.HasIndex(e => new { e.StudentId, e.ClassId }).IsUnique();
+        // Restrict, not Cascade, unlike the two above: a year is reference data rather than
+        // one end of the link, so deleting one must not silently take a school's enrollment
+        // history with it. The delete handler refuses a year still in use and reports why;
+        // this is what makes that refusal impossible to bypass.
+        builder.HasOne(e => e.AcademicYear)
+            .WithMany(y => y.Enrollments)
+            .HasForeignKey(e => e.AcademicYearId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // A student sits in a class once per academic year — repeating a grade means the
+        // same (student, class) pair in a later year, which the year in the key allows.
+        builder.HasIndex(e => new { e.StudentId, e.ClassId, e.AcademicYearId }).IsUnique();
 
         // The hot path: "which classes is this student in?" on every student request (rule B1).
         builder.HasIndex(e => e.StudentId);
 
         // The roster path: counting a class, and addressing an assignment-published email.
         builder.HasIndex(e => e.ClassId);
+
+        // "Is this year still in use?" on delete, and the year filter on the roster list.
+        builder.HasIndex(e => e.AcademicYearId);
     }
 }

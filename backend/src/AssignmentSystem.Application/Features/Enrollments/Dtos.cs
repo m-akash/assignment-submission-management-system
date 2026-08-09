@@ -5,7 +5,7 @@ using AssignmentSystem.Shared.Common;
 
 namespace AssignmentSystem.Application.Features.Enrollments;
 
-/// <summary>One student's membership of one class.</summary>
+/// <summary>One student's membership of one class, for one academic year.</summary>
 public sealed record EnrollmentDto(
     Guid Id,
     Guid StudentId,
@@ -16,6 +16,8 @@ public sealed record EnrollmentDto(
     string ClassName,
     int ClassLevel,
     string? ClassSection,
+    Guid AcademicYearId,
+    string AcademicYearName,
     DateTime EnrolledAtUtc
 );
 
@@ -29,13 +31,16 @@ public sealed record EnrolledClassDto(
     string ClassName,
     int ClassLevel,
     string? ClassSection,
+    Guid AcademicYearId,
+    string AcademicYearName,
     DateTime EnrolledAtUtc
 );
 
 [RequiresRole(Role.Admin)]
 public sealed record CreateEnrollmentCommand(
     Guid StudentId,
-    Guid ClassId
+    Guid ClassId,
+    Guid AcademicYearId
 ) : ICommand<EnrollmentDto>;
 
 [RequiresRole(Role.Admin)]
@@ -47,6 +52,7 @@ public sealed record DeleteEnrollmentCommand(Guid Id) : ICommand;
 public sealed record GetEnrollmentsQuery(
     IReadOnlyList<Guid>? StudentIds = null,
     IReadOnlyList<Guid>? ClassIds = null,
+    IReadOnlyList<Guid>? AcademicYearIds = null,
     string? Search = null,
     /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
     string? SortBy = null,

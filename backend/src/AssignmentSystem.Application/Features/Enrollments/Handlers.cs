@@ -5,6 +5,7 @@ using AssignmentSystem.Application.Common.Interfaces;
 // definition of "the classes this teacher teaches" — the enrollments read path needs it to
 // scope a teacher to their own classes.
 using AssignmentSystem.Application.Features.TeacherAssignments;
+using AssignmentSystem.Domain.AcademicYears;
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Enrollments;
@@ -25,6 +26,7 @@ public sealed class CreateEnrollmentHandler : ICommandHandler<CreateEnrollmentCo
     private readonly IRepository<StudentEnrollment> _enrollmentRepository;
     private readonly IRepository<ApplicationUser> _userRepository;
     private readonly IRepository<Class> _classRepository;
+    private readonly IRepository<AcademicYear> _academicYearRepository;
     private readonly INotificationOutbox _notifications;
     private readonly IClock _clock;
     private readonly IUnitOfWork _unitOfWork;
@@ -34,6 +36,7 @@ public sealed class CreateEnrollmentHandler : ICommandHandler<CreateEnrollmentCo
         IRepository<StudentEnrollment> enrollmentRepository,
         IRepository<ApplicationUser> userRepository,
         IRepository<Class> classRepository,
+        IRepository<AcademicYear> academicYearRepository,
         INotificationOutbox notifications,
         IClock clock,
         IUnitOfWork unitOfWork)
@@ -41,6 +44,7 @@ public sealed class CreateEnrollmentHandler : ICommandHandler<CreateEnrollmentCo
         _enrollmentRepository = enrollmentRepository;
         _userRepository = userRepository;
         _classRepository = classRepository;
+        _academicYearRepository = academicYearRepository;
         _notifications = notifications;
         _clock = clock;
         _unitOfWork = unitOfWork;
@@ -61,16 +65,25 @@ public sealed class CreateEnrollmentHandler : ICommandHandler<CreateEnrollmentCo
             return Result<EnrollmentDto>.Failure(Error.NotFound("Class.NotFound", "The specified class was not found."));
         }
 
-        var duplicateSpec = new EnrollmentDuplicateSpecification(command.StudentId, command.ClassId);
+        var academicYear = await _academicYearRepository.GetByIdAsync(command.AcademicYearId, ct);
+        if (academicYear is null)
+        {
+            return Result<EnrollmentDto>.Failure(Error.NotFound(
+                "AcademicYear.NotFound", "The specified academic year was not found."));
+        }
+
+        var duplicateSpec = new EnrollmentDuplicateSpecification(
+            command.StudentId, command.ClassId, command.AcademicYearId);
         if (await _enrollmentRepository.AnyAsync(duplicateSpec, ct))
         {
             return Result<EnrollmentDto>.Failure(Error.Conflict(
-                "Enrollment.Duplicate", "This student is already enrolled in this class."));
+                "Enrollment.Duplicate", "This student is already enrolled in this class for that academic year."));
         }
 
         try
         {
-            var enrollment = StudentEnrollment.Create(command.StudentId, command.ClassId, _clock.UtcNow);
+            var enrollment = StudentEnrollment.Create(
+                command.StudentId, command.ClassId, command.AcademicYearId, _clock.UtcNow);
             await _enrollmentRepository.AddAsync(enrollment, ct);
 
             // Before the save, not after: the notification row has to land in the same
@@ -183,7 +196,7 @@ public sealed class GetEnrollmentsHandler : IQueryHandler<GetEnrollmentsQuery, P
         }
 
         var spec = new EnrollmentsPagedSpecification(
-            query.StudentIds, query.ClassIds, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize, allowedClassIds);
+            query.StudentIds, query.ClassIds, query.AcademicYearIds, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize, allowedClassIds);
         var paged = await _enrollmentRepository.ListPagedAsync(spec, ct);
 
         var items = paged.Items.Select(Mapper.MapToDto).ToList();

@@ -42,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IClassRosterRepository, ClassRosterRepository>();
         services.AddScoped<ITeacherRosterRepository, TeacherRosterRepository>();
         services.AddScoped<IClassCourseUsageReader, ClassCourseUsageReader>();
+        services.AddScoped<IAcademicYearUsageReader, AcademicYearUsageReader>();
 
         // ── Clock ──────────────────────────────────────────────────────────────
         services.AddSingleton<IClock, SystemClock>();

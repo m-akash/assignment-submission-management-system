@@ -11,5 +11,8 @@ public sealed class CreateEnrollmentCommandValidator : AbstractValidator<CreateE
 
         RuleFor(x => x.ClassId)
             .NotEmpty().WithMessage("Class id is required.");
+
+        RuleFor(x => x.AcademicYearId)
+            .NotEmpty().WithMessage("Academic year id is required.");
     }
 }

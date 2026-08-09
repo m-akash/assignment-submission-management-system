@@ -141,11 +141,13 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
     }
 
     /// <summary>
-    /// Enrols this student into a class. Idempotent — re-enrolling into a class they are
-    /// already in is a no-op rather than an error, so a repeated admin action cannot
-    /// create a duplicate the unique index would then reject.
+    /// Enrols this student into a class for an academic year. Idempotent — re-enrolling into
+    /// a class they are already in for that year is a no-op rather than an error, so a
+    /// repeated admin action cannot create a duplicate the unique index would then reject.
+    /// The year is part of that check because the same class in a later year is a new
+    /// enrollment, not a repeat of this one.
     /// </summary>
-    public StudentEnrollment EnrollIn(Guid classId, DateTime enrolledAtUtc)
+    public StudentEnrollment EnrollIn(Guid classId, Guid academicYearId, DateTime enrolledAtUtc)
     {
         if (Role != Role.Student)
         {
@@ -157,13 +159,18 @@ public sealed class ApplicationUser : BaseEntity, ISoftDeletable
             throw new DomainException("A valid class id is required.");
         }
 
-        var existing = _enrollments.Find(e => e.ClassId == classId);
+        if (academicYearId == Guid.Empty)
+        {
+            throw new DomainException("A valid academic year id is required.");
+        }
+
+        var existing = _enrollments.Find(e => e.ClassId == classId && e.AcademicYearId == academicYearId);
         if (existing is not null)
         {
             return existing;
         }
 
-        var enrollment = StudentEnrollment.Create(Id, classId, enrolledAtUtc);
+        var enrollment = StudentEnrollment.Create(Id, classId, academicYearId, enrolledAtUtc);
         _enrollments.Add(enrollment);
         return enrollment;
     }
