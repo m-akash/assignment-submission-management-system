@@ -11,7 +11,6 @@ import { CardGridSkeleton, EmptyState, ErrorState } from '@/components/shared/st
 import { useStudentAssignments } from '@/hooks/use-submissions';
 import { deadlineUrgency } from '@/lib/format';
 import { AssignmentCard } from './assignment-card';
-import { SubmitDialog } from '@/components/features/submissions/submit-dialog';
 import type { StudentAssignment } from '@/types/api';
 
 type Tab = 'all' | 'todo' | 'submitted' | 'graded' | 'overdue';
@@ -31,7 +30,6 @@ export function StudentAssignmentsView() {
   const [courseId, setCourseId] = useState('');
   const [tab, setTab] = useState<Tab>('all');
   const [page, setPage] = useState(1);
-  const [active, setActive] = useState<StudentAssignment | null>(null);
 
   const filters = { search, courseId };
 
@@ -62,9 +60,6 @@ export function StudentAssignmentsView() {
   // stay global. If a tab has no matches on this page, the grid shows the empty state
   // rather than silently dumping the user back onto "All".
   const visible = useMemo(() => items.filter((item) => matchesTab(item, tab)), [items, tab]);
-
-  // Keep the active card in sync after a submit so marks and attachments refresh in place.
-  const activeAssignment = active ? (items.find((item) => item.id === active.id) ?? active) : null;
 
   /** Any filter change invalidates the current page number. */
   function withPageReset<T>(setter: (value: T) => void) {
@@ -130,7 +125,11 @@ export function StudentAssignmentsView() {
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((assignment) => (
-              <AssignmentCard key={assignment.id} assignment={assignment} onOpen={setActive} />
+              <AssignmentCard
+                key={assignment.id}
+                assignment={assignment}
+                href={`/assignments/${assignment.id}`}
+              />
             ))}
           </div>
 
@@ -139,15 +138,6 @@ export function StudentAssignmentsView() {
           )}
         </>
       )}
-
-      {/* Keyed per assignment so the draft answer and any staged attachments are
-          discarded when the dialog closes, rather than following the student to the
-          next assignment they open. */}
-      <SubmitDialog
-        key={activeAssignment?.id ?? 'none'}
-        assignment={activeAssignment}
-        onClose={() => setActive(null)}
-      />
     </div>
   );
 }

@@ -155,7 +155,7 @@ export function StudentOverview({
                   className="animate-rise"
                   style={{ '--rise-delay': `${index * 60}ms` } as React.CSSProperties}
                 >
-                  <AssignmentCard assignment={assignment} href="/assignments" />
+                  <AssignmentCard assignment={assignment} href={`/assignments/${assignment.id}`} />
                 </div>
               ))}
             </div>

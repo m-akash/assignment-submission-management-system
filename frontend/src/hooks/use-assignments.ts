@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { apiDelete, apiGetBlob, apiGetPaged, apiPost, apiPostForm, apiPut, toQuery } from '@/lib/api';
+import { apiDelete, apiGet, apiGetBlob, apiGetPaged, apiPost, apiPostForm, apiPut, toQuery } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 import type { Assignment, AssignmentFile, AssignmentStatus } from '@/types/api';
 
@@ -25,6 +25,18 @@ export function useAssignments(filters: AssignmentFilters) {
   return useQuery({
     queryKey: queryKeys.assignments.list(filters),
     queryFn: () => apiGetPaged<Assignment>(`/api/v1/assignments${toQuery({ ...filters })}`),
+  });
+}
+
+/**
+ * One assignment by id, for a details page. Scoping is the server's again: it answers
+ * 404 for an assignment the caller may not see, so the page needs no rule of its own.
+ */
+export function useAssignment(id: string) {
+  return useQuery({
+    queryKey: queryKeys.assignments.detail(id),
+    queryFn: () => apiGet<Assignment>(`/api/v1/assignments/${id}`),
+    enabled: !!id,
   });
 }
 
