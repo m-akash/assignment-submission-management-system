@@ -37,9 +37,9 @@ function MyCoursesView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Coursework"
         title="My courses & classes"
-        icon={GraduationCap}
         description="The courses you teach and the students in each class."
       />
 

@@ -49,9 +49,9 @@ function ClassesView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Administration"
         title="Classes"
-        icon={GraduationCap}
         description="A student belongs to exactly one class. Create classes before assigning teachers to them."
         actions={
           <Button onClick={openCreate}>

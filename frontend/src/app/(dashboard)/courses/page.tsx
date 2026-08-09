@@ -48,9 +48,9 @@ function CoursesView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Administration"
         title="Courses"
-        icon={BookOpen}
         description="Courses are linked to classes through a teaching assignment."
         actions={
           <Button onClick={openCreate}>

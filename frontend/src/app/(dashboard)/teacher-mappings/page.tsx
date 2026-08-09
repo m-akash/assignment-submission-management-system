@@ -55,9 +55,9 @@ function MappingsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Administration"
         title="Teaching assignments"
-        icon={Link2}
         description="Each row authorises one teacher to create assignments for one class and course. This is the gate the assignment rules check against."
         actions={
           <Button onClick={() => setFormOpen(true)}>

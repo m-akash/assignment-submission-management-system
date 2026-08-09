@@ -67,9 +67,14 @@ function SubmissionsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        // Filtered views are reached from the assignment itself, so that is where back goes.
+        back={
+          assignmentId
+            ? { href: `/assignments/${assignmentId}`, label: 'Back to assignment' }
+            : { href: '/', label: 'Dashboard' }
+        }
         eyebrow="Coursework"
         title="Submissions"
-        icon={Inbox}
         description={
           assignmentId
             ? 'Filtered to one assignment. Clear the filter to see everything.'

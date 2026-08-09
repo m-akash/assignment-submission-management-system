@@ -168,9 +168,9 @@ function NotificationsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Administration"
         title="Email notifications"
-        icon={Mail}
         description="Every notification is queued when it happens and sent by a background sweep, so nothing is lost if the mail server is unreachable."
         actions={
           <div className="flex items-center gap-2">

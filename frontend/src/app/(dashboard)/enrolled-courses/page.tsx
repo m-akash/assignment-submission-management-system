@@ -29,9 +29,9 @@ function EnrolledCoursesView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Coursework"
         title="My courses"
-        icon={GraduationCap}
         description="The courses you are taking and the teacher for each."
       />
 

@@ -1,28 +1,16 @@
 'use client';
 
-import Link from 'next/link';
-import { ArrowLeft, Download, Paperclip, Trash2 } from 'lucide-react';
+import { Download, Paperclip, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatBytes } from '@/lib/format';
 
 /**
  * The parts every details page is built from. Assignments and submissions are different
- * things, but "one record, in full" is one shape: a way back, a brief, its files, and a
- * summary rail — so they are defined once here rather than per page.
+ * things, but "one record, in full" is one shape: a brief, its files, and a summary rail
+ * — so they are defined once here rather than per page. The way back lives on the page
+ * header itself, as `BackLink` in `page-header.tsx`.
  */
-
-/** The way back to the list this record came from, above the page header. */
-export function BackLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Button asChild variant="ghost" size="sm" className="-ml-2.5 text-muted-foreground">
-      <Link href={href}>
-        <ArrowLeft className="size-4" />
-        {label}
-      </Link>
-    </Button>
-  );
-}
 
 /** One label/value line in a summary panel. */
 export function Fact({ label, children }: { label: string; children: React.ReactNode }) {
@@ -87,14 +75,14 @@ export function FileRow({
 export function DetailSkeleton() {
   return (
     <div className="space-y-6">
-      <Skeleton className="h-7 w-32" />
-      <div className="flex items-start gap-3.5">
-        <Skeleton className="hidden size-11 rounded-xl sm:block" />
-        <div className="flex-1 space-y-2">
-          <Skeleton className="h-3 w-40" />
-          <Skeleton className="h-7 w-2/3" />
-          <Skeleton className="h-3 w-52" />
-        </div>
+      <div className="flex items-center gap-2.5">
+        <Skeleton className="size-8 rounded-lg" />
+        <Skeleton className="h-4 w-32" />
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-40" />
+        <Skeleton className="h-7 w-2/3" />
+        <Skeleton className="h-3 w-52" />
       </div>
       <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
         <div className="space-y-6 lg:col-span-2">

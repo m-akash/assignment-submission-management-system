@@ -140,9 +140,9 @@ function UsersView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Administration"
         title={heading.title}
-        icon={Users}
         description={heading.description}
         actions={
           <Button onClick={openCreate}>

@@ -59,9 +59,9 @@ function MyStudentsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Coursework"
         title="My students"
-        icon={Backpack}
         description={
           classId
             ? 'Filtered to one class. Choose another, or clear the filter.'
