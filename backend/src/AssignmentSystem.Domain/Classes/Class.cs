@@ -13,6 +13,10 @@ namespace AssignmentSystem.Domain.Classes;
 /// The grade is stored as a number and rendered as a Roman numeral. Keeping the numeral
 /// out of storage leaves one source of truth: ordering and the "does this grade have
 /// groups?" rule become arithmetic rather than string parsing.
+///
+/// A grade may hold any number of sections, but only one cohort per (grade, section) —
+/// enforced by the handlers and backed by a unique index. The name is composed from the
+/// two, so uniqueness of the pair makes the name unique too.
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716:Identifiers should not match keywords",
     Justification = "'Class' is the correct domain term for a school class/course.")]
@@ -20,15 +24,19 @@ public sealed class Class : BaseEntity
 {
     private const int MinLevel = 1;
     private const int MaxLevel = 12;
+    private const int MaxSectionLength = 50;
 
     private static readonly string[] RomanNumerals =
         ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 
+    /// <summary>The display name, always derived from the grade and section — never supplied
+    /// by a caller. See <see cref="BuildName"/>.</summary>
     public string Name { get; private set; } = null!;
 
     /// <summary>Grade as a number, 1..12. Rendered through <see cref="GradeLabel"/>.</summary>
     public int Level { get; private set; }
 
+    /// <summary>Required. Nullable only because rows predating that rule may still hold NULL.</summary>
     public string? Section { get; private set; }
 
     /// <summary>The grade in Roman numerals ("IX") — what the school calls it, and what
@@ -44,42 +52,52 @@ public sealed class Class : BaseEntity
 
     private Class() { }
 
-    public static Class Create(string name, int level, string? section = null)
+    public static Class Create(int level, string section)
     {
-        Validate(name, level);
+        Validate(level, section);
+        var trimmed = section.Trim();
 
         return new Class
         {
-            Name = name.Trim(),
             Level = level,
-            Section = string.IsNullOrWhiteSpace(section) ? null : section.Trim(),
+            Section = trimmed,
+            Name = BuildName(level, trimmed),
         };
     }
 
-    public void Update(string name, int level, string? section)
+    public void Update(int level, string section)
     {
-        Validate(name, level);
+        Validate(level, section);
+        var trimmed = section.Trim();
 
-        Name = name.Trim();
         Level = level;
-        Section = string.IsNullOrWhiteSpace(section) ? null : section.Trim();
+        Section = trimmed;
+        Name = BuildName(level, trimmed);
     }
 
-    private static void Validate(string name, int level)
+    /// <summary>
+    /// The one place a class name is composed. Admins supply only the grade and the section;
+    /// the "Class" and "Section" words are ours, so every cohort reads the same way and the
+    /// name can never drift from the grade and section it describes.
+    /// </summary>
+    private static string BuildName(int level, string section) =>
+        $"Class {RomanNumerals[level - 1]} - Section {section}";
+
+    private static void Validate(int level, string section)
     {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new DomainException("Class name is required.");
-        }
-
-        if (name.Length > 150)
-        {
-            throw new DomainException("Class name cannot exceed 150 characters.");
-        }
-
         if (level is < MinLevel or > MaxLevel)
         {
             throw new DomainException($"Class level must be between {MinLevel} and {MaxLevel}.");
+        }
+
+        if (string.IsNullOrWhiteSpace(section))
+        {
+            throw new DomainException("Section is required.");
+        }
+
+        if (section.Trim().Length > MaxSectionLength)
+        {
+            throw new DomainException($"Section cannot exceed {MaxSectionLength} characters.");
         }
     }
 }

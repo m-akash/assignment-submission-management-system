@@ -7,6 +7,7 @@ namespace AssignmentSystem.Application.Features.Classes;
 
 public sealed record ClassDto(
     Guid Id,
+    /// <summary>"Class IX - Section A" — composed from the grade and section, never entered.</summary>
     string Name,
     int Level,
     /// <summary>The level as a Roman numeral ("IX") — derived, never stored.</summary>
@@ -15,19 +16,19 @@ public sealed record ClassDto(
     int StudentCount = 0
 );
 
+// Create/Update take only the grade and section — the name is composed by the domain, so
+// there is nothing for an admin to type and nothing that can disagree with the pair.
 [RequiresRole(Role.Admin)]
 public sealed record CreateClassCommand(
-    string Name,
     int Level,
-    string? Section
+    string Section
 ) : ICommand<ClassDto>;
 
 [RequiresRole(Role.Admin)]
 public sealed record UpdateClassCommand(
     Guid Id,
-    string Name,
     int Level,
-    string? Section
+    string Section
 ) : ICommand<ClassDto>;
 
 [RequiresRole(Role.Admin)]

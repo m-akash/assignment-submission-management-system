@@ -28,5 +28,10 @@ internal sealed class ClassConfiguration : IEntityTypeConfiguration<Class>
         builder.Property(c => c.RowVersion).IsRowVersion();
 
         builder.HasIndex(c => c.Name);
+
+        // One cohort per (grade, section): a grade may have any number of sections, but not
+        // the same one twice. The handlers reject duplicates case-insensitively and with a
+        // readable message; this is the backstop against a race between two admins.
+        builder.HasIndex(c => new { c.Level, c.Section }).IsUnique();
     }
 }

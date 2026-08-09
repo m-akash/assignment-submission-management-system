@@ -3,6 +3,24 @@ using AssignmentSystem.Domain.Classes;
 
 namespace AssignmentSystem.Application.Features.Classes;
 
+/// <summary>
+/// The cohort occupying a (grade, section) slot, if any. Sections are compared
+/// case-insensitively so "9-a" cannot slip past an existing "9-A".
+/// </summary>
+internal sealed class ClassByGradeAndSectionSpecification : Specification<Class>
+{
+    public ClassByGradeAndSectionSpecification(int level, string section)
+    {
+        var sectionLower = section.Trim().ToLowerInvariant();
+
+        // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
+        // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
+#pragma warning disable CA1304, CA1311
+        Criteria = c => c.Level == level && c.Section != null && c.Section.ToLower() == sectionLower;
+#pragma warning restore CA1304, CA1311
+    }
+}
+
 internal sealed class ClassesPagedSpecification : Specification<Class>
 {
     /// <summary>Columns this endpoint may be sorted by. See <see cref="SortMap{T}"/>.</summary>

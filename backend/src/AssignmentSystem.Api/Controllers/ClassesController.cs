@@ -44,7 +44,7 @@ public sealed class ClassesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateClass([FromBody] CreateClassRequest request, CancellationToken ct)
     {
-        var command = new CreateClassCommand(request.Name, request.Level, request.Section);
+        var command = new CreateClassCommand(request.Level, request.Section);
         var result = await _dispatcher.SendAsync(command, ct);
         if (!result.IsSuccess)
         {
@@ -57,7 +57,7 @@ public sealed class ClassesController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdateClass(Guid id, [FromBody] UpdateClassRequest request, CancellationToken ct)
     {
-        var command = new UpdateClassCommand(id, request.Name, request.Level, request.Section);
+        var command = new UpdateClassCommand(id, request.Level, request.Section);
         var result = await _dispatcher.SendAsync(command, ct);
         return result.ToActionResult(this);
     }
@@ -71,6 +71,7 @@ public sealed class ClassesController : ControllerBase
     }
 }
 
-public sealed record CreateClassRequest(string Name, int Level, string? Section);
-public sealed record UpdateClassRequest(string Name, int Level, string? Section);
+// No Name: the display name is composed server-side from the grade and section.
+public sealed record CreateClassRequest(int Level, string Section);
+public sealed record UpdateClassRequest(int Level, string Section);
 

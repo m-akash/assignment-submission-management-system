@@ -84,7 +84,7 @@ public sealed class DbSeeder
         {
             foreach (var section in Sections)
             {
-                var klass = Class.Create($"Class {grade} - Section {section}", grade, section);
+                var klass = Class.Create(grade, section);
                 classByGradeSection[(grade, section)] = klass;
             }
         }

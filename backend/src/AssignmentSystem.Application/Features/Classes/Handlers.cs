@@ -21,9 +21,16 @@ public sealed class CreateClassHandler : ICommandHandler<CreateClassCommand, Cla
 
     public async Task<Result<ClassDto>> HandleAsync(CreateClassCommand command, CancellationToken ct = default)
     {
+        var duplicateSpec = new ClassByGradeAndSectionSpecification(command.Level, command.Section);
+        if (await _classRepository.AnyAsync(duplicateSpec, ct))
+        {
+            return Result<ClassDto>.Failure(Error.Conflict(
+                "Class.Duplicate", "This grade already has a class for that section."));
+        }
+
         try
         {
-            var classObj = Class.Create(command.Name, command.Level, command.Section);
+            var classObj = Class.Create(command.Level, command.Section);
             await _classRepository.AddAsync(classObj, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
@@ -56,9 +63,23 @@ public sealed class UpdateClassHandler : ICommandHandler<UpdateClassCommand, Cla
             return Result<ClassDto>.Failure(Error.NotFound("Class.NotFound", "The specified class was not found."));
         }
 
+        // Only look for a rival when the slot actually moves — re-saving a class unchanged
+        // would otherwise collide with itself.
+        var movedSlot = command.Level != classObj.Level
+            || !string.Equals(command.Section.Trim(), classObj.Section, StringComparison.OrdinalIgnoreCase);
+        if (movedSlot)
+        {
+            var duplicateSpec = new ClassByGradeAndSectionSpecification(command.Level, command.Section);
+            if (await _classRepository.AnyAsync(duplicateSpec, ct))
+            {
+                return Result<ClassDto>.Failure(Error.Conflict(
+                    "Class.Duplicate", "This grade already has a class for that section."));
+            }
+        }
+
         try
         {
-            classObj.Update(command.Name, command.Level, command.Section);
+            classObj.Update(command.Level, command.Section);
             _classRepository.Update(classObj);
             await _unitOfWork.SaveChangesAsync(ct);
 
