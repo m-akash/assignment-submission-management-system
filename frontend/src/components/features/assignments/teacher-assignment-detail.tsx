@@ -40,11 +40,14 @@ import {
 import { useSubmissions } from '@/hooks/use-submissions';
 import { ApiError } from '@/lib/api';
 import {
+  classLabel,
   deadlineUrgency,
   formatDateTime,
   formatMarks,
   formatRelative,
+  gradeLabel,
   initials,
+  sectionLabel,
 } from '@/lib/format';
 import type { Assignment } from '@/types/api';
 
@@ -152,8 +155,8 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
         title={assignment.title}
         description={
           readOnly
-            ? `Set by ${assignment.teacherName} for ${assignment.className}`
-            : `For ${assignment.className} · ${assignment.maxMarks} marks`
+            ? `Set by ${assignment.teacherName} for ${classLabel(assignment.classLevel, assignment.classSection)}`
+            : `For ${classLabel(assignment.classLevel, assignment.classSection)} · ${assignment.maxMarks} marks`
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -361,7 +364,8 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
                 {assignment.courseCode}
               </span>
             </Fact>
-            <Fact label="Class">{assignment.className}</Fact>
+            <Fact label="Class">{gradeLabel(assignment.classLevel)}</Fact>
+            <Fact label="Section">{sectionLabel(assignment.classSection)}</Fact>
             <Fact label="Teacher">{assignment.teacherName}</Fact>
             <Fact label="Created">{formatDateTime(assignment.createdAtUtc)}</Fact>
           </SectionPanel>

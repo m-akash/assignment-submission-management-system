@@ -19,7 +19,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/s
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { RoleBadge } from '@/components/shared/status-badge';
 import { useAuth } from '@/context/AuthContext';
-import { initials } from '@/lib/format';
+import { classLabel, initials } from '@/lib/format';
 import { currentNavItem } from './nav-items';
 import { SidebarNav } from './sidebar-nav';
 import type { AuthUser } from '@/types/api';
@@ -62,7 +62,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
                     key={enrolled.classId}
                     className="rounded-full border bg-card px-2.5 py-1 text-xs font-medium"
                   >
-                    {enrolled.className}
+                    {classLabel(enrolled.classLevel, enrolled.classSection)}
                   </span>
                 ))}
               </div>

@@ -9,6 +9,7 @@ import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
 import { useMyStudentCourses } from '@/hooks/use-admin-resources';
+import { classLabel } from '@/lib/format';
 import type { StudentCourse } from '@/types/api';
 
 export default function EnrolledCoursesPage() {
@@ -88,7 +89,7 @@ function EnrolledCoursesView() {
                           {course.courseCode}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {course.className}
+                          {classLabel(course.classLevel, course.classSection)}
                         </TableCell>
                         <TableCell>
                           <TeacherNamesCell course={course} />

@@ -19,6 +19,7 @@ import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
 import { useClasses, useDeleteClass } from '@/hooks/use-admin-resources';
+import { classLabel, gradeLabel, sectionLabel } from '@/lib/format';
 import type { ClassRoom } from '@/types/api';
 
 export default function ClassesPage() {
@@ -52,7 +53,7 @@ function ClassesView() {
         back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Administration"
         title="Classes"
-        description="A student belongs to exactly one class. Create classes before assigning teachers to them."
+        description="A class is a grade and a section. A student belongs to exactly one of them — create classes before assigning teachers to them."
         actions={
           <Button onClick={openCreate}>
             <Plus className="size-4" />
@@ -82,8 +83,7 @@ function ClassesView() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Grade</TableHead>
+                    <TableHead>Class</TableHead>
                     <TableHead>Section</TableHead>
                     <TableHead>Students</TableHead>
                     <TableHead className="w-20">Action</TableHead>
@@ -91,10 +91,10 @@ function ClassesView() {
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={5} />
+                    <TableSkeleton columns={4} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="p-0">
+                      <TableCell colSpan={4} className="p-0">
                         <EmptyState
                           icon={GraduationCap}
                           title={search ? 'Nothing matches that search' : 'No classes yet'}
@@ -113,9 +113,10 @@ function ClassesView() {
                   ) : (
                     items.map((classRoom) => (
                       <TableRow key={classRoom.id}>
-                        <TableCell className="font-medium">{classRoom.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{classRoom.gradeLabel}</TableCell>
-                        <TableCell className="text-muted-foreground">{classRoom.section ?? '—'}</TableCell>
+                        <TableCell className="font-medium">{gradeLabel(classRoom.level)}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {sectionLabel(classRoom.section)}
+                        </TableCell>
                         <TableCell>
                           <button
                             type="button"
@@ -129,7 +130,7 @@ function ClassesView() {
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label={`Actions for ${classRoom.name}`}>
+                              <Button variant="ghost" size="icon" aria-label={`Actions for ${classLabel(classRoom.level, classRoom.section)}`}>
                                 <MoreHorizontal className="size-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -180,7 +181,9 @@ function ClassesView() {
         open={!!deleting}
         onOpenChange={(open) => !open && setDeleting(null)}
         title="Delete this class?"
-        description={`"${deleting?.name}" can only be deleted if no students or teaching assignments reference it.`}
+        description={`${
+          deleting ? classLabel(deleting.level, deleting.section) : "This class"
+        } can only be deleted if no students or teaching assignments reference it.`}
         pending={remove.isPending}
         onConfirm={() => {
           if (deleting) {

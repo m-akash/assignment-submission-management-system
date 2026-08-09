@@ -23,6 +23,7 @@ import {
   useUploadAssignmentFile,
 } from '@/hooks/use-assignments';
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
+import { classLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { assignmentSchema, type AssignmentInput, type AssignmentValues } from '@/schemas';
 import type { Assignment, TeacherMapping } from '@/types/api';
@@ -206,12 +207,12 @@ function Form({
                       onChange={field.onChange}
                       options={options.map((mapping) => ({
                         value: mapping.id,
-                        label: `${mapping.className} · ${mapping.courseName}`,
+                        label: `${classLabel(mapping.classLevel, mapping.classSection)} · ${mapping.courseName}`,
                         // Shown only when the list spans teachers, i.e. for an admin.
                         hint: showsTeacherNames ? mapping.teacherName : undefined,
                       }))}
                       placeholder="Choose class and course"
-                      searchPlaceholder="Search class or course…"
+                      searchPlaceholder="Search grade, section or course…"
                       emptyMessage="No offerings match"
                       disabled={isEdit || options.length === 0}
                       aria-invalid={!!errors.teachingMappingId}

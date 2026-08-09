@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ClassFilter } from '@/components/shared/class-picker';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { FilterSelect } from '@/components/shared/filter-select';
 import { PageHeader } from '@/components/shared/page-header';
@@ -18,6 +19,7 @@ import {
   useCourseOptions,
   useTeacherMappings,
 } from '@/hooks/use-admin-resources';
+import { classLabel, gradeLabel, sectionLabel } from '@/lib/format';
 import type { TeacherMapping } from '@/types/api';
 
 export default function TeacherMappingsPage() {
@@ -49,7 +51,6 @@ function MappingsView() {
   const items = query.data?.items ?? [];
   const isFiltered = !!search || courseIds.length > 0 || classIds.length > 0;
   const courseOptions = (courses.data ?? []).map((s) => ({ value: s.id, label: s.name }));
-  const classOptions = (classes.data ?? []).map((c) => ({ value: c.id, label: c.name }));
 
   function withPageReset<T>(setter: (value: T) => void) {
     return (value: T) => {
@@ -78,7 +79,7 @@ function MappingsView() {
           <SearchInput
             value={search}
             onChange={withPageReset(setSearch)}
-            placeholder="Search teacher, course or class…"
+            placeholder="Search teacher, course, grade or section…"
             className="sm:max-w-xs"
           />
           <FilterSelect
@@ -87,11 +88,10 @@ function MappingsView() {
             options={courseOptions}
             allLabel="All courses"
           />
-          <FilterSelect
-            values={classIds}
+          <ClassFilter
+            classes={classes.data ?? []}
+            loading={classes.isLoading}
             onChange={withPageReset(setClassIds)}
-            options={classOptions}
-            allLabel="All classes"
           />
         </div>
 
@@ -107,15 +107,16 @@ function MappingsView() {
                     <TableHead>Course</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Class</TableHead>
+                    <TableHead>Section</TableHead>
                     <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={5} />
+                    <TableSkeleton columns={6} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="p-0">
+                      <TableCell colSpan={6} className="p-0">
                         <EmptyState
                           icon={Link2}
                           title={isFiltered ? 'Nothing matches those filters' : 'No teaching assignments yet'}
@@ -146,12 +147,15 @@ function MappingsView() {
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {mapping.courseCode}
                         </TableCell>
-                        <TableCell>{mapping.className}</TableCell>
+                        <TableCell>{gradeLabel(mapping.classLevel)}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {sectionLabel(mapping.classSection)}
+                        </TableCell>
                         <TableCell>
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label={`Remove ${mapping.teacherName} from ${mapping.className}`}
+                            aria-label={`Remove ${mapping.teacherName} from ${classLabel(mapping.classLevel, mapping.classSection)}`}
                             disabled={remove.isPending}
                             onClick={() => setDeleting(mapping)}
                           >
@@ -180,7 +184,7 @@ function MappingsView() {
         title="Remove this teaching assignment?"
         description={
           deleting
-            ? `${deleting.teacherName} will no longer be able to create assignments for ${deleting.className} · ${deleting.courseName}.`
+            ? `${deleting.teacherName} will no longer be able to create assignments for ${classLabel(deleting.classLevel, deleting.classSection)} · ${deleting.courseName}.`
             : ''
         }
         confirmLabel="Remove"

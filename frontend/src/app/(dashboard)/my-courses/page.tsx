@@ -10,6 +10,7 @@ import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
 import { useMyTeacherMappings, useClassOptions } from '@/hooks/use-admin-resources';
+import { gradeLabel, sectionLabel } from '@/lib/format';
 import type { TeacherMapping } from '@/types/api';
 
 export default function MyCoursesPage() {
@@ -63,16 +64,17 @@ function MyCoursesView() {
                   <TableHead>Course</TableHead>
                   <TableHead>Code</TableHead>
                   <TableHead>Class</TableHead>
+                  <TableHead>Section</TableHead>
                   <TableHead className="text-right">Students</TableHead>
                   <TableHead className="w-40">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableSkeleton columns={5} />
+                  <TableSkeleton columns={6} />
                 ) : items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="p-0">
+                    <TableCell colSpan={6} className="p-0">
                       <EmptyState
                         icon={GraduationCap}
                         title={search ? 'Nothing matches that search' : 'No courses assigned yet'}
@@ -93,7 +95,10 @@ function MyCoursesView() {
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {mapping.courseCode}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{mapping.className}</TableCell>
+                        <TableCell className="text-sm">{gradeLabel(mapping.classLevel)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {sectionLabel(mapping.classSection)}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Link
                             href={`/my-students?classId=${mapping.classId}`}
@@ -131,6 +136,9 @@ function matchesSearch(mapping: TeacherMapping, search: string): boolean {
   return (
     mapping.courseName.toLowerCase().includes(term) ||
     mapping.courseCode.toLowerCase().includes(term) ||
-    mapping.className.toLowerCase().includes(term)
+    // A number matches the grade, a letter the section — the two halves of a class, searched
+    // the same way the server searches them.
+    String(mapping.classLevel) === term ||
+    (mapping.classSection?.toLowerCase().includes(term) ?? false)
   );
 }

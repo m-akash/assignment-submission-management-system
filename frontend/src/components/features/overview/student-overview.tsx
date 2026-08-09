@@ -9,7 +9,7 @@ import { SectionPanel } from '@/components/shared/section-panel';
 import { StatCard } from '@/components/shared/stat-card';
 import { CardGridSkeleton, EmptyState, ErrorState } from '@/components/shared/states';
 import { useStudentAssignments } from '@/hooks/use-submissions';
-import { deadlineUrgency, formatMarks, formatRelative } from '@/lib/format';
+import { classLabel, deadlineUrgency, formatMarks, formatRelative } from '@/lib/format';
 import { AssignmentCard } from '@/components/features/assignments/assignment-card';
 import type { EnrolledClass } from '@/types/api';
 
@@ -26,7 +26,9 @@ export function StudentOverview({
   // so the class alone would not say which of the two is this year's.
   const className =
     classes.length > 0
-      ? classes.map((c) => `${c.className} (${c.academicYearName})`).join(' · ')
+      ? classes
+          .map((c) => `${classLabel(c.classLevel, c.classSection)} (${c.academicYearName})`)
+          .join(' · ')
       : null;
 
   const { items, isLoading, isError, error } = useStudentAssignments({});

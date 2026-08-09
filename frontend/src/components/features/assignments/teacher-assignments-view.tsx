@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ClassFilter } from '@/components/shared/class-picker';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { FilterSelect } from '@/components/shared/filter-select';
 import { PageHeader } from '@/components/shared/page-header';
@@ -23,7 +24,8 @@ import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/state
 import { AssignmentStatusBadge, DeadlineBadge } from '@/components/shared/status-badge';
 import { useAssignments, useDeleteAssignment, usePublishAssignment } from '@/hooks/use-assignments';
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
-import { deadlineUrgency, formatDateTime } from '@/lib/format';
+import { distinctClasses } from '@/lib/classes';
+import { deadlineUrgency, formatDateTime, gradeLabel, sectionLabel } from '@/lib/format';
 import { richTextToPlainText } from '@/lib/rich-text';
 import type { Assignment, AssignmentStatus } from '@/types/api';
 
@@ -51,9 +53,7 @@ export function TeacherAssignmentsView() {
   const query = useAssignments({ search, status: statuses, classId: classIds, page, pageSize: 10 });
 
   // Distinct classes the teacher actually teaches — no point offering the rest.
-  const classOptions = [
-    ...new Map((mappings.data ?? []).map((m) => [m.classId, m.className])).entries(),
-  ].map(([value, label]) => ({ value, label }));
+  const taughtClasses = distinctClasses(mappings.data ?? []);
 
   /**
    * Opens the assignment's own page when a row is clicked. Skips clicks that originate
@@ -119,12 +119,10 @@ export function TeacherAssignmentsView() {
             allLabel="Any status"
             className="w-44"
           />
-          <FilterSelect
-            values={classIds}
+          <ClassFilter
+            classes={taughtClasses}
+            loading={mappings.isLoading}
             onChange={withPageReset(setClassIds)}
-            options={classOptions}
-            allLabel="All classes"
-            className="w-48"
           />
         </div>
 
@@ -138,6 +136,7 @@ export function TeacherAssignmentsView() {
                   <TableRow>
                     <TableHead>Title</TableHead>
                     <TableHead>Class</TableHead>
+                    <TableHead>Section</TableHead>
                     <TableHead>Course</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Deadline</TableHead>
@@ -150,10 +149,10 @@ export function TeacherAssignmentsView() {
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={readOnly ? 8 : 10} />
+                    <TableSkeleton columns={readOnly ? 9 : 11} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={readOnly ? 8 : 10} className="p-0">
+                      <TableCell colSpan={readOnly ? 9 : 11} className="p-0">
                         <EmptyState
                           icon={ClipboardList}
                           title={isFiltered ? 'Nothing matches those filters' : 'No assignments yet'}
@@ -189,7 +188,10 @@ export function TeacherAssignmentsView() {
                             {richTextToPlainText(assignment.description)}
                           </p>
                         </TableCell>
-                        <TableCell className="text-sm">{assignment.className}</TableCell>
+                        <TableCell className="text-sm">{gradeLabel(assignment.classLevel)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {sectionLabel(assignment.classSection)}
+                        </TableCell>
                         <TableCell className="text-sm">{assignment.courseName}</TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {assignment.courseCode}

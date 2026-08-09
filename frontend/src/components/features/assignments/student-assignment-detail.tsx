@@ -37,7 +37,15 @@ import {
   useUploadSubmissionFile,
 } from '@/hooks/use-submissions';
 import { ApiError } from '@/lib/api';
-import { deadlineUrgency, formatDateTime, formatMarks, formatRelative } from '@/lib/format';
+import {
+  classLabel,
+  deadlineUrgency,
+  formatDateTime,
+  formatMarks,
+  formatRelative,
+  gradeLabel,
+  sectionLabel,
+} from '@/lib/format';
 import { isRichTextEmpty } from '@/lib/rich-text';
 import type { StudentAssignment } from '@/types/api';
 
@@ -164,7 +172,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
         back={{ href: '/assignments', label: 'All assignments' }}
         eyebrow={`${assignment.courseCode} · ${assignment.courseName}`}
         title={assignment.title}
-        description={`Set by ${assignment.teacherName} for ${assignment.className}`}
+        description={`Set by ${assignment.teacherName} for ${classLabel(assignment.classLevel, assignment.classSection)}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <DeadlineBadge urgency={urgency}>
@@ -363,7 +371,8 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                 {assignment.courseCode}
               </span>
             </Fact>
-            <Fact label="Class">{assignment.className}</Fact>
+            <Fact label="Class">{gradeLabel(assignment.classLevel)}</Fact>
+            <Fact label="Section">{sectionLabel(assignment.classSection)}</Fact>
             <Fact label="Teacher">{assignment.teacherName}</Fact>
           </SectionPanel>
         </aside>

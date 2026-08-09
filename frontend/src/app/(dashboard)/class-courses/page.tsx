@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { Layers, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ClassFilter } from '@/components/shared/class-picker';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { FilterSelect } from '@/components/shared/filter-select';
 import { PageHeader } from '@/components/shared/page-header';
 import { PaginationBar } from '@/components/shared/pagination-bar';
 import { RoleGuard } from '@/components/shared/role-guard';
@@ -17,6 +17,7 @@ import {
   useClassOptions,
   useDeleteClassCourse,
 } from '@/hooks/use-admin-resources';
+import { classLabel, gradeLabel, sectionLabel } from '@/lib/format';
 import type { ClassCourse } from '@/types/api';
 
 export default function ClassCoursesPage() {
@@ -71,18 +72,16 @@ function ClassCoursesView() {
               setSearch(value);
               setPage(1);
             }}
-            placeholder="Search by class or course…"
+            placeholder="Search by grade, section or course…"
             className="sm:max-w-xs"
           />
-          <FilterSelect
-            values={classIds}
+          <ClassFilter
+            classes={classes.data ?? []}
+            loading={classes.isLoading}
             onChange={(values) => {
               setClassIds(values);
               setPage(1);
             }}
-            allLabel="All classes"
-            options={(classes.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-            className="w-full sm:w-50"
           />
         </div>
 
@@ -95,6 +94,7 @@ function ClassCoursesView() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Class</TableHead>
+                    <TableHead>Section</TableHead>
                     <TableHead>Course</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Teachers</TableHead>
@@ -104,10 +104,10 @@ function ClassCoursesView() {
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={6} />
+                    <TableSkeleton columns={7} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="p-0">
+                      <TableCell colSpan={7} className="p-0">
                         <EmptyState
                           icon={Layers}
                           title={
@@ -132,7 +132,12 @@ function ClassCoursesView() {
                   ) : (
                     items.map((offering) => (
                       <TableRow key={offering.id}>
-                        <TableCell className="font-medium">{offering.className}</TableCell>
+                        <TableCell className="font-medium">
+                          {gradeLabel(offering.classLevel)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {sectionLabel(offering.classSection)}
+                        </TableCell>
                         <TableCell className="font-medium">{offering.courseName}</TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {offering.courseCode}
@@ -155,7 +160,7 @@ function ClassCoursesView() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            aria-label={`Remove ${offering.courseName} from ${offering.className}`}
+                            aria-label={`Remove ${offering.courseName} from ${classLabel(offering.classLevel, offering.classSection)}`}
                             onClick={() => setDeleting(offering)}
                           >
                             <Trash2 className="size-4" />
@@ -187,7 +192,7 @@ function ClassCoursesView() {
         title="Remove this offering?"
         description={
           deleting
-            ? `${deleting.className} will no longer study ${deleting.courseName}. This is refused while any teacher is assigned to it or any assignment exists for it.`
+            ? `${classLabel(deleting.classLevel, deleting.classSection)} will no longer study ${deleting.courseName}. This is refused while any teacher is assigned to it or any assignment exists for it.`
             : ''
         }
         pending={remove.isPending}

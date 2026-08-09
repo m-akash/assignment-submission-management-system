@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ClassFilter } from '@/components/shared/class-picker';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { FilterSelect } from '@/components/shared/filter-select';
 import { PageHeader } from '@/components/shared/page-header';
@@ -22,7 +23,7 @@ import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/state
 import { RoleBadge } from '@/components/shared/status-badge';
 import { UserFormDialog } from '@/components/features/admin/user-form-dialog';
 import { useClassOptions, useDeleteUser, useUsers } from '@/hooks/use-admin-resources';
-import { initials } from '@/lib/format';
+import { classLabel, initials } from '@/lib/format';
 import type { Role, User } from '@/types/api';
 
 const ROLE_OPTIONS = [
@@ -108,7 +109,6 @@ function UsersView() {
   const columnCount = role === 'Student' ? 6 : role === 'Teacher' ? 5 : 4;
   // The role is a heading here, not a filter the user needs telling about.
   const isFiltered = !!search || classIds.length > 0;
-  const classOptions = (classes.data ?? []).map((c) => ({ value: c.id, label: c.name }));
 
   function withPageReset<T>(setter: (value: T) => void) {
     return (value: T) => {
@@ -171,11 +171,10 @@ function UsersView() {
             options={ROLE_OPTIONS}
             allLabel="All roles"
           />
-          <FilterSelect
-            values={classIds}
+          <ClassFilter
+            classes={classes.data ?? []}
+            loading={classes.isLoading}
             onChange={withPageReset(setClassIds)}
-            options={classOptions}
-            allLabel="All classes"
           />
         </div>
 
@@ -247,16 +246,18 @@ function UsersView() {
                         {role === 'Student' && (
                           <>
                             <TableCell className="text-muted-foreground">
-                              {/* The year is part of the answer now that a student can hold
-                                  the same class in more than one session — without it, two
-                                  entries reading "Class IX - Section A" look like a bug. */}
+                              {/* One line per enrollment, with the session under it: a student
+                                  can hold the same class in more than one, and without the year
+                                  two identical-looking rows read as a bug. */}
                               {user.classes.length > 0
-                                ? user.classes
-                                    .map(
-                                      (enrolled) =>
-                                        `${enrolled.className} (${enrolled.academicYearName})`,
-                                    )
-                                    .join(', ')
+                                ? user.classes.map((enrolled) => (
+                                    <span key={enrolled.enrollmentId} className="block">
+                                      {classLabel(enrolled.classLevel, enrolled.classSection)}
+                                      <span className="block text-xs">
+                                        {enrolled.academicYearName}
+                                      </span>
+                                    </span>
+                                  ))
                                 : '—'}
                             </TableCell>
                             <TableCell className="font-mono text-sm text-muted-foreground">

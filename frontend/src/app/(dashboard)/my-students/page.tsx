@@ -6,14 +6,15 @@ import { useSearchParams } from 'next/navigation';
 import { Backpack } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FilterSelect } from '@/components/shared/filter-select';
+import { ClassFilter } from '@/components/shared/class-picker';
 import { PageHeader } from '@/components/shared/page-header';
 import { PaginationBar } from '@/components/shared/pagination-bar';
 import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
 import { useEnrollments, useMyTeacherMappings } from '@/hooks/use-admin-resources';
-import { initials } from '@/lib/format';
+import { distinctClasses } from '@/lib/classes';
+import { gradeLabel, initials, sectionLabel } from '@/lib/format';
 
 export default function MyStudentsPage() {
   return (
@@ -33,9 +34,7 @@ function MyStudentsView() {
   const mappings = useMyTeacherMappings();
 
   // Distinct classes the teacher actually teaches — the only ones they may see students for.
-  const classOptions = [
-    ...new Map((mappings.data ?? []).map((m) => [m.classId, m.className])).entries(),
-  ].map(([value, label]) => ({ value, label }));
+  const taughtClasses = distinctClasses(mappings.data ?? []);
 
   const [search, setSearch] = useState('');
   const [classIds, setClassIds] = useState<string[]>(initialClassIds);
@@ -78,13 +77,11 @@ function MyStudentsView() {
             placeholder="Search student name or email…"
             className="sm:max-w-xs"
           />
-          <FilterSelect
-            values={classIds}
+          <ClassFilter
+            classes={taughtClasses}
+            loading={!mappings.isSuccess}
             onChange={withPageReset(setClassIds)}
-            options={classOptions}
-            allLabel="All my classes"
-            className="w-full sm:w-[200px]"
-            disabled={!mappings.isSuccess}
+            initialClassIds={initialClassIds}
           />
         </div>
 
@@ -99,10 +96,11 @@ function MyStudentsView() {
                   <TableHead>Student ID</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Class</TableHead>
+                  <TableHead>Section</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableSkeleton columns={4} />
+                <TableSkeleton columns={5} />
               </TableBody>
             </Table>
           </div>
@@ -116,14 +114,15 @@ function MyStudentsView() {
                     <TableHead>Student ID</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Class</TableHead>
+                    <TableHead>Section</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={4} />
+                    <TableSkeleton columns={5} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="p-0">
+                      <TableCell colSpan={5} className="p-0">
                         <EmptyState
                           icon={Backpack}
                           title={isFiltered ? 'Nothing matches those filters' : 'No students yet'}
@@ -161,7 +160,12 @@ function MyStudentsView() {
                         <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
                           {enrollment.studentEmail}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{enrollment.className}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {gradeLabel(enrollment.classLevel)}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {sectionLabel(enrollment.classSection)}
+                        </TableCell>
                       </TableRow>
                     ))
                   )}

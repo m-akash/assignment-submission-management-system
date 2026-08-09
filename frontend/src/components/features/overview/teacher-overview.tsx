@@ -13,7 +13,7 @@ import { SubmissionStatusBadge } from '@/components/shared/status-badge';
 import { useAssignments } from '@/hooks/use-assignments';
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
 import { useSubmissions } from '@/hooks/use-submissions';
-import { formatRelative, initials } from '@/lib/format';
+import { classLabel, formatRelative, initials } from '@/lib/format';
 
 const COUNT_ONLY = { page: 1, pageSize: 1 };
 
@@ -190,7 +190,7 @@ export function TeacherOverview({ name }: { name: string }) {
                       {mapping.courseName}
                     </div>
                     <div className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-                      {mapping.className}
+                      {classLabel(mapping.classLevel, mapping.classSection)}
                     </div>
                   </Link>
                 </li>
