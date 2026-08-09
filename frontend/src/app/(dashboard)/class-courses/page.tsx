@@ -37,15 +37,16 @@ export default function ClassCoursesPage() {
  */
 function ClassCoursesView() {
   const [search, setSearch] = useState('');
-  const [classId, setClassId] = useState('');
+  const [classIds, setClassIds] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [deleting, setDeleting] = useState<ClassCourse | null>(null);
 
   const classes = useClassOptions();
   const remove = useDeleteClassCourse();
-  const query = useClassCourses({ search, classId: classId || undefined, page, pageSize: 10 });
+  const query = useClassCourses({ search, classId: classIds, page, pageSize: 10 });
   const items = query.data?.items ?? [];
+  const isFiltered = !!search || classIds.length > 0;
 
   return (
     <div className="space-y-6">
@@ -74,9 +75,9 @@ function ClassCoursesView() {
             className="sm:max-w-xs"
           />
           <FilterSelect
-            value={classId}
-            onChange={(value) => {
-              setClassId(value);
+            values={classIds}
+            onChange={(values) => {
+              setClassIds(values);
               setPage(1);
             }}
             allLabel="All classes"
@@ -110,16 +111,15 @@ function ClassCoursesView() {
                         <EmptyState
                           icon={Layers}
                           title={
-                            search || classId ? 'Nothing matches those filters' : 'No offerings yet'
+                            isFiltered ? 'Nothing matches those filters' : 'No offerings yet'
                           }
                           description={
-                            search || classId
+                            isFiltered
                               ? undefined
                               : 'Add a course to a class so teachers can be assigned to it.'
                           }
                           action={
-                            !search &&
-                            !classId && (
+                            !isFiltered && (
                               <Button size="sm" onClick={() => setFormOpen(true)}>
                                 <Plus className="size-4" />
                                 Add course to class

@@ -44,18 +44,19 @@ function SubmissionsView() {
   const [search, setSearch] = useState('');
   // Seeded from the URL so the dashboard tiles can deep-link into a filtered view
   // ("Awaiting marking" → ?status=Submitted). Only the initial value comes from the
-  // query string; after that the dropdown owns it, and an unknown value is ignored.
-  const [status, setStatus] = useState<SubmissionStatus | ''>(() => {
-    const requested = searchParams.get('status');
-    return STATUS_OPTIONS.some((option) => option.value === requested)
-      ? (requested as SubmissionStatus)
-      : '';
-  });
+  // query string; after that the dropdown owns it, and unknown values are ignored.
+  const [statuses, setStatuses] = useState<SubmissionStatus[]>(() =>
+    searchParams
+      .getAll('status')
+      .filter((value): value is SubmissionStatus =>
+        STATUS_OPTIONS.some((option) => option.value === value),
+      ),
+  );
   const [page, setPage] = useState(1);
 
-  const query = useSubmissions({ search, status, assignmentId, page, pageSize: 10 });
+  const query = useSubmissions({ search, status: statuses, assignmentId, page, pageSize: 10 });
   const items = query.data?.items ?? [];
-  const isFiltered = !!search || !!status;
+  const isFiltered = !!search || statuses.length > 0;
 
   function withPageReset<T>(setter: (value: T) => void) {
     return (value: T) => {
@@ -91,11 +92,11 @@ function SubmissionsView() {
             className="sm:max-w-xs"
           />
           <FilterSelect
-            value={status}
-            onChange={withPageReset((value: string) => setStatus(value as SubmissionStatus | ''))}
+            values={statuses}
+            onChange={withPageReset((values: string[]) => setStatuses(values as SubmissionStatus[]))}
             options={STATUS_OPTIONS}
             allLabel="Any status"
-            className="w-[160px]"
+            className="w-44"
           />
         </div>
 

@@ -38,8 +38,8 @@ export function TeacherAssignmentsView() {
   const router = useRouter();
 
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<AssignmentStatus | ''>('');
-  const [classId, setClassId] = useState('');
+  const [statuses, setStatuses] = useState<AssignmentStatus[]>([]);
+  const [classIds, setClassIds] = useState<string[]>([]);
   const [page, setPage] = useState(1);
 
   const [deleting, setDeleting] = useState<Assignment | null>(null);
@@ -48,7 +48,7 @@ export function TeacherAssignmentsView() {
   const publish = usePublishAssignment();
   const remove = useDeleteAssignment();
 
-  const query = useAssignments({ search, status, classId, page, pageSize: 10 });
+  const query = useAssignments({ search, status: statuses, classId: classIds, page, pageSize: 10 });
 
   // Distinct classes the teacher actually teaches — no point offering the rest.
   const classOptions = [
@@ -79,7 +79,7 @@ export function TeacherAssignmentsView() {
   }
 
   const items = query.data?.items ?? [];
-  const isFiltered = !!search || !!status || !!classId;
+  const isFiltered = !!search || statuses.length > 0 || classIds.length > 0;
 
   return (
     <div className="space-y-6">
@@ -113,18 +113,18 @@ export function TeacherAssignmentsView() {
             className="sm:max-w-xs"
           />
           <FilterSelect
-            value={status}
-            onChange={withPageReset((value: string) => setStatus(value as AssignmentStatus | ''))}
+            values={statuses}
+            onChange={withPageReset((values: string[]) => setStatuses(values as AssignmentStatus[]))}
             options={STATUS_OPTIONS}
             allLabel="Any status"
-            className="w-[150px]"
+            className="w-44"
           />
           <FilterSelect
-            value={classId}
-            onChange={withPageReset(setClassId)}
+            values={classIds}
+            onChange={withPageReset(setClassIds)}
             options={classOptions}
             allLabel="All classes"
-            className="w-[180px]"
+            className="w-48"
           />
         </div>
 

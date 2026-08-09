@@ -77,16 +77,20 @@ function UsersView() {
 
   // The role filter lives in the URL, not component state: the sidebar's Teachers and
   // Students links and the dashboard tiles deep-link straight into a filtered view, and
-  // it keeps a filtered list shareable and survivable across a reload. Anything the URL
-  // offers that is not a real role falls back to showing everyone — a hand-typed
-  // ?role=Foo must not be able to break the page.
-  const roleParam = searchParams.get('role') ?? '';
-  const role: Role | '' = ROLE_OPTIONS.some((option) => option.value === roleParam)
-    ? (roleParam as Role)
-    : '';
+  // it keeps a filtered list shareable and survivable across a reload. It is read with
+  // getAll, so ?role=Teacher&role=Student selects both and a one-role link still works.
+  // Anything the URL offers that is not a real role is dropped — a hand-typed ?role=Foo
+  // must not be able to break the page.
+  const roles = searchParams
+    .getAll('role')
+    .filter((value): value is Role => ROLE_OPTIONS.some((option) => option.value === value));
+  // The page names itself after the role, which only means something while exactly one is
+  // selected: "Teachers" is the wrong heading for a list of teachers and students, so a
+  // wider selection falls back to the neutral "Users" one.
+  const role: Role | '' = roles.length === 1 ? roles[0] : '';
 
   const [search, setSearch] = useState('');
-  const [classId, setClassId] = useState('');
+  const [classIds, setClassIds] = useState<string[]>([]);
   const [page, setPage] = useState(1);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -95,7 +99,7 @@ function UsersView() {
 
   const classes = useClassOptions();
   const remove = useDeleteUser();
-  const query = useUsers({ search, role, classId, page, pageSize: 10 });
+  const query = useUsers({ search, role: roles, classId: classIds, page, pageSize: 10 });
 
   const items = query.data?.items ?? [];
   const heading = HEADINGS[role];
@@ -103,7 +107,7 @@ function UsersView() {
   // role. On the unfiltered list a mixed table would leave most of them blank.
   const columnCount = role === 'Student' ? 6 : role === 'Teacher' ? 5 : 4;
   // The role is a heading here, not a filter the user needs telling about.
-  const isFiltered = !!search || !!classId;
+  const isFiltered = !!search || classIds.length > 0;
   const classOptions = (classes.data ?? []).map((c) => ({ value: c.id, label: c.name }));
 
   function withPageReset<T>(setter: (value: T) => void) {
@@ -115,22 +119,23 @@ function UsersView() {
 
   // `replace`, not `push`: switching a dropdown should not stack a history entry the way
   // arriving from the sidebar does.
-  function setRole(next: string) {
+  function setRoles(next: string[]) {
     const params = new URLSearchParams(searchParams);
-    if (next) {
-      params.set('role', next);
-    } else {
-      params.delete('role');
+    params.delete('role');
+    for (const value of next) {
+      params.append('role', value);
     }
     const queryString = params.toString();
     router.replace(queryString ? `${pathname}?${queryString}` : pathname);
   }
 
   // A role change can arrive from the sidebar too, so paging resets on the value itself
-  // rather than inside the dropdown's handler.
+  // rather than inside the dropdown's handler. Keyed on the joined list because the array
+  // is rebuilt from the URL on every render and would never compare equal.
+  const roleKey = roles.join(',');
   useEffect(() => {
     setPage(1);
-  }, [role]);
+  }, [roleKey]);
 
   function openCreate() {
     setEditing(null);
@@ -161,14 +166,14 @@ function UsersView() {
             className="sm:max-w-xs"
           />
           <FilterSelect
-            value={role}
-            onChange={setRole}
+            values={roles}
+            onChange={setRoles}
             options={ROLE_OPTIONS}
             allLabel="All roles"
           />
           <FilterSelect
-            value={classId}
-            onChange={withPageReset(setClassId)}
+            values={classIds}
+            onChange={withPageReset(setClassIds)}
             options={classOptions}
             allLabel="All classes"
           />

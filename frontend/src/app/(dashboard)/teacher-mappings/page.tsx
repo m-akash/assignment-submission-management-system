@@ -30,8 +30,8 @@ export default function TeacherMappingsPage() {
 
 function MappingsView() {
   const [search, setSearch] = useState('');
-  const [courseId, setCourseId] = useState('');
-  const [classId, setClassId] = useState('');
+  const [courseIds, setCourseIds] = useState<string[]>([]);
+  const [classIds, setClassIds] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [deleting, setDeleting] = useState<TeacherMapping | null>(null);
@@ -39,9 +39,15 @@ function MappingsView() {
   const courses = useCourseOptions();
   const classes = useClassOptions();
   const remove = useDeleteTeacherMapping();
-  const query = useTeacherMappings({ search, courseId, classId, page, pageSize: 10 });
+  const query = useTeacherMappings({
+    search,
+    courseId: courseIds,
+    classId: classIds,
+    page,
+    pageSize: 10,
+  });
   const items = query.data?.items ?? [];
-  const isFiltered = !!search || !!courseId || !!classId;
+  const isFiltered = !!search || courseIds.length > 0 || classIds.length > 0;
   const courseOptions = (courses.data ?? []).map((s) => ({ value: s.id, label: s.name }));
   const classOptions = (classes.data ?? []).map((c) => ({ value: c.id, label: c.name }));
 
@@ -76,14 +82,14 @@ function MappingsView() {
             className="sm:max-w-xs"
           />
           <FilterSelect
-            value={courseId}
-            onChange={withPageReset(setCourseId)}
+            values={courseIds}
+            onChange={withPageReset(setCourseIds)}
             options={courseOptions}
             allLabel="All courses"
           />
           <FilterSelect
-            value={classId}
-            onChange={withPageReset(setClassId)}
+            values={classIds}
+            onChange={withPageReset(setClassIds)}
             options={classOptions}
             allLabel="All classes"
           />

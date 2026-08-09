@@ -27,7 +27,8 @@ export default function MyStudentsPage() {
 
 function MyStudentsView() {
   const searchParams = useSearchParams();
-  const initialClassId = searchParams.get('classId') ?? '';
+  // Arriving from a course card deep-links one class; the filter holds any number after that.
+  const initialClassIds = searchParams.getAll('classId');
 
   const mappings = useMyTeacherMappings();
 
@@ -37,17 +38,17 @@ function MyStudentsView() {
   ].map(([value, label]) => ({ value, label }));
 
   const [search, setSearch] = useState('');
-  const [classId, setClassId] = useState(initialClassId);
+  const [classIds, setClassIds] = useState<string[]>(initialClassIds);
   const [page, setPage] = useState(1);
 
   const query = useEnrollments(
-    { search, classId: classId || undefined, page, pageSize: 10 },
+    { search, classId: classIds, page, pageSize: 10 },
     // Avoid firing before the class list resolves when arriving with a ?classId — and always
     // need a class to query, since the server scopes a teacher to taught classes.
     { enabled: mappings.isSuccess },
   );
   const items = query.data?.items ?? [];
-  const isFiltered = !!search || !!classId;
+  const isFiltered = !!search || classIds.length > 0;
 
   function withPageReset<T>(setter: (value: T) => void) {
     return (value: T) => {
@@ -63,8 +64,8 @@ function MyStudentsView() {
         eyebrow="Coursework"
         title="My students"
         description={
-          classId
-            ? 'Filtered to one class. Choose another, or clear the filter.'
+          classIds.length > 0
+            ? `Filtered to ${classIds.length === 1 ? 'one class' : `${classIds.length} classes`}. Choose others, or clear the filter.`
             : 'The students in each class you teach. Pick a class to begin.'
         }
       />
@@ -78,8 +79,8 @@ function MyStudentsView() {
             className="sm:max-w-xs"
           />
           <FilterSelect
-            value={classId}
-            onChange={withPageReset(setClassId)}
+            values={classIds}
+            onChange={withPageReset(setClassIds)}
             options={classOptions}
             allLabel="All my classes"
             className="w-full sm:w-[200px]"

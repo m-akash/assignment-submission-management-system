@@ -73,8 +73,8 @@ export default function NotificationsPage() {
  */
 function NotificationsView() {
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const [type, setType] = useState('');
+  const [statuses, setStatuses] = useState<NotificationStatus[]>([]);
+  const [types, setTypes] = useState<NotificationType[]>([]);
   const [page, setPage] = useState(1);
 
   // Selection lives across renders but is reset whenever the view onto the list changes — a
@@ -92,14 +92,14 @@ function NotificationsView() {
   const bulkDelete = useBulkDeleteNotifications();
   const query = useNotifications({
     search,
-    status: status as NotificationStatus | '',
-    type: type as NotificationType | '',
+    status: statuses,
+    type: types,
     page,
     pageSize: 15,
   });
 
   const items = query.data?.items ?? [];
-  const hasFilters = !!search || !!status || !!type;
+  const hasFilters = !!search || statuses.length > 0 || types.length > 0;
 
   const clearSelection = () => setSelectedIds(new Set());
 
@@ -108,13 +108,13 @@ function NotificationsView() {
     setPage(1);
     clearSelection();
   };
-  const changeStatus = (value: string) => {
-    setStatus(value);
+  const changeStatuses = (values: string[]) => {
+    setStatuses(values as NotificationStatus[]);
     setPage(1);
     clearSelection();
   };
-  const changeType = (value: string) => {
-    setType(value);
+  const changeTypes = (values: string[]) => {
+    setTypes(values as NotificationType[]);
     setPage(1);
     clearSelection();
   };
@@ -235,14 +235,14 @@ function NotificationsView() {
             className="sm:max-w-xs"
           />
           <FilterSelect
-            value={status}
-            onChange={changeStatus}
+            values={statuses}
+            onChange={changeStatuses}
             allLabel="Any status"
             options={STATUSES}
           />
           <FilterSelect
-            value={type}
-            onChange={changeType}
+            values={types}
+            onChange={changeTypes}
             allLabel="Any event"
             options={TYPES}
             className="w-full sm:w-56"

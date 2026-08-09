@@ -27,11 +27,11 @@ const PAGE_SIZE = 12;
 
 export function StudentAssignmentsView() {
   const [search, setSearch] = useState('');
-  const [courseId, setCourseId] = useState('');
+  const [courseIds, setCourseIds] = useState<string[]>([]);
   const [tab, setTab] = useState<Tab>('all');
   const [page, setPage] = useState(1);
 
-  const filters = { search, courseId };
+  const filters = { search, courseId: courseIds };
 
   // One page of cards for the grid — server-sliced so a student with dozens of
   // assignments never loads them all at once.
@@ -98,8 +98,8 @@ export function StudentAssignmentsView() {
             className="sm:max-w-xs"
           />
           <FilterSelect
-            value={courseId}
-            onChange={withPageReset(setCourseId)}
+            values={courseIds}
+            onChange={withPageReset(setCourseIds)}
             options={courseOptions}
             allLabel="All courses"
           />
