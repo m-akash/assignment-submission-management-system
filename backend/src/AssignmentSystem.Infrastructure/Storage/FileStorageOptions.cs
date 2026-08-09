@@ -7,7 +7,7 @@ namespace AssignmentSystem.Infrastructure.Storage;
 internal sealed class FileStorageOptions
 {
     public string Root { get; init; } = "../_uploads";
-    public long MaxBytes { get; init; } = 10 * 1024 * 1024; // 10 MB
+    public long MaxBytes { get; init; } = 2 * 1024 * 1024; // 2 MB
     public int MaxFilesPerSubmission { get; init; } = 3;
     public int MaxFilesPerAssignment { get; init; } = 5;
     /// <summary>

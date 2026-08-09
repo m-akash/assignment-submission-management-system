@@ -41,7 +41,7 @@ import type { Assignment } from '@/types/api';
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
 const MAX_FILES = 5;
 /** UX-only mirror of FileStorage:MaxBytes — picking is deferred, so catch this early. */
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES = 2 * 1024 * 1024;
 
 /** `datetime-local` needs "YYYY-MM-DDTHH:mm" in local time, not a UTC ISO string. */
 function toLocalInput(iso: string): string {
@@ -179,7 +179,7 @@ export function AssignmentFormDialog({
     if (!file) return;
 
     if (file.size > MAX_BYTES) {
-      toast.error(`${file.name} is larger than 10 MB.`);
+      toast.error(`${file.name} is larger than 2 MB.`);
       return;
     }
 
@@ -307,7 +307,7 @@ export function AssignmentFormDialog({
             <div className="flex items-center justify-between">
               <Label>Materials for students</Label>
               <span className="text-xs text-muted-foreground">
-                {attachmentCount} of {MAX_FILES} · max 10 MB each
+                {attachmentCount} of {MAX_FILES} · max 2 MB each
               </span>
             </div>
 

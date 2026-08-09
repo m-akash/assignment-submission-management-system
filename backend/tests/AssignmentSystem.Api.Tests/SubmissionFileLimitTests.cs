@@ -51,14 +51,14 @@ public class SubmissionFileLimitTests : IntegrationTestBase
     {
         var (assignment, student) = await ScenarioAsync("maxbytes");
 
-        // Just past FileStorage:MaxBytes (10 MB) but inside the multipart framing headroom,
+        // Just past FileStorage:MaxBytes (2 MB) but inside the multipart framing headroom,
         // so the policy answers rather than the server truncating the request.
-        var oversized = Pdf((10 * 1024 * 1024) + 1024);
+        var oversized = Pdf((2 * 1024 * 1024) + 1024);
 
         var response = await UploadAsync(student, assignment.Id, "huge.pdf", oversized);
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("10 MB");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("2 MB");
     }
 
     /// <summary>

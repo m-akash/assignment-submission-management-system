@@ -18,13 +18,15 @@ namespace AssignmentSystem.Infrastructure.Persistence.Seed;
 /// evaluator sees a living system immediately instead of a few empty accounts.
 ///
 /// Volume per the seeding spec:
-///   • 7 grades (6–12) × 2 sections (A/B)              = 14 classes
-///   • 9 subjects in the catalogue, but each grade takes only what fits its stage:
-///       - grades 6–8: Bangla, English, General Math, General Science, ICT  (5 each)
-///       - grades 9–12: Bangla, English, Higher Math, Physics, Chemistry, Biology, ICT (7 each)
-///                                                      = 86 course offerings (3×2×5 + 4×2×7)
-///   • 12 teachers, round-robin across the offerings   = 84 teaching mappings
-///   • 5 students per class+section × 14               = 70 students (+ 1 admin)
+///   • 4 grades (7–10) × 2 sections (A/B)              = 8 classes
+///   • 8 subjects in the catalogue, but each grade takes only what fits its stage:
+///       - grades 7–8: Bangla, English, General Math, General Science  (4 each)
+///       - grades 9–10: Physics, Chemistry, Higher Mathematics, Biology, Bangla, English (6 each)
+///                                                      = 40 course offerings (2×2×4 + 2×2×6)
+///   • 5 teachers, round-robin across the offerings    = 35 teaching mappings
+///     (5 offerings are left deliberately unmapped, so the admin's teacher-mapping screen has
+///      real work waiting for it instead of a fully-wired school — see UnassignedOfferings.)
+///   • 5 students per class+section × 8                = 40 students (+ 1 admin)
 ///   • a representative spread of published/draft assignments and submissions across every
 ///     submission status (Pending / Submitted / Graded / Late) so the demo logins have data.
 ///
@@ -44,10 +46,31 @@ public sealed class DbSeeder
     // Demo passwords — documented in README. These are for local/demo only.
     public const string DefaultPassword = "Password123!";
 
-    // Grades 6..12 (inclusive), two sections each.
-    private static readonly int[] Grades = [6, 7, 8, 9, 10, 11, 12];
+    // Grades 7..10 (inclusive), two sections each.
+    private static readonly int[] Grades = [7, 8, 9, 10];
     private static readonly string[] Sections = ["A", "B"];
     private const int StudentsPerSection = 5;
+
+    /// <summary>The grade the demo student login sits in — the senior-most, where the seeded
+    /// assignments and submissions live.</summary>
+    private const int SeniorGrade = 10;
+
+    /// <summary>
+    /// Offerings left without a teacher on purpose, identified by (grade, section, course code).
+    /// The admin's "Teacher Mappings" screen is the feature being demonstrated, so the seed
+    /// stops just short of finishing the job and leaves five real gaps to fill by hand.
+    /// Chosen to avoid Class X - Section A entirely (every seeded assignment is hosted there)
+    /// and Class X - Section B's Higher Mathematics (the late-submission assignment), because an
+    /// assignment cannot exist without the teacher mapping it is authored under.
+    /// </summary>
+    private static readonly (int Grade, string Section, string CourseCode)[] UnassignedOfferings =
+    [
+        (7, "B", "GSCI101"),
+        (8, "A", "GMATH101"),
+        (8, "B", "ENG101"),
+        (9, "B", "BIO101"),
+        (10, "B", "CHE101"),
+    ];
 
     private readonly AppDbContext _context;
     private readonly IPasswordHasher _passwordHasher;
@@ -76,7 +99,7 @@ public sealed class DbSeeder
         var now = DateTime.UtcNow;
         var passwordHash = _passwordHasher.Hash(DefaultPassword);
 
-        // ── Classes (14): grade 6..12 × sections A/B ──────────────────────────────
+        // ── Classes (8): grade 7..10 × sections A/B ───────────────────────────────
         // Stored flat in a grade-major map so offerings and student placement can look
         // them up by (grade, section) without hunting through an array.
         var classByGradeSection = new Dictionary<(int Grade, string Section), Class>();
@@ -98,11 +121,10 @@ public sealed class DbSeeder
         // The catalogue holds every subject the school teaches across all grades, but a
         // given class only studies the subset that fits its stage (see offering plan below).
         //   • Bangla & English  — every grade
-        //   • ICT               — every grade
-        //   • General Math      — lower grades (6–8)
-        //   • General Science   — lower grades (6–8), single combined science course
-        //   • Higher Mathematics— upper grades (9–12)
-        //   • Physics / Chemistry / Biology — upper grades (9–12) only
+        //   • General Math      — lower grades (7–8)
+        //   • General Science   — lower grades (7–8), single combined science course
+        //   • Higher Mathematics— upper grades (9–10)
+        //   • Physics / Chemistry / Biology — upper grades (9–10) only
         var courseDefs = new (string Name, string Code)[]
         {
             ("Bangla", "BAN101"),
@@ -113,7 +135,6 @@ public sealed class DbSeeder
             ("Physics", "PHY101"),
             ("Chemistry", "CHE101"),
             ("Biology", "BIO101"),
-            ("ICT", "ICT101"),
         };
         var courses = courseDefs.Select(d => Course.Create(d.Name, d.Code)).ToArray();
         _context.Courses.AddRange(courses);
@@ -125,9 +146,8 @@ public sealed class DbSeeder
         var physics = courses[5];
         var chemistry = courses[6];
         var biology = courses[7];
-        var ict = courses[8];
 
-        // ── Teachers (12, including the demo login) ───────────────────────────────
+        // ── Teachers (5, including the demo login) ────────────────────────────────
         // Mirrors the production rule in CreateUserHandler: "INS-{sequence}", a single
         // global sequence across all teachers.
         var teacherSequence = 0;
@@ -140,13 +160,6 @@ public sealed class DbSeeder
             ("teacher3@assignment.test", "Kamal Hossain"),
             ("teacher4@assignment.test", "Nusrat Jahan"),
             ("teacher5@assignment.test", "Farhan Ahmed"),
-            ("teacher6@assignment.test", "Rima Chowdhury"),
-            ("teacher7@assignment.test", "Imran Khan"),
-            ("teacher8@assignment.test", "Tania Islam"),
-            ("teacher9@assignment.test", "Shakil Ahmed"),
-            ("teacher10@assignment.test", "Mou Akter"),
-            ("teacher11@assignment.test", "Rafiq Uddin"),
-            ("teacher12@assignment.test", "Sabrina Yasmin"),
         };
         var teachers = teacherDefs
             .Select(t => ApplicationUser.Create(t.Email, t.Name, passwordHash, Role.Teacher, teacherId: NextTeacherId()))
@@ -183,8 +196,8 @@ public sealed class DbSeeder
             "Chowdhury", "Khan", "Siddika", "Uddin", "Ahmed", "Jahan", "Akash",
         };
 
-        // The very first student is the demo login, placed in Class 12 - Section A so the
-        // documented `student@assignment.test` account lands in the senior-most class.
+        // One seat is the demo login, placed in Class X - Section A so the documented
+        // `student@assignment.test` account lands in the senior-most class.
         var students = new List<ApplicationUser>();
         var studentPlacements = new List<(ApplicationUser Student, Class Class)>();
         var nameCursor = 0;
@@ -205,8 +218,8 @@ public sealed class DbSeeder
 
                 for (var i = 0; i < StudentsPerSection; i++)
                 {
-                    // Class 12-A's first seat is the documented demo login.
-                    var isDemo = grade == 12 && section == "A" && i == 0;
+                    // Class X-A's first seat is the documented demo login.
+                    var isDemo = grade == SeniorGrade && section == "A" && i == 0;
                     var first = firstNames[nameCursor % firstNames.Length];
                     var last = lastNames[(nameCursor * 7 + 3) % lastNames.Length];
                     nameCursor++;
@@ -222,7 +235,7 @@ public sealed class DbSeeder
         }
 
         _context.Users.AddRange(students);
-        var jane = studentPlacements[0].Student; // demo login
+        var jane = students.Single(s => s.Email.Value == StudentEmail); // demo login
 
         await _context.SaveChangesAsync(ct); // persist to resolve generated IDs
 
@@ -235,18 +248,20 @@ public sealed class DbSeeder
         _context.StudentEnrollments.AddRange(enrollments);
 
         // ── Course offerings: each grade studies only the subjects that fit its stage ─
-        //   • Lower grades (6–8): Bangla, English, General Math, General Science, ICT  (5)
-        //   • Upper grades (9–12): Bangla, English, Higher Math, Physics, Chemistry,
-        //                          Biology, ICT                                          (7)
+        //   • Lower grades (7–8): Bangla, English, General Math, General Science          (4)
+        //   • Upper grades (9–10): Physics, Chemistry, Higher Mathematics, Biology,
+        //                          Bangla, English                                        (6)
         // The pure-science trio (Physics/Chemistry/Biology) and Higher Mathematics are
         // upper-grade-only; lower grades take General Math and the combined General Science.
         Course[] SubjectsForGrade(int grade) => grade <= 8
-            ? [bangla, english, generalMath, generalScience, ict]
-            : [bangla, english, higherMath, physics, chemistry, biology, ict];
+            ? [bangla, english, generalMath, generalScience]
+            : [physics, chemistry, higherMath, biology, bangla, english];
 
         // Built in a stable order (grade → section → course) so the round-robin teacher
-        // assignment below is deterministic across runs.
-        var offerings = new List<ClassCourse>();
+        // assignment below is deterministic across runs. The (grade, section, course) key is
+        // carried alongside so the deliberately-unmapped five can be recognised by name rather
+        // than by a positional index that would silently move if the plan above changed.
+        var offerings = new List<(ClassCourse Offering, int Grade, string Section, string CourseCode)>();
         foreach (var grade in Grades)
         {
             foreach (var section in Sections)
@@ -254,35 +269,44 @@ public sealed class DbSeeder
                 var klass = classByGradeSection[(grade, section)];
                 foreach (var course in SubjectsForGrade(grade))
                 {
-                    offerings.Add(ClassCourse.Create(klass.Id, course.Id));
+                    offerings.Add((ClassCourse.Create(klass.Id, course.Id), grade, section, course.Code));
                 }
             }
         }
 
-        _context.ClassCourses.AddRange(offerings);
+        _context.ClassCourses.AddRange(offerings.Select(o => o.Offering));
         await _context.SaveChangesAsync(ct);
 
-        // ── Teaching mappings: round-robin the 12 teachers across all offerings ────
+        // ── Teaching mappings: round-robin the 5 teachers across the mapped offerings ─
+        // Five offerings are skipped on purpose (see UnassignedOfferings) so the admin has
+        // genuine mapping work to do; the remaining 35 divide evenly, 7 per teacher.
+        var unassigned = UnassignedOfferings.ToHashSet();
         var teacherAssignments = new List<TeacherAssignment>();
-        for (var i = 0; i < offerings.Count; i++)
+        var mappingCursor = 0;
+        foreach (var (offering, grade, section, courseCode) in offerings)
         {
-            var teacher = teachers[i % teachers.Length];
-            teacherAssignments.Add(TeacherAssignment.Create(teacher.Id, offerings[i].Id));
+            if (unassigned.Contains((grade, section, courseCode)))
+            {
+                continue;
+            }
+
+            var teacher = teachers[mappingCursor++ % teachers.Length];
+            teacherAssignments.Add(TeacherAssignment.Create(teacher.Id, offering.Id));
         }
 
         _context.TeacherAssignments.AddRange(teacherAssignments);
         await _context.SaveChangesAsync(ct);
 
-        // ── Assignments: one authored assignment per course, hosted in Class 12-A ──
+        // ── Assignments: one authored assignment per course, hosted in Class X-A ───
         // Authored by whichever teacher is mapped to that offering (the rule
         // CreateAssignmentHandler enforces). Mostly Published, one Draft so students see a
         // populated dashboard with at least one hidden assignment. Deadlines are offsets
         // from `now`; rule X5 requires deadline ≥ now + 1h, honoured by the SeederClock.
-        var seniorClass = classByGradeSection[(12, "A")];
+        var seniorClass = classByGradeSection[(SeniorGrade, "A")];
         Assignment MakeAssignment(Course course, string title, string description,
             TimeSpan untilDeadline, decimal maxMarks, bool publish)
         {
-            var offering = offerings.First(o => o.ClassId == seniorClass.Id && o.CourseId == course.Id);
+            var offering = offerings.First(o => o.Offering.ClassId == seniorClass.Id && o.Offering.CourseId == course.Id).Offering;
             var ta = teacherAssignments.First(t => t.ClassCourseId == offering.Id);
             var assignment = Assignment.Create(
                 teacherId: ta.TeacherId,
@@ -301,7 +325,7 @@ public sealed class DbSeeder
             return assignment;
         }
 
-        var class12Students = studentPlacements
+        var seniorStudents = studentPlacements
             .Where(p => p.Class.Id == seniorClass.Id)
             .Select(p => p.Student)
             .ToList();
@@ -314,12 +338,11 @@ public sealed class DbSeeder
             MakeAssignment(physics, "Newton's Laws Problem Set", "Answer the three problem sets covering Newton's first, second and third laws.", TimeSpan.FromDays(9), 50m, publish: true),
             MakeAssignment(chemistry, "Periodic Table Quiz", "Answer the short-answer quiz on periods, groups and element properties.", TimeSpan.FromDays(5), 30m, publish: true),
             MakeAssignment(biology, "Cell Structure Diagram", "Label the plant and animal cell diagrams and describe each organelle's function.", TimeSpan.FromDays(10), 25m, publish: false),
-            MakeAssignment(ict, "HTML Basics Project", "Build a 3-page static website using semantic HTML and submit the source.", TimeSpan.FromDays(12), 40m, publish: true),
         };
 
-        // One more, hosted in Class 12-B with a near deadline, to seed a Late submission.
-        var nearClass = classByGradeSection[(12, "B")];
-        var nearOffering = offerings.First(o => o.ClassId == nearClass.Id && o.CourseId == higherMath.Id);
+        // One more, hosted in Class X-B with a near deadline, to seed a Late submission.
+        var nearClass = classByGradeSection[(SeniorGrade, "B")];
+        var nearOffering = offerings.First(o => o.Offering.ClassId == nearClass.Id && o.Offering.CourseId == higherMath.Id).Offering;
         var nearTa = teacherAssignments.First(t => t.ClassCourseId == nearOffering.Id);
         var aLate = Assignment.Create(
             teacherId: nearTa.TeacherId,
@@ -343,11 +366,11 @@ public sealed class DbSeeder
         // late submission's deadline is only ~65 minutes out, so its row is dated ~75 minutes
         // from now (10 minutes past that deadline) — briefly a "future" timestamp, but the
         // persisted Status is fixed as Late at write time regardless.
-        var class12BStudents = studentPlacements
+        var nearClassStudents = studentPlacements
             .Where(p => p.Class.Id == nearClass.Id)
             .Select(p => p.Student)
             .ToList();
-        var mahinLate = class12BStudents[0];
+        var lateStudent = nearClassStudents[0];
 
         // Collected rather than added one by one, so the summary below counts the rows that
         // were actually built. Adding a submission here and forgetting to update a hard-coded
@@ -369,18 +392,18 @@ public sealed class DbSeeder
             submissions.Add(submission);
         }
 
-        // Class 12-A assignments — the demo student and a couple of classmates.
+        // Class X-A assignments — the demo student and a couple of classmates.
         //   [0]=Bangla(20) [1]=English(20) [2]=HigherMath(50) [3]=Physics(50)
-        //   [4]=Chemistry(30) [5]=Biology(25, DRAFT — no submissions) [6]=ICT(40)
+        //   [4]=Chemistry(30) [5]=Biology(25, DRAFT — no submissions)
         SubmitAndGrade(assignments[0], jane, "আমার প্রিয় ঋতু বর্ষা — প্রকৃতি তখন সবুজে ভরে ওঠে।", TimeSpan.FromDays(2), TimeSpan.FromHours(6), 18m, "সুন্দর লেখা হয়েছে, ভাষা প্রাঞ্জল।");
         Submit(assignments[1], jane, "In progress — outlined the causes, still writing the effects section.", TimeSpan.FromHours(3), finalize: false);
-        SubmitAndGrade(assignments[2], class12Students[1], "Differentiated problems 1 through 8; attached working for each step.", TimeSpan.FromDays(1), TimeSpan.FromHours(4), 42m, "Great work — small slip in problem 4.");
-        Submit(assignments[3], class12Students[2], "Completed the first two problem sets; stuck on the third.", TimeSpan.FromHours(20), finalize: false);
-        SubmitAndGrade(assignments[4], class12Students[3], "Answered all 15 questions on periodic trends and element classification.", TimeSpan.FromHours(8), TimeSpan.FromHours(2), 26m, "Solid grasp of periodic trends — well done.");
-        Submit(assignments[6], jane, "Uploaded my 3-page site: home, about and contact sections.", TimeSpan.FromDays(2), finalize: true);
+        Submit(assignments[1], seniorStudents[4], "Final draft attached — 420 words covering causes, effects and mitigation.", TimeSpan.FromDays(1), finalize: true);
+        SubmitAndGrade(assignments[2], seniorStudents[1], "Differentiated problems 1 through 8; attached working for each step.", TimeSpan.FromDays(1), TimeSpan.FromHours(4), 42m, "Great work — small slip in problem 4.");
+        Submit(assignments[3], seniorStudents[2], "Completed the first two problem sets; stuck on the third.", TimeSpan.FromHours(20), finalize: false);
+        SubmitAndGrade(assignments[4], seniorStudents[3], "Answered all 15 questions on periodic trends and element classification.", TimeSpan.FromHours(8), TimeSpan.FromHours(2), 26m, "Solid grasp of periodic trends — well done.");
 
-        // Class 12-B late submission.
-        Submit(aLate, mahinLate, "Submitting a little late — solved all the integration problems.", TimeSpan.FromMinutes(-75), finalize: true);
+        // Class X-B late submission.
+        Submit(aLate, lateStudent, "Submitting a little late — solved all the integration problems.", TimeSpan.FromMinutes(-75), finalize: true);
 
         _context.Submissions.AddRange(submissions);
 
@@ -388,11 +411,13 @@ public sealed class DbSeeder
 
         _logger.LogInformation(
             "Seed complete: {Classes} classes, {Courses} courses, {Offerings} offerings, {Teachers} teachers, " +
-            "{Students} students, {Enrollments} enrollments, {TeacherAssignments} teaching mappings, " +
+            "{Students} students, {Enrollments} enrollments, {TeacherAssignments} teaching mappings " +
+            "({UnmappedOfferings} offerings left unmapped on purpose), " +
             "{Assignments} assignments ({PublishedAssignments} published), {Submissions} submissions. " +
             "Demo logins — admin={Admin}, teacher={Teacher}, student={Student}",
             classes.Length, courses.Length, offerings.Count, teachers.Length,
             students.Count, enrollments.Count, teacherAssignments.Count,
+            offerings.Count - teacherAssignments.Count,
             assignments.Count, assignments.Count(a => a.Status == AssignmentStatus.Published), submissions.Count,
             AdminEmail, TeacherEmail, StudentEmail);
     }

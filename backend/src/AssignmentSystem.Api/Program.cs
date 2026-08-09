@@ -129,7 +129,7 @@ try
     // so a file a little over the limit is refused by the policy — with a clear 422 and a
     // stated maximum — instead of being cut off mid-body by the server.
     const long MultipartFramingHeadroom = 8 * 1024;
-    var maxUploadBytes = builder.Configuration.GetValue("FileStorage:MaxBytes", 10L * 1024 * 1024);
+    var maxUploadBytes = builder.Configuration.GetValue("FileStorage:MaxBytes", 2L * 1024 * 1024);
     builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
         options.MultipartBodyLengthLimit = maxUploadBytes + MultipartFramingHeadroom);
 

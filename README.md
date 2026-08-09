@@ -47,10 +47,10 @@ All seeded accounts share one password.
 | Teacher | `teacher@assignment.test` | `Password123!` |
 | Student | `student@assignment.test` | `Password123!` |
 
-The demo teacher is `INS-001`; the demo student is `XII-A-001` in *Class 12 - Section A*, where
+The demo teacher is `INS-001`; the demo student is `X-A-001` in *Class X - Section A*, where
 the seeded assignments and submissions live — so that login shows a populated dashboard at once.
-Also seeded, same password: `teacher2…teacher12@assignment.test`, and
-`student1…student60` + `student62…student70@assignment.test` (the 61st seat is the demo login).
+Also seeded, same password: `teacher2…teacher5@assignment.test`, and
+`student1…student30` + `student32…student40@assignment.test` (the 31st seat is the demo login).
 
 ### Running manually
 
@@ -197,7 +197,7 @@ erDiagram
         varchar full_name
         text password_hash
         int role "0 Admin, 1 Teacher, 2 Student"
-        varchar student_id UK "students only, like XII-A-001"
+        varchar student_id UK "students only, like X-A-001"
         varchar teacher_id UK "teachers only, like INS-001"
         boolean is_active
         int failed_login_attempts
@@ -354,13 +354,16 @@ small school rather than three lonely accounts:
 
 | classes | courses | offerings | users | enrollments | teaching mappings | assignments | submissions |
 |---|---|---|---|---|---|---|---|
-| 14 | 9 | 86 | 83 | 70 | 86 | 8 (7 published, 1 draft) | 7 (across all four statuses) |
+| 8 | 8 | 40 | 46 | 40 | 35 | 7 (6 published, 1 draft) | 7 (across all four statuses) |
 
-Grades 6–12 in sections A and B; grades 6–8 study five subjects, grades 9–12 study seven; 12
-teachers round-robin across every offering; 5 students per class. **No notifications are
-seeded** — they are a consequence of publishing, submitting or grading, and a manufactured
-backlog would mean a fresh checkout emailing seventy fictional addresses on startup. Publish an
-assignment to watch the outbox fill.
+Grades 7–10 in sections A and B; grades 7–8 study four subjects (Bangla, English, General Math,
+General Science), grades 9–10 study six (Physics, Chemistry, Higher Mathematics, Biology,
+Bangla, English); 5 teachers round-robin across the mapped offerings, 7 each; 5 students per
+class. **Five offerings are deliberately left without a teacher** so the admin's teacher-mapping
+screen has real work waiting rather than a fully-wired school. **No notifications are seeded** —
+they are a consequence of publishing, submitting or grading, and a manufactured backlog would
+mean a fresh checkout emailing forty fictional addresses on startup. Publish an assignment to
+watch the outbox fill.
 
 ## API
 
@@ -509,7 +512,7 @@ and mail credentials are blank.
 | `Auth__MaxFailedLoginAttempts` / `LockoutMinutes` | `5` / `15` | Per-account lockout |
 | `RateLimiting__CredentialsPerMinute` | `10` | Per-IP cap on credential endpoints |
 | `FileStorage__Root` | `../_uploads` (`/data/submissions` in Docker) | Where uploaded bytes live |
-| `FileStorage__MaxBytes` | 10 MB | Per-file cap; also drives the multipart body limit |
+| `FileStorage__MaxBytes` | 2 MB | Per-file cap; also drives the multipart body limit |
 | `FileStorage__MaxFilesPerSubmission` / `MaxFilesPerAssignment` | `3` / `5` | Attachment counts |
 | `FileStorage__AllowedExtensions__*` | pdf, docx, doc, txt, png, jpg, jpeg | Only types whose signature can be verified |
 | `Email__Host` / `Port` / `UseSsl` / `Username` / `Password` | Mailpit in Docker, empty otherwise | SMTP; empty host logs instead of sending |
