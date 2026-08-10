@@ -27,7 +27,6 @@ import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
 import { distinctClasses } from '@/lib/classes';
 import { distinctCourses } from '@/lib/courses';
 import { deadlineUrgency, formatDateTime, gradeLabel, sectionLabel } from '@/lib/format';
-import { richTextToPlainText } from '@/lib/rich-text';
 import type { Assignment, AssignmentStatus } from '@/types/api';
 
 const STATUS_OPTIONS = [
@@ -214,9 +213,6 @@ export function TeacherAssignmentsView() {
                       >
                         <TableCell className="max-w-[260px]">
                           <p className="truncate font-medium">{assignment.title}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {richTextToPlainText(assignment.description)}
-                          </p>
                         </TableCell>
                         <TableCell className="text-sm">{gradeLabel(assignment.classLevel)}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
