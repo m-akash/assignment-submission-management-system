@@ -1,6 +1,7 @@
 using AssignmentSystem.Domain.Classes;
 using AssignmentSystem.Domain.Common;
 using AssignmentSystem.Domain.Courses;
+using AssignmentSystem.Domain.TeacherAssignments;
 
 namespace AssignmentSystem.Domain.ClassCourses;
 
@@ -22,6 +23,15 @@ public sealed class ClassCourse : BaseEntity
 
     public Guid CourseId { get; private set; }
     public Course Course { get; private set; } = null!;
+
+    /// <summary>
+    /// The (at most one) teacher mapped to this offering. Loaded on demand — read paths that
+    /// filter or display by teacher include it; the catalogue list does not. The collection
+    /// shape mirrors the unique index on <c>teacher_assignments.class_course_id</c>: there is
+    /// never more than one, but a collection is what EF needs to express the relationship from
+    /// this side and to filter by it.
+    /// </summary>
+    public ICollection<TeacherAssignment> TeacherAssignments { get; private set; } = [];
 
     private ClassCourse() { }
 

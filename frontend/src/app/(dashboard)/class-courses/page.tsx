@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ClassFilter } from '@/components/shared/class-picker';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { FilterSelect } from '@/components/shared/filter-select';
 import { PageHeader } from '@/components/shared/page-header';
 import { PaginationBar } from '@/components/shared/pagination-bar';
 import { RoleGuard } from '@/components/shared/role-guard';
@@ -15,7 +16,9 @@ import { ClassCourseFormDrawer } from '@/components/features/admin/class-course-
 import {
   useClassCourses,
   useClassOptions,
+  useCourseOptions,
   useDeleteClassCourse,
+  useUsers,
 } from '@/hooks/use-admin-resources';
 import { classLabel, gradeLabel, sectionLabel } from '@/lib/format';
 import type { ClassCourse } from '@/types/api';
@@ -39,15 +42,44 @@ export default function ClassCoursesPage() {
 function ClassCoursesView() {
   const [search, setSearch] = useState('');
   const [classIds, setClassIds] = useState<string[]>([]);
+  const [courseIds, setCourseIds] = useState<string[]>([]);
+  const [teacherIds, setTeacherIds] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [deleting, setDeleting] = useState<ClassCourse | null>(null);
 
   const classes = useClassOptions();
+  const courses = useCourseOptions();
+  const teachers = useUsers({ role: 'Teacher', pageSize: 100 });
   const remove = useDeleteClassCourse();
-  const query = useClassCourses({ search, classId: classIds, page, pageSize: 10 });
+  const query = useClassCourses({
+    search,
+    classId: classIds,
+    courseId: courseIds,
+    teacherId: teacherIds,
+    page,
+    pageSize: 10,
+  });
   const items = query.data?.items ?? [];
-  const isFiltered = !!search || classIds.length > 0;
+  const isFiltered =
+    !!search || classIds.length > 0 || courseIds.length > 0 || teacherIds.length > 0;
+  // Every teacher, not only the mapped ones — an unmapped teacher is a legitimate thing to
+  // filter by, and its empty result is the answer.
+  const teacherOptions = (teachers.data?.items ?? []).map((teacher) => ({
+    value: teacher.id,
+    label: teacher.fullName,
+  }));
+  const courseOptions = (courses.data ?? []).map((course) => ({
+    value: course.id,
+    label: course.name,
+  }));
+
+  function withPageReset<T>(setter: (value: T) => void) {
+    return (value: T) => {
+      setter(value);
+      setPage(1);
+    };
+  }
 
   return (
     <div className="space-y-6">
@@ -65,23 +97,31 @@ function ClassCoursesView() {
       />
 
       <div className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b p-4 sm:flex-row">
+        <div className="flex flex-col gap-2 border-b p-4 sm:flex-row sm:flex-wrap">
           <SearchInput
             value={search}
-            onChange={(value) => {
-              setSearch(value);
-              setPage(1);
-            }}
+            onChange={withPageReset(setSearch)}
             placeholder="Search by grade, section or course…"
             className="sm:max-w-xs"
+          />
+          <FilterSelect
+            values={teacherIds}
+            onChange={withPageReset(setTeacherIds)}
+            options={teacherOptions}
+            allLabel="All teachers"
+            disabled={teachers.isLoading}
+          />
+          <FilterSelect
+            values={courseIds}
+            onChange={withPageReset(setCourseIds)}
+            options={courseOptions}
+            allLabel="All courses"
+            disabled={courses.isLoading}
           />
           <ClassFilter
             classes={classes.data ?? []}
             loading={classes.isLoading}
-            onChange={(values) => {
-              setClassIds(values);
-              setPage(1);
-            }}
+            onChange={withPageReset(setClassIds)}
           />
         </div>
 
@@ -98,16 +138,15 @@ function ClassCoursesView() {
                     <TableHead>Course</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Teachers</TableHead>
-                    <TableHead>Assignments</TableHead>
                     <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={7} />
+                    <TableSkeleton columns={6} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="p-0">
+                      <TableCell colSpan={6} className="p-0">
                         <EmptyState
                           icon={Layers}
                           title={
@@ -153,9 +192,6 @@ function ClassCoursesView() {
                           ) : (
                             offering.teacherNames.join(', ')
                           )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {offering.assignmentCount}
                         </TableCell>
                         <TableCell>
                           <Button

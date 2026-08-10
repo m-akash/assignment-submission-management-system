@@ -267,6 +267,7 @@ export function useDeleteTeacherMapping() {
 export interface ClassCourseFilters extends ListFilters {
   classId?: string | string[];
   courseId?: string | string[];
+  teacherId?: string | string[];
 }
 
 export function useClassCourses(filters: ClassCourseFilters) {

@@ -1,3 +1,4 @@
+using AssignmentSystem.Domain.ClassCourses;
 using AssignmentSystem.Domain.TeacherAssignments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -32,7 +33,7 @@ internal sealed class TeacherAssignmentConfiguration : IEntityTypeConfiguration<
         // refused a level up (DeleteClassCourseHandler), so this only fires when the admin
         // has already unwound them or when a class is being removed outright.
         builder.HasOne(t => t.ClassCourse)
-            .WithMany()
+            .WithMany(cc => cc.TeacherAssignments)
             .HasForeignKey(t => t.ClassCourseId)
             .OnDelete(DeleteBehavior.Cascade);
 

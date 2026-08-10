@@ -188,7 +188,7 @@ public sealed class GetClassCoursesHandler : IQueryHandler<GetClassCoursesQuery,
 
     public async Task<Result<PageResult<ClassCourseDto>>> HandleAsync(GetClassCoursesQuery query, CancellationToken ct = default)
     {
-        var spec = new ClassCoursesPagedSpecification(query.ClassIds, query.CourseIds, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
+        var spec = new ClassCoursesPagedSpecification(query.ClassIds, query.CourseIds, query.TeacherIds, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var paged = await _classCourseRepository.ListPagedAsync(spec, ct);
 
         // Two queries for the whole page rather than two per row.

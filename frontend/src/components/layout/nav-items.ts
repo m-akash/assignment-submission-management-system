@@ -99,13 +99,6 @@ export const NAV_ITEMS: NavItem[] = [
     section: 'Administration',
   },
   {
-    href: '/academic-years',
-    label: 'Academic Years',
-    icon: CalendarRange,
-    roles: ['Admin'],
-    section: 'Administration',
-  },
-  {
     href: '/classes',
     label: 'Classes',
     icon: GraduationCap,
@@ -113,6 +106,13 @@ export const NAV_ITEMS: NavItem[] = [
     section: 'Administration',
   },
   { href: '/courses', label: 'Courses', icon: BookOpen, roles: ['Admin'], section: 'Administration' },
+  {
+    href: '/academic-years',
+    label: 'Academic Years',
+    icon: CalendarRange,
+    roles: ['Admin'],
+    section: 'Administration',
+  },
   {
     href: '/class-courses',
     label: 'Course Offerings',

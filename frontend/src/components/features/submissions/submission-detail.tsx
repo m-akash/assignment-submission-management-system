@@ -98,7 +98,7 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
   // bound the form validates against is the same one the API will apply.
   const maxMarks = submission.marksOutOf ?? 100;
   const isGraded = submission.status === 'Graded';
-  // Students hand in files, not prose — the editor is gone from their screen. Any text
+  // Students submit files, not prose — the editor is gone from their screen. Any text
   // here belongs to a submission made before that, and is still shown so a marker never
   // loses sight of work that was written.
   const writtenAnswer = submission.content ?? '';

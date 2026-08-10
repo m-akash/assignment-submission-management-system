@@ -56,7 +56,7 @@ internal sealed class ClassCoursesPagedSpecification : Specification<ClassCourse
         tieBreaker: cc => cc.Id);
 
     public ClassCoursesPagedSpecification(
-        IEnumerable<Guid>? classIds, IEnumerable<Guid>? courseIds, string? search, string? sortBy, string? sortDir, int page, int pageSize)
+        IEnumerable<Guid>? classIds, IEnumerable<Guid>? courseIds, IEnumerable<Guid>? teacherIds, string? search, string? sortBy, string? sortDir, int page, int pageSize)
     {
         ApplyNoTracking();
         AddInclude(cc => cc.Class);
@@ -76,14 +76,19 @@ internal sealed class ClassCoursesPagedSpecification : Specification<ClassCourse
         var searchLevel = int.TryParse(searchLower, out var parsedLevel) ? parsedLevel : (int?)null;
         var classFilter = MultiValueFilter(classIds);
         var courseFilter = MultiValueFilter(courseIds);
+        var teacherFilter = MultiValueFilter(teacherIds);
 
         // ToLower() (not ToLowerInvariant()) below: this Criteria is an expression tree that EF
         // Core translates to SQL LOWER(...), which ToLowerInvariant() cannot be translated to.
         // The column value never touches client culture, so the CA1304/CA1311 concern doesn't apply.
+        //
+        // The teacher filter is an EXISTS over teacher_assignments — an offering with a mapped
+        // teacher is found under that teacher, and the unique index guarantees at most one.
 #pragma warning disable CA1304, CA1311
         Criteria = cc =>
             (classFilter == null || classFilter.Contains(cc.ClassId)) &&
             (courseFilter == null || courseFilter.Contains(cc.CourseId)) &&
+            (teacherFilter == null || cc.TeacherAssignments.Any(ta => teacherFilter.Contains(ta.TeacherId))) &&
             (string.IsNullOrWhiteSpace(searchLower) ||
              (searchLevel != null && cc.Class.Level == searchLevel) ||
              (cc.Class.Section != null && cc.Class.Section.ToLower().Contains(searchLower)) ||

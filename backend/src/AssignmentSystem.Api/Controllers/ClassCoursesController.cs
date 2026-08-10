@@ -27,6 +27,7 @@ public sealed class ClassCoursesController : ControllerBase
     public async Task<IActionResult> GetClassCourses(
         [FromQuery(Name = "classId")] Guid[]? classIds,
         [FromQuery(Name = "courseId")] Guid[]? courseIds,
+        [FromQuery(Name = "teacherId")] Guid[]? teacherIds,
         [FromQuery] string? search,
         [FromQuery] string? sortBy,
         [FromQuery] string? sortDir,
@@ -34,7 +35,7 @@ public sealed class ClassCoursesController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var query = new GetClassCoursesQuery(classIds, courseIds, search, sortBy, sortDir, page, pageSize);
+        var query = new GetClassCoursesQuery(classIds, courseIds, teacherIds, search, sortBy, sortDir, page, pageSize);
         var result = await _dispatcher.QueryAsync(query, ct);
         if (!result.IsSuccess)
         {

@@ -76,7 +76,7 @@ function MappingsView() {
         back={{ href: '/', label: 'Dashboard' }}
         eyebrow="Administration"
         title="Teaching assignments"
-        description="Each row authorises one teacher to create assignments for one class and course. This is the gate the assignment rules check against."
+        description="Each row authorises one teacher to create assignments for one class and course."
         actions={
           <Button onClick={() => setFormOpen(true)}>
             <Plus className="size-4" />

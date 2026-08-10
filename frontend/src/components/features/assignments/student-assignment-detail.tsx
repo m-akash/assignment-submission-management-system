@@ -382,11 +382,11 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                 />
                 <Button className="w-full" onClick={onSubmit} disabled={isBusy || !canHandIn}>
                   {isBusy && <Loader2 className="size-4 animate-spin" />}
-                  {!handedIn ? 'Hand in' : pendingFiles.length > 0 ? 'Update submission' : 'Handed in'}
+                  {!handedIn ? 'Submit' : pendingFiles.length > 0 ? 'Update submission' : 'Submitted'}
                 </Button>
                 {pendingFiles.length > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Sent when you hand in — rename anything unclear first.
+                    Sent when you submit — rename anything unclear first.
                   </p>
                 )}
               </>

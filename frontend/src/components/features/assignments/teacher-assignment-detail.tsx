@@ -339,7 +339,7 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
                 description={
                   isDraft
                     ? 'Students cannot see a draft. Publish it when the work should begin.'
-                    : 'Once students hand in, their work will be listed here for marking.'
+                    : 'Once students submit, their work will be listed here for marking.'
                 }
               />
             ) : (

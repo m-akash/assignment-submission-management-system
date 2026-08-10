@@ -49,6 +49,7 @@ public sealed record GetClassCourseByIdQuery(Guid Id) : IQuery<ClassCourseDto>;
 public sealed record GetClassCoursesQuery(
     IReadOnlyList<Guid>? ClassIds = null,
     IReadOnlyList<Guid>? CourseIds = null,
+    IReadOnlyList<Guid>? TeacherIds = null,
     string? Search = null,
     /// <summary>Sort key from the endpoint's allow-list; anything else falls back to its natural order.</summary>
     string? SortBy = null,
