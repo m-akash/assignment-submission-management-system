@@ -228,79 +228,88 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
             title="Materials for students"
             description={`${attachmentCount} of ${MAX_FILES} attached`}
             icon={Paperclip}
-            bodyClassName="space-y-2 p-5"
+            bodyClassName="space-y-4 p-5"
           >
-            {assignment.files.map((file) => (
-              <FileRow
-                key={file.id}
-                name={file.originalFileName}
-                size={file.fileSizeBytes}
-                onView={
-                  isViewableImage(file.contentType, file.originalFileName)
-                    ? () => setViewing(file)
-                    : undefined
-                }
-                onDownload={() => downloadAssignmentFile(file.id, file.originalFileName)}
-                onRename={
-                  readOnly
-                    ? undefined
-                    : (fileName) => renameFileOnServer.mutate({ fileId: file.id, fileName })
-                }
-                onRemove={readOnly ? undefined : () => removeFile.mutate(file.id)}
-                removeDisabled={removeFile.isPending}
-              />
-            ))}
+            {/* The rows sit closer to each other than to the drop area below them, so the
+                list reads as a list rather than as one more item in the stack. */}
+            <div className="space-y-2 empty:hidden">
+              {assignment.files.map((file) => (
+                <FileRow
+                  key={file.id}
+                  name={file.originalFileName}
+                  size={file.fileSizeBytes}
+                  onView={
+                    isViewableImage(file.contentType, file.originalFileName)
+                      ? () => setViewing(file)
+                      : undefined
+                  }
+                  onDownload={() => downloadAssignmentFile(file.id, file.originalFileName)}
+                  onRename={
+                    readOnly
+                      ? undefined
+                      : (fileName) => renameFileOnServer.mutate({ fileId: file.id, fileName })
+                  }
+                  onRemove={readOnly ? undefined : () => removeFile.mutate(file.id)}
+                  removeDisabled={removeFile.isPending}
+                />
+              ))}
 
-            {/* Staged picks: not sent yet, and renameable until they are. */}
-            {pendingFiles.map((file, index) => (
-              <FileRow
-                key={`${file.name}-${index}`}
-                name={file.name}
-                size={file.size}
-                hint="Not uploaded yet"
-                pending
-                onRename={(name) => onRenameStaged(index, name)}
-                onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
-                removeDisabled={upload.isPending}
-              />
-            ))}
+              {/* Staged picks: not sent yet, and renameable until they are. */}
+              {pendingFiles.map((file, index) => (
+                <FileRow
+                  key={`${file.name}-${index}`}
+                  name={file.name}
+                  size={file.size}
+                  hint="Not uploaded yet"
+                  pending
+                  onRename={(name) => onRenameStaged(index, name)}
+                  onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+                  removeDisabled={upload.isPending}
+                />
+              ))}
+            </div>
 
-            {attachmentCount === 0 && (
+            {/* Only worth saying where nothing can be added: the drop area below already
+                says as much, and twice over it reads as an error. */}
+            {readOnly && attachmentCount === 0 && (
               <p className="text-sm text-muted-foreground">
-                {readOnly
-                  ? 'No material was attached to this assignment.'
-                  : 'Nothing attached yet — add a brief, a dataset, or anything students need.'}
+                No material was attached to this assignment.
               </p>
             )}
 
             {!readOnly && (
-              <>
+              <div className="space-y-3">
                 <FileDropzone
+                  variant="panel"
                   remaining={MAX_FILES - attachmentCount}
                   busy={upload.isPending}
                   onFiles={(picked) => setPendingFiles((prev) => [...prev, ...picked])}
                 />
-                {pendingFiles.length > 0 && (
-                  <Button
-                    type="button"
-                    className="w-full"
-                    disabled={upload.isPending}
-                    onClick={onUploadStaged}
-                  >
-                    {upload.isPending ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Upload className="size-4" />
-                    )}
-                    Upload {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'}
-                  </Button>
+                {pendingFiles.length > 0 ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground">
+                      Rename anything unclear first — students see these names.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={upload.isPending}
+                      onClick={onUploadStaged}
+                    >
+                      {upload.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Upload className="size-4" />
+                      )}
+                      Upload {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Students see attached material as soon as the assignment is published.
+                  </p>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  {pendingFiles.length > 0
-                    ? 'Rename anything unclear first — students see these names.'
-                    : 'Students see attached material as soon as the assignment is published.'}
-                </p>
-              </>
+              </div>
             )}
           </SectionPanel>
 

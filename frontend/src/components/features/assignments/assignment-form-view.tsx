@@ -289,50 +289,59 @@ function Form({
               title="Materials for students"
               description={`${attachmentCount} of ${MAX_FILES} attached`}
               icon={Paperclip}
-              bodyClassName="space-y-2 p-5"
+              bodyClassName="space-y-4 p-5"
             >
-              {/* Already uploaded, so a rename here goes straight to the server — it is
-                  not part of the draft these fields hold. */}
-              {files.map((file) => (
-                <FileRow
-                  key={file.id}
-                  name={file.originalFileName}
-                  size={file.fileSizeBytes}
-                  onDownload={() => downloadAssignmentFile(file.id, file.originalFileName)}
-                  onRename={(fileName) => renameFileOnServer.mutate({ fileId: file.id, fileName })}
-                  onRemove={() => removeFile.mutate(file.id)}
-                  removeDisabled={removeFile.isPending}
-                />
-              ))}
-              {/* Staged picks: no id and nothing to download yet, so they read as
-                  pending until the form is saved — and while they are still in the
-                  browser their names can be corrected. */}
-              {pendingFiles.map((file, index) => (
-                <FileRow
-                  key={`${file.name}-${index}`}
-                  name={file.name}
-                  size={file.size}
-                  hint="Pending"
-                  pending
-                  onRename={(name) => onRenameStaged(index, name)}
-                  onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
-                  removeDisabled={isBusy}
-                />
-              ))}
+              {/* Kept tighter than the gap to the drop area below, so the files read as a
+                  list rather than as more items in the same stack. */}
+              <div className="space-y-2 empty:hidden">
+                {/* Already uploaded, so a rename here goes straight to the server — it is
+                    not part of the draft these fields hold. */}
+                {files.map((file) => (
+                  <FileRow
+                    key={file.id}
+                    name={file.originalFileName}
+                    size={file.fileSizeBytes}
+                    onDownload={() => downloadAssignmentFile(file.id, file.originalFileName)}
+                    onRename={(fileName) =>
+                      renameFileOnServer.mutate({ fileId: file.id, fileName })
+                    }
+                    onRemove={() => removeFile.mutate(file.id)}
+                    removeDisabled={removeFile.isPending}
+                  />
+                ))}
+                {/* Staged picks: no id and nothing to download yet, so they read as
+                    pending until the form is saved — and while they are still in the
+                    browser their names can be corrected. */}
+                {pendingFiles.map((file, index) => (
+                  <FileRow
+                    key={`${file.name}-${index}`}
+                    name={file.name}
+                    size={file.size}
+                    hint="Pending"
+                    pending
+                    onRename={(name) => onRenameStaged(index, name)}
+                    onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+                    removeDisabled={isBusy}
+                  />
+                ))}
+              </div>
 
-              <FileDropzone
-                remaining={MAX_FILES - attachmentCount}
-                busy={upload.isPending}
-                disabled={isBusy}
-                onFiles={(picked) => setPendingFiles((prev) => [...prev, ...picked])}
-              />
-              {pendingFiles.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {isEdit
-                    ? 'Attached once you save your changes.'
-                    : 'Attached once you create the assignment.'}
-                </p>
-              )}
+              <div className="space-y-3">
+                <FileDropzone
+                  variant="panel"
+                  remaining={MAX_FILES - attachmentCount}
+                  busy={upload.isPending}
+                  disabled={isBusy}
+                  onFiles={(picked) => setPendingFiles((prev) => [...prev, ...picked])}
+                />
+                {pendingFiles.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {isEdit
+                      ? 'Attached once you save your changes.'
+                      : 'Attached once you create the assignment.'}
+                  </p>
+                )}
+              </div>
             </SectionPanel>
           </div>
 
