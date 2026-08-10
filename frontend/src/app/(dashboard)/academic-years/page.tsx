@@ -17,7 +17,7 @@ import { PaginationBar } from '@/components/shared/pagination-bar';
 import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
-import { AcademicYearFormDialog } from '@/components/features/admin/academic-year-form-dialog';
+import { AcademicYearFormDrawer } from '@/components/features/admin/academic-year-form-drawer';
 import { useAcademicYears, useDeleteAcademicYear } from '@/hooks/use-admin-resources';
 import { formatDate } from '@/lib/format';
 import type { AcademicYear } from '@/types/api';
@@ -181,7 +181,7 @@ function AcademicYearsView() {
         )}
       </div>
 
-      <AcademicYearFormDialog
+      <AcademicYearFormDrawer
         open={formOpen}
         onOpenChange={setFormOpen}
         academicYear={editing}

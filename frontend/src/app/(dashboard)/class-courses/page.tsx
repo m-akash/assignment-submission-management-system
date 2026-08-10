@@ -11,7 +11,7 @@ import { PaginationBar } from '@/components/shared/pagination-bar';
 import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
-import { ClassCourseFormDialog } from '@/components/features/admin/class-course-form-dialog';
+import { ClassCourseFormDrawer } from '@/components/features/admin/class-course-form-drawer';
 import {
   useClassCourses,
   useClassOptions,
@@ -184,7 +184,7 @@ function ClassCoursesView() {
         )}
       </div>
 
-      <ClassCourseFormDialog open={formOpen} onOpenChange={setFormOpen} />
+      <ClassCourseFormDrawer open={formOpen} onOpenChange={setFormOpen} />
 
       <ConfirmDialog
         open={!!deleting}

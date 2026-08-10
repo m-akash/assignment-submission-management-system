@@ -17,7 +17,7 @@ import { PaginationBar } from '@/components/shared/pagination-bar';
 import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
-import { CourseFormDialog } from '@/components/features/admin/course-form-dialog';
+import { CourseFormDrawer } from '@/components/features/admin/course-form-drawer';
 import { useDeleteCourse, useCourses } from '@/hooks/use-admin-resources';
 import type { Course } from '@/types/api';
 
@@ -158,7 +158,7 @@ function CoursesView() {
         )}
       </div>
 
-      <CourseFormDialog open={formOpen} onOpenChange={setFormOpen} course={editing} />
+      <CourseFormDrawer open={formOpen} onOpenChange={setFormOpen} course={editing} />
 
       <ConfirmDialog
         open={!!deleting}

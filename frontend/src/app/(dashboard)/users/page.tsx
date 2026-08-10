@@ -21,7 +21,7 @@ import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
 import { RoleBadge } from '@/components/shared/status-badge';
-import { UserFormDialog } from '@/components/features/admin/user-form-dialog';
+import { UserFormDrawer } from '@/components/features/admin/user-form-drawer';
 import { useClassOptions, useDeleteUser, useUsers } from '@/hooks/use-admin-resources';
 import { classLabel, initials } from '@/lib/format';
 import type { Role, User } from '@/types/api';
@@ -308,7 +308,7 @@ function UsersView() {
         )}
       </div>
 
-      <UserFormDialog
+      <UserFormDrawer
         open={formOpen}
         onOpenChange={setFormOpen}
         user={editing}

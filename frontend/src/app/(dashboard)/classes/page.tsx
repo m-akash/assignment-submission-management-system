@@ -10,8 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ClassFormDialog } from '@/components/features/admin/class-form-dialog';
-import { ClassRosterDialog } from '@/components/features/admin/class-roster-dialog';
+import { ClassFormDrawer } from '@/components/features/admin/class-form-drawer';
+import { ClassRosterDrawer } from '@/components/features/admin/class-roster-drawer';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { PageHeader } from '@/components/shared/page-header';
 import { PaginationBar } from '@/components/shared/pagination-bar';
@@ -169,9 +169,9 @@ function ClassesView() {
         )}
       </div>
 
-      <ClassFormDialog open={formOpen} onOpenChange={setFormOpen} classRoom={editing} />
+      <ClassFormDrawer open={formOpen} onOpenChange={setFormOpen} classRoom={editing} />
 
-      <ClassRosterDialog
+      <ClassRosterDrawer
         open={!!viewingRoster}
         onOpenChange={(open) => !open && setViewingRoster(null)}
         classRoom={viewingRoster}

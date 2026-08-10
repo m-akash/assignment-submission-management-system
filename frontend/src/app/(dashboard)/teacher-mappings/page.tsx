@@ -12,7 +12,7 @@ import { PaginationBar } from '@/components/shared/pagination-bar';
 import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
-import { TeacherMappingFormDialog } from '@/components/features/admin/teacher-mapping-form-dialog';
+import { TeacherMappingFormDrawer } from '@/components/features/admin/teacher-mapping-form-drawer';
 import {
   useClassOptions,
   useDeleteTeacherMapping,
@@ -176,7 +176,7 @@ function MappingsView() {
         )}
       </div>
 
-      <TeacherMappingFormDialog open={formOpen} onOpenChange={setFormOpen} />
+      <TeacherMappingFormDrawer open={formOpen} onOpenChange={setFormOpen} />
 
       <ConfirmDialog
         open={!!deleting}
