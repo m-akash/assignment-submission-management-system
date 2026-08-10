@@ -119,11 +119,17 @@ export type AcademicYearValues = z.infer<typeof academicYearSchema>;
 // two are never joined. The bounds match the server's: the form offers 6–12, but a class
 // created outside that range is still editable rather than refused on sight.
 export const classSchema = z.object({
-  level: z.coerce
-    .number()
-    .int('Choose a grade')
-    .min(1, 'Grade must be between 1 and 12')
-    .max(12, 'Grade must be between 1 and 12'),
+  // The grade picker can hold "nothing chosen" — its clear button empties it — so the empty
+  // string is mapped to NaN rather than left to `Number('')`, which is 0 and would be
+  // reported as a grade out of range instead of as a grade not yet picked.
+  level: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? Number.NaN : Number(value)),
+    z
+      .number({ invalid_type_error: 'Choose a grade' })
+      .int('Choose a grade')
+      .min(1, 'Grade must be between 1 and 12')
+      .max(12, 'Grade must be between 1 and 12'),
+  ),
   section: z.string().trim().min(1, 'Choose a section').max(50, 'Section is too long'),
 });
 /**

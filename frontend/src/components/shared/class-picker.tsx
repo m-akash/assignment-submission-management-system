@@ -108,6 +108,10 @@ export function ClassPicker({
           disabled={loading}
           placeholder={loading ? 'Loading…' : 'Choose a class'}
           invalid={invalid}
+          // Both halves clear back to nothing chosen, the same way the filters do. A form
+          // field is worth undoing: the grade narrows the sections, so picking the wrong
+          // one otherwise leaves no way back to the full list.
+          clearable
         />
       </div>
 
@@ -126,6 +130,7 @@ export function ClassPicker({
           emptyMessage="This class has no sections yet"
           disabled={loading || grade === null}
           aria-invalid={invalid}
+          clearable
         />
       </div>
     </div>
