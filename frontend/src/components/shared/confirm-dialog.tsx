@@ -1,16 +1,26 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
+import { TriangleAlert } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
-/** Destructive actions ask first — nothing here is undoable from the UI. */
+/**
+ * Destructive actions ask first — nothing here is undoable from the UI.
+ *
+ * An alert dialog rather than a plain one, which is the difference between a window and
+ * a question: it takes the focus, refuses to close on a stray click outside or an idle
+ * Escape, and is announced as an alert. The confirm button is the dialog's `Action` and
+ * cancel its `Cancel`, so the keyboard reaches both without this component wiring it up.
+ */
 export function ConfirmDialog({
   open,
   onOpenChange,
@@ -29,21 +39,31 @@ export function ConfirmDialog({
   pending?: boolean;
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
-            Cancel
-          </Button>
-          <Button variant="destructive" onClick={onConfirm} disabled={pending}>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogMedia className="bg-danger-muted text-danger">
+            <TriangleAlert />
+          </AlertDialogMedia>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            disabled={pending}
+            // The dialog closes itself on Action; the work behind it is the caller's,
+            // and while it is in flight the dialog should stay put.
+            onClick={(event) => {
+              event.preventDefault();
+              onConfirm();
+            }}
+          >
             {pending ? 'Working…' : confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

@@ -233,7 +233,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
               title="Materials from your teacher"
               description={`${assignment.files.length} file${assignment.files.length > 1 ? 's' : ''}`}
               icon={Paperclip}
-              bodyClassName="divide-y"
+              bodyClassName="space-y-2 p-5"
             >
               {assignment.files.map((file) => (
                 <FileRow
@@ -313,7 +313,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
             )}
 
             {attachmentCount > 0 ? (
-              <div className="divide-y rounded-lg border">
+              <div className="space-y-2">
                 {files.map((file) => (
                   <FileRow
                     key={file.id}
@@ -345,6 +345,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                     name={file.name}
                     size={file.size}
                     hint="Pending"
+                    pending
                     onRename={(name) => onRenameStaged(index, name)}
                     onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
                     removeDisabled={isBusy}

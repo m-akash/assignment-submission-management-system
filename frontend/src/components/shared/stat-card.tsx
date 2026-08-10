@@ -1,39 +1,44 @@
 import Link from 'next/link';
 import { ArrowUpRight, type LucideIcon } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-/** One tone per tile, applied to the icon chip, the corner wash and the meter together. */
+/**
+ * One tone per tile, applied to the icon chip, the corner wash and the meter together.
+ * The meter paints `Progress`'s own indicator slot rather than a bar of this file's —
+ * the component is shadcn's; only its colour is the tile's business.
+ */
 const TONES = {
   neutral: {
     chip: 'bg-muted text-muted-foreground ring-border',
     wash: 'bg-foreground/5',
-    meter: 'bg-muted-foreground',
+    meter: '*:data-[slot=progress-indicator]:bg-muted-foreground',
   },
   primary: {
     chip: 'bg-primary/10 text-primary ring-primary/20',
     wash: 'bg-primary/15',
-    meter: 'bg-primary',
+    meter: '*:data-[slot=progress-indicator]:bg-primary',
   },
   info: {
     chip: 'bg-info-muted text-info ring-info/20',
     wash: 'bg-info/15',
-    meter: 'bg-info',
+    meter: '*:data-[slot=progress-indicator]:bg-info',
   },
   success: {
     chip: 'bg-success-muted text-success ring-success/20',
     wash: 'bg-success/15',
-    meter: 'bg-success',
+    meter: '*:data-[slot=progress-indicator]:bg-success',
   },
   warning: {
     chip: 'bg-warning-muted text-warning ring-warning/20',
     wash: 'bg-warning/15',
-    meter: 'bg-warning',
+    meter: '*:data-[slot=progress-indicator]:bg-warning',
   },
   danger: {
     chip: 'bg-danger-muted text-danger ring-danger/20',
     wash: 'bg-danger/15',
-    meter: 'bg-danger',
+    meter: '*:data-[slot=progress-indicator]:bg-danger',
   },
 } as const;
 
@@ -101,12 +106,11 @@ export function StatCard({
       </div>
 
       {progress !== undefined && !loading && (
-        <div className="relative mt-4 h-1.5 overflow-hidden rounded-full bg-muted">
-          <div
-            className={cn('h-full rounded-full transition-[width] duration-700', meter)}
-            style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-          />
-        </div>
+        <Progress
+          value={Math.min(100, Math.max(0, progress))}
+          aria-label={`${label}: ${Math.round(progress)}%`}
+          className={cn('relative mt-4 h-1.5', meter)}
+        />
       )}
     </>
   );

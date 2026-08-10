@@ -1,8 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Download, Eye, Paperclip, Pencil, Trash2, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Check, Download, Eye, FileText, ImageIcon, Paperclip, Pencil, Trash2, X } from 'lucide-react';
+import {
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentMedia,
+  AttachmentTitle,
+} from '@/components/ui/attachment';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatBytes } from '@/lib/format';
@@ -25,22 +33,39 @@ export function Fact({ label, children }: { label: string; children: React.React
   );
 }
 
+/** The allowed upload types, as icons — an image is recognisable before its name is read. */
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg'];
+const DOCUMENT_EXTENSIONS = ['.pdf', '.txt'];
+
+/** An element rather than a component: picking a component per render would reset it. */
+function fileIcon(extension: string): React.ReactNode {
+  const suffix = extension.toLowerCase();
+  if (IMAGE_EXTENSIONS.includes(suffix)) return <ImageIcon />;
+  if (DOCUMENT_EXTENSIONS.includes(suffix)) return <FileText />;
+  return <Paperclip />;
+}
+
 /**
  * A file in a list: name, size, and whichever of view/download/remove/rename the caller
  * allows. Teacher materials and student attachments both use it, so both read the same way.
+ *
+ * Built on shadcn's `Attachment`, so a file looks the same wherever it appears and the
+ * states it can be in are the component's own: `done` for something the server holds,
+ * `idle` — an outline rather than a filled card — for a pick that is still only staged.
  *
  * `onView` is passed only for files that have an inline view — images, in practice; see
  * `isViewableImage` in `file-preview.tsx`. Everything else keeps download as its one
  * action rather than opening something a browser cannot render.
  *
- * `onRename` is passed only for files still staged in the browser, where a correction is
- * free. It edits the name and nothing else: the extension is shown beside the field but
- * never inside it, because it describes the bytes rather than labelling them.
+ * `onRename` is passed only where a correction is still possible. It edits the name and
+ * nothing else: the extension is shown beside the field but never inside it, because it
+ * describes the bytes rather than labelling them.
  */
 export function FileRow({
   name,
   size,
   hint,
+  pending,
   onView,
   onDownload,
   onRemove,
@@ -50,6 +75,8 @@ export function FileRow({
   name: string;
   size: number;
   hint?: string;
+  /** Staged in the browser and not sent yet — drawn as an outline, not a filled card. */
+  pending?: boolean;
   onView?: () => void;
   onDownload?: () => void;
   onRemove?: () => void;
@@ -71,11 +98,14 @@ export function FileRow({
     setDraft(null);
   }
 
+  const icon = fileIcon(extension);
+  const state = pending ? 'idle' : 'done';
+
   if (draft !== null) {
     return (
-      <div className="flex items-center gap-2 px-5 py-3">
-        <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <Attachment state={state} className="w-full">
+        <AttachmentMedia>{icon}</AttachmentMedia>
+        <AttachmentContent className="flex items-center gap-1.5">
           <Input
             autoFocus
             value={draft}
@@ -98,65 +128,57 @@ export function FileRow({
           {extension && (
             <span className="shrink-0 text-sm text-muted-foreground">{extension}</span>
           )}
-        </div>
-        <Button
-          size="icon"
-          variant="ghost"
-          disabled={!draft.trim()}
-          onClick={commit}
-          aria-label="Save name"
-        >
-          <Check className="size-4" />
-        </Button>
-        <Button size="icon" variant="ghost" onClick={() => setDraft(null)} aria-label="Cancel rename">
-          <X className="size-4" />
-        </Button>
-      </div>
+        </AttachmentContent>
+        <AttachmentActions>
+          <AttachmentAction disabled={!draft.trim()} onClick={commit} aria-label="Save name">
+            <Check />
+          </AttachmentAction>
+          <AttachmentAction onClick={() => setDraft(null)} aria-label="Cancel rename">
+            <X />
+          </AttachmentAction>
+        </AttachmentActions>
+      </Attachment>
     );
   }
 
   return (
-    <div className="flex items-center gap-3 px-5 py-3">
-      <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm">{name}</p>
-        <p className="text-xs text-muted-foreground">
+    <Attachment state={state} className="w-full">
+      <AttachmentMedia>{icon}</AttachmentMedia>
+      <AttachmentContent>
+        <AttachmentTitle>{name}</AttachmentTitle>
+        <AttachmentDescription>
           {formatBytes(size)}
           {hint && ` · ${hint}`}
-        </p>
-      </div>
-      {onRename && (
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={() => setDraft(base)}
-          aria-label={`Rename ${name}`}
-        >
-          <Pencil className="size-4" />
-        </Button>
-      )}
-      {onView && (
-        <Button size="icon" variant="ghost" onClick={onView} aria-label={`View ${name}`}>
-          <Eye className="size-4" />
-        </Button>
-      )}
-      {onDownload && (
-        <Button size="icon" variant="ghost" onClick={onDownload} aria-label={`Download ${name}`}>
-          <Download className="size-4" />
-        </Button>
-      )}
-      {onRemove && (
-        <Button
-          size="icon"
-          variant="ghost"
-          disabled={removeDisabled}
-          onClick={onRemove}
-          aria-label={`Remove ${name}`}
-        >
-          <Trash2 className="size-4 text-danger" />
-        </Button>
-      )}
-    </div>
+        </AttachmentDescription>
+      </AttachmentContent>
+      <AttachmentActions>
+        {onRename && (
+          <AttachmentAction onClick={() => setDraft(base)} aria-label={`Rename ${name}`}>
+            <Pencil />
+          </AttachmentAction>
+        )}
+        {onView && (
+          <AttachmentAction onClick={onView} aria-label={`View ${name}`}>
+            <Eye />
+          </AttachmentAction>
+        )}
+        {onDownload && (
+          <AttachmentAction onClick={onDownload} aria-label={`Download ${name}`}>
+            <Download />
+          </AttachmentAction>
+        )}
+        {onRemove && (
+          <AttachmentAction
+            disabled={removeDisabled}
+            onClick={onRemove}
+            aria-label={`Remove ${name}`}
+            className="text-danger hover:text-danger"
+          >
+            <Trash2 />
+          </AttachmentAction>
+        )}
+      </AttachmentActions>
+    </Attachment>
   );
 }
 

@@ -572,33 +572,15 @@
   }
 }
 
-@keyframes shimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-
 /** Page and section entrance. `--rise-delay` staggers siblings. */
 @utility animate-rise {
   animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: var(--rise-delay, 0ms);
 }
 
-/** A sweep across a loading placeholder — reads as "working", not "broken". */
-@utility shimmer {
-  @apply relative overflow-hidden;
-  &::after {
-    @apply absolute inset-0 -translate-x-full;
-    content: "";
-    background-image: linear-gradient(
-      90deg,
-      transparent,
-      color-mix(in oklch, var(--foreground), transparent 92%),
-      transparent
-    );
-    animation: shimmer 1.6s infinite;
-  }
-}
+/* A loading sweep used to be defined here. It is now shadcn's own `shimmer`, which
+   arrives with `shadcn/tailwind.css` above and is what `Attachment` reaches for while a
+   file is uploading — two utilities of the same name would have shadowed each other. */
 
 @media (prefers-reduced-motion: reduce) {
   *,

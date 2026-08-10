@@ -228,7 +228,7 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
             title="Materials for students"
             description={`${attachmentCount} of ${MAX_FILES} attached`}
             icon={Paperclip}
-            bodyClassName={attachmentCount > 0 ? 'divide-y' : undefined}
+            bodyClassName="space-y-2 p-5"
           >
             {assignment.files.map((file) => (
               <FileRow
@@ -258,6 +258,7 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
                 name={file.name}
                 size={file.size}
                 hint="Not uploaded yet"
+                pending
                 onRename={(name) => onRenameStaged(index, name)}
                 onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
                 removeDisabled={upload.isPending}
@@ -265,7 +266,7 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
             ))}
 
             {attachmentCount === 0 && (
-              <p className="px-5 py-4 text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {readOnly
                   ? 'No material was attached to this assignment.'
                   : 'Nothing attached yet — add a brief, a dataset, or anything students need.'}
@@ -273,7 +274,7 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
             )}
 
             {!readOnly && (
-              <div className="space-y-2 p-5 pt-4">
+              <>
                 <FileDropzone
                   remaining={MAX_FILES - attachmentCount}
                   busy={upload.isPending}
@@ -299,7 +300,7 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
                     ? 'Rename anything unclear first — students see these names.'
                     : 'Students see attached material as soon as the assignment is published.'}
                 </p>
-              </div>
+              </>
             )}
           </SectionPanel>
 

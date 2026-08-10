@@ -1,10 +1,10 @@
 'use client';
 
-import { useSyncExternalStore, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { ChevronRight, GraduationCap, LogOut, Menu, MoonStar, Sun } from 'lucide-react';
+import { ChevronRight, GraduationCap, LogOut, MoonStar, Sun } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { RoleBadge } from '@/components/shared/status-badge';
 import { useAuth } from '@/context/AuthContext';
@@ -24,31 +24,32 @@ import { currentNavItem } from './nav-items';
 import { SidebarNav } from './sidebar-nav';
 import type { AuthUser } from '@/types/api';
 
+/**
+ * Whether the sidebar was left open, from the cookie `SidebarProvider` writes. Read here
+ * rather than on the server because the shell is only ever reached after the session has
+ * been restored on the client — there is no server render of it to disagree with.
+ */
+function sidebarDefaultOpen(): boolean {
+  if (typeof document === 'undefined') return true;
+  return !/(?:^|;\s*)sidebar_state=false(?:;|$)/.test(document.cookie);
+}
+
 export function AppShell({ user, children }: { user: AuthUser; children: React.ReactNode }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
-
   return (
-    <div className="flex min-h-dvh">
-      {/* Persistent sidebar from lg up; a sheet below that. */}
-      <aside className="hidden w-66 shrink-0 border-r bg-sidebar lg:block">
-        <div className="sticky top-0 h-dvh">
-          <SidebarNav user={user} />
-        </div>
-      </aside>
+    // The rail is wide enough for "Teaching Assignments" without wrapping, which the
+    // 16rem default is not.
+    <SidebarProvider
+      defaultOpen={sidebarDefaultOpen()}
+      style={{ '--sidebar-width': '16.5rem' } as React.CSSProperties}
+    >
+      <SidebarNav user={user} />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* `min-w-0` is not in `SidebarInset`'s own classes, and without it this flex item
+          refuses to shrink below its widest child — a table with eleven columns then
+          pushes the whole page sideways instead of scrolling inside its own container. */}
+      <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-md sm:px-6 lg:px-8">
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open navigation">
-                <Menu className="size-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-66 p-0">
-              <SheetTitle className="sr-only">Navigation</SheetTitle>
-              <SidebarNav user={user} onNavigate={() => setMobileOpen(false)} />
-            </SheetContent>
-          </Sheet>
+          <SidebarTrigger className="-ml-1 shrink-0 text-muted-foreground hover:text-foreground" />
 
           <Breadcrumb user={user} />
 
@@ -68,18 +69,19 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
               </div>
             )}
             <ThemeToggle />
-            {/* On lg+ the account lives in the sidebar footer; this is its small-screen home. */}
-            <div className="lg:hidden">
+            {/* From md up the account lives in the sidebar footer; this is its
+                small-screen home, where that footer is behind the navigation sheet. */}
+            <div className="md:hidden">
               <UserMenu user={user} />
             </div>
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="animate-rise mx-auto w-full max-w-350">{children}</div>
-        </main>
-      </div>
-    </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
 
@@ -97,7 +99,7 @@ function Breadcrumb({ user }: { user: AuthUser }) {
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
       <Link
         href="/"
-        className="flex shrink-0 items-center gap-2 font-medium text-muted-foreground transition-colors hover:text-foreground lg:hidden"
+        className="flex shrink-0 items-center gap-2 font-medium text-muted-foreground transition-colors hover:text-foreground md:hidden"
       >
         <GraduationCap className="size-4" />
       </Link>
