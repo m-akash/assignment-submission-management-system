@@ -68,6 +68,7 @@ function GradeSelect({
 export function ClassPicker({
   classes,
   loading,
+  disabled,
   value,
   onChange,
   invalid,
@@ -75,6 +76,8 @@ export function ClassPicker({
 }: {
   classes: readonly ClassRoom[];
   loading?: boolean;
+  /** Locks both boxes while still showing what is chosen — an edit form that cannot move. */
+  disabled?: boolean;
   /** The chosen class id, or "" while the choice is incomplete. */
   value: string;
   onChange: (classId: string) => void;
@@ -105,7 +108,7 @@ export function ClassPicker({
             // The chosen section belongs to the old grade, so it cannot survive the change.
             onChange('');
           }}
-          disabled={loading}
+          disabled={loading || disabled}
           placeholder={loading ? 'Loading…' : 'Choose a class'}
           invalid={invalid}
           // Both halves clear back to nothing chosen, the same way the filters do. A form
@@ -128,7 +131,7 @@ export function ClassPicker({
           placeholder={grade === null ? 'Choose a class first' : 'Choose a section'}
           searchPlaceholder="Search sections…"
           emptyMessage="This class has no sections yet"
-          disabled={loading || grade === null}
+          disabled={loading || disabled || grade === null}
           aria-invalid={invalid}
           clearable
         />

@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Combobox } from '@/components/ui/combobox';
+import { ClassPicker } from '@/components/shared/class-picker';
 import { DetailSkeleton, FileRow } from '@/components/shared/detail';
 import { FileDropzone } from '@/components/shared/file-dropzone';
 import { PageHeader } from '@/components/shared/page-header';
@@ -25,8 +26,8 @@ import {
   useUploadAssignmentFile,
 } from '@/hooks/use-assignments';
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
+import { distinctClasses } from '@/lib/classes';
 import { renameFile } from '@/lib/file-name';
-import { classLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { assignmentSchema, type AssignmentInput, type AssignmentValues } from '@/schemas';
 import type { Assignment, TeacherMapping } from '@/types/api';
@@ -81,6 +82,10 @@ function Form({
   const removeFile = useDeleteAssignmentFile();
   const renameFileOnServer = useRenameAssignmentFile();
 
+  // Only consulted between picking a class and picking a course — once a course is chosen it is
+  // the mapping that says which class this is, so the two cannot drift apart.
+  const [pendingClassId, setPendingClassId] = useState('');
+
   const files = assignment?.files ?? [];
   // Picked files wait here until the form is submitted: on create there is no
   // assignment id to upload against yet, and on edit a pick is not a decision to
@@ -119,6 +124,16 @@ function Form({
   // An admin's list spans every teacher, so the option label has to say whose class it is;
   // a teacher's list is all their own, where the name would be noise.
   const showsTeacherNames = new Set(options.map((option) => option.teacherId)).size > 1;
+
+  // The one field the form submits is still the mapping id; the three boxes below are only how
+  // it is arrived at. Class and section come first because a course means nothing without a
+  // cohort, and the course list is populated off the back of them so only combinations this
+  // teacher actually teaches can be expressed.
+  const teachingMappingId = form.watch('teachingMappingId');
+  const selectedMapping = options.find((option) => option.id === teachingMappingId);
+  const classId = selectedMapping?.classId ?? pendingClassId;
+  const classOptions = distinctClasses(options);
+  const courseOptions = options.filter((option) => option.classId === classId);
 
   async function onSubmit(values: AssignmentValues) {
     // Unpack the one choice the form makes into the two the API takes. teacherId only
@@ -188,31 +203,48 @@ function Form({
         <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
           <div className="space-y-6 lg:col-span-2">
             <SectionPanel title="The work" icon={FileText} bodyClassName="space-y-4 p-5">
-              <div className="space-y-2">
-                <Label htmlFor="teachingMappingId">Class and course</Label>
-                <Controller
-                  control={form.control}
-                  name="teachingMappingId"
-                  render={({ field }) => (
-                    <Combobox
-                      id="teachingMappingId"
-                      value={field.value}
-                      onChange={field.onChange}
-                      options={options.map((mapping) => ({
-                        value: mapping.id,
-                        label: `${classLabel(mapping.classLevel, mapping.classSection)} · ${mapping.courseName}`,
-                        // Shown only when the list spans teachers, i.e. for an admin.
-                        hint: showsTeacherNames ? mapping.teacherName : undefined,
-                      }))}
-                      placeholder="Choose class and course"
-                      searchPlaceholder="Search grade, section or course…"
-                      emptyMessage="No offerings match"
-                      disabled={isEdit || options.length === 0}
-                      aria-invalid={!!errors.teachingMappingId}
-                      className="w-full"
-                    />
-                  )}
+              <div className="space-y-3">
+                <ClassPicker
+                  classes={classOptions}
+                  disabled={isEdit || options.length === 0}
+                  value={classId}
+                  onChange={(value) => {
+                    setPendingClassId(value);
+                    // The chosen course belongs to the old cohort, so it cannot survive the change.
+                    form.setValue('teachingMappingId', '');
+                  }}
+                  // Only these two boxes are at fault while nothing is chosen yet; once a class is
+                  // picked the missing half is the course, and that is where the message belongs.
+                  invalid={!!errors.teachingMappingId && !classId}
+                  idPrefix="assignment-class"
                 />
+
+                <div className="space-y-2">
+                  <Label htmlFor="teachingMappingId">Course</Label>
+                  <Combobox
+                    id="teachingMappingId"
+                    value={teachingMappingId}
+                    onChange={(value) =>
+                      form.setValue('teachingMappingId', value, { shouldValidate: true })
+                    }
+                    options={courseOptions.map((mapping) => ({
+                      value: mapping.id,
+                      label: mapping.courseName,
+                      // The teacher only when the list spans teachers, i.e. for an admin; otherwise
+                      // the code, which is a hint rather than part of the label so that searching
+                      // for it works without the list reading as a wall of parenthesised codes.
+                      hint: showsTeacherNames ? mapping.teacherName : mapping.courseCode,
+                    }))}
+                    placeholder={classId ? 'Choose a course' : 'Choose a class and section first'}
+                    searchPlaceholder="Search name or code…"
+                    emptyMessage="You teach no course for this class"
+                    disabled={isEdit || options.length === 0 || !classId}
+                    aria-invalid={!!errors.teachingMappingId}
+                    className="w-full"
+                    clearable
+                  />
+                </div>
+
                 {isEdit && (
                   <p className="text-xs text-muted-foreground">
                     The class and course cannot be moved after creation.
