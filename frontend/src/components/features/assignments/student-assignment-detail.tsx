@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { RichText } from '@/components/ui/rich-text';
 import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
+import { ImagePreviewDialog, isViewableImage } from '@/components/shared/file-preview';
 import { BackLink, PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import { EmptyState, ErrorState } from '@/components/shared/states';
@@ -26,7 +27,7 @@ import {
   NotStartedBadge,
   SubmissionStatusBadge,
 } from '@/components/shared/status-badge';
-import { downloadAssignmentFile } from '@/hooks/use-assignments';
+import { downloadAssignmentFile, fetchAssignmentFile } from '@/hooks/use-assignments';
 import {
   downloadSubmissionFile,
   useDeleteSubmissionFile,
@@ -45,7 +46,7 @@ import {
   sectionLabel,
 } from '@/lib/format';
 import { isRichTextEmpty } from '@/lib/rich-text';
-import type { StudentAssignment } from '@/types/api';
+import type { AssignmentFile, StudentAssignment } from '@/types/api';
 
 /** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
@@ -108,6 +109,8 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
   // Picked files are held here and only sent when the student submits — selecting a
   // file is not itself handing in, so nothing reaches the server until they say so.
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // The teacher's material being viewed inline, if any.
+  const [viewing, setViewing] = useState<AssignmentFile | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const submit = useSubmitAssignment();
@@ -221,6 +224,13 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                   key={file.id}
                   name={file.originalFileName}
                   size={file.fileSizeBytes}
+                  onView={
+                    // An image the teacher attached opens here; a PDF or a document has
+                    // nothing to show inline, so it keeps download alone.
+                    isViewableImage(file.contentType, file.originalFileName)
+                      ? () => setViewing(file)
+                      : undefined
+                  }
                   onDownload={() => downloadAssignmentFile(file.id, file.originalFileName)}
                 />
               ))}
@@ -390,6 +400,20 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
           </SectionPanel>
         </aside>
       </div>
+
+      <ImagePreviewDialog
+        file={
+          viewing && {
+            id: viewing.id,
+            name: viewing.originalFileName,
+            contentType: viewing.contentType,
+            sizeBytes: viewing.fileSizeBytes,
+          }
+        }
+        loadBlob={fetchAssignmentFile}
+        onDownload={(file) => downloadAssignmentFile(file.id, file.name)}
+        onClose={() => setViewing(null)}
+      />
     </div>
   );
 }

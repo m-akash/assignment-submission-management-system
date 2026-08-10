@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, Paperclip, Trash2 } from 'lucide-react';
+import { Download, Eye, Paperclip, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatBytes } from '@/lib/format';
@@ -23,13 +23,18 @@ export function Fact({ label, children }: { label: string; children: React.React
 }
 
 /**
- * A file in a list: name, size, and whichever of download/remove the caller allows.
+ * A file in a list: name, size, and whichever of view/download/remove the caller allows.
  * Teacher materials and student attachments both use it, so both read the same way.
+ *
+ * `onView` is passed only for files that have an inline view — images, in practice; see
+ * `isViewableImage` in `file-preview.tsx`. Everything else keeps download as its one
+ * action rather than opening something a browser cannot render.
  */
 export function FileRow({
   name,
   size,
   hint,
+  onView,
   onDownload,
   onRemove,
   removeDisabled,
@@ -37,6 +42,7 @@ export function FileRow({
   name: string;
   size: number;
   hint?: string;
+  onView?: () => void;
   onDownload?: () => void;
   onRemove?: () => void;
   removeDisabled?: boolean;
@@ -51,6 +57,11 @@ export function FileRow({
           {hint && ` · ${hint}`}
         </p>
       </div>
+      {onView && (
+        <Button size="icon" variant="ghost" onClick={onView} aria-label={`View ${name}`}>
+          <Eye className="size-4" />
+        </Button>
+      )}
       {onDownload && (
         <Button size="icon" variant="ghost" onClick={onDownload} aria-label={`Download ${name}`}>
           <Download className="size-4" />

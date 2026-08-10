@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { RichText } from '@/components/ui/rich-text';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
+import { ImagePreviewDialog, isViewableImage } from '@/components/shared/file-preview';
 import { BackLink, PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import { EmptyState, ErrorState } from '@/components/shared/states';
@@ -31,6 +32,7 @@ import {
 } from '@/components/shared/status-badge';
 import {
   downloadAssignmentFile,
+  fetchAssignmentFile,
   useAssignment,
   useDeleteAssignment,
   useDeleteAssignmentFile,
@@ -49,7 +51,7 @@ import {
   initials,
   sectionLabel,
 } from '@/lib/format';
-import type { Assignment } from '@/types/api';
+import type { Assignment, AssignmentFile } from '@/types/api';
 
 /** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
@@ -113,6 +115,9 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
   const router = useRouter();
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // The material being viewed inline, if any — the teacher sees an image the same way
+  // the class will.
+  const [viewing, setViewing] = useState<AssignmentFile | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const publish = usePublishAssignment();
@@ -223,6 +228,11 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
                 key={file.id}
                 name={file.originalFileName}
                 size={file.fileSizeBytes}
+                onView={
+                  isViewableImage(file.contentType, file.originalFileName)
+                    ? () => setViewing(file)
+                    : undefined
+                }
                 onDownload={() => downloadAssignmentFile(file.id, file.originalFileName)}
                 onRemove={readOnly ? undefined : () => removeFile.mutate(file.id)}
                 removeDisabled={removeFile.isPending}
@@ -371,6 +381,20 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
           </SectionPanel>
         </aside>
       </div>
+
+      <ImagePreviewDialog
+        file={
+          viewing && {
+            id: viewing.id,
+            name: viewing.originalFileName,
+            contentType: viewing.contentType,
+            sizeBytes: viewing.fileSizeBytes,
+          }
+        }
+        loadBlob={fetchAssignmentFile}
+        onDownload={(file) => downloadAssignmentFile(file.id, file.name)}
+        onClose={() => setViewing(null)}
+      />
 
       {!readOnly && (
         <ConfirmDialog
