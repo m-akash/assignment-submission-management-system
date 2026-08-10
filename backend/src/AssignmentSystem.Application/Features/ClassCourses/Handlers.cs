@@ -71,7 +71,9 @@ public sealed class CreateClassCourseHandler : ICommandHandler<CreateClassCourse
                     "ClassCourse.NotReloaded", "The offering was created but could not be read back."));
             }
 
-            return Mapper.MapToDto(saved);
+            // A brand-new offering has no teachers yet; an empty list says that, where a null
+            // would leave the client guessing whether it simply was not read.
+            return Mapper.MapToDto(saved) with { TeacherNames = [] };
         }
         catch (DomainException ex)
         {
@@ -165,6 +167,7 @@ public sealed class GetClassCourseByIdHandler : IQueryHandler<GetClassCourseById
         {
             TeacherCount = counts.TeacherCount,
             AssignmentCount = counts.AssignmentCount,
+            TeacherNames = counts.TeacherNames ?? [],
         };
     }
 }
@@ -188,7 +191,7 @@ public sealed class GetClassCoursesHandler : IQueryHandler<GetClassCoursesQuery,
         var spec = new ClassCoursesPagedSpecification(query.ClassIds, query.CourseIds, query.Search, query.SortBy, query.SortDir, query.Page, query.PageSize);
         var paged = await _classCourseRepository.ListPagedAsync(spec, ct);
 
-        // Two grouped queries for the whole page rather than two per row.
+        // Two queries for the whole page rather than two per row.
         var usage = await _usageReader.GetUsageAsync(paged.Items.Select(cc => cc.Id).ToList(), ct);
 
         var items = paged.Items
@@ -199,6 +202,7 @@ public sealed class GetClassCoursesHandler : IQueryHandler<GetClassCoursesQuery,
                 {
                     TeacherCount = counts.TeacherCount,
                     AssignmentCount = counts.AssignmentCount,
+                    TeacherNames = counts.TeacherNames ?? [],
                 };
             })
             .ToList();

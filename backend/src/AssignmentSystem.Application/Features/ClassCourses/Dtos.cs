@@ -22,7 +22,13 @@ public sealed record ClassCourseDto(
     /// <summary>How many teachers are mapped to this offering — 0 means nobody can set work for it yet.</summary>
     int TeacherCount = 0,
     /// <summary>Assignments created against this offering, draft included.</summary>
-    int AssignmentCount = 0
+    int AssignmentCount = 0,
+    /// <summary>
+    /// The names of the teachers mapped to this offering, in name order — empty when nobody
+    /// is assigned yet. Sent alongside the count because every screen listing offerings shows
+    /// who teaches each one, and a bare number would only make the client fetch the mappings.
+    /// </summary>
+    IReadOnlyList<string>? TeacherNames = null
 );
 
 [RequiresRole(Role.Admin)]

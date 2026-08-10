@@ -32,9 +32,9 @@ export default function ClassCoursesPage() {
  * Course offerings — which courses each class studies.
  *
  * The catalogue everything else is scoped to: a teacher can only be assigned to an offering,
- * and an assignment can only be created against one. The teacher and assignment counts are
- * shown because an offering with no teacher is inert, and one with assignments cannot be
- * removed.
+ * and an assignment can only be created against one. The assigned teachers and the assignment
+ * count are shown because an offering with no teacher is inert, and one with assignments cannot
+ * be removed.
  */
 function ClassCoursesView() {
   const [search, setSearch] = useState('');
@@ -143,14 +143,15 @@ function ClassCoursesView() {
                           {offering.courseCode}
                         </TableCell>
                         <TableCell>
-                          {/* Zero teachers means nobody can set work for this offering yet —
-                              worth flagging rather than showing a bare 0. */}
-                          {offering.teacherCount === 0 ? (
+                          {/* Who teaches this offering, by name — a count answers a question
+                              nobody asks. Zero teachers means nobody can set work for it yet,
+                              which is worth saying rather than leaving the cell blank. */}
+                          {offering.teacherNames.length === 0 ? (
                             <span className="text-sm text-muted-foreground">
                               None assigned yet
                             </span>
                           ) : (
-                            offering.teacherCount
+                            offering.teacherNames.join(', ')
                           )}
                         </TableCell>
                         <TableCell className="text-muted-foreground">

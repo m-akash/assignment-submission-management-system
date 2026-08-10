@@ -145,6 +145,8 @@ export interface ClassCourse {
   courseCode: string;
   /** Teachers mapped to this offering — 0 means nobody can set work for it yet. */
   teacherCount: number;
+  /** Names of those teachers, in name order — empty when nobody is assigned yet. */
+  teacherNames: string[];
   /** Assignments created against it, drafts included. */
   assignmentCount: number;
 }

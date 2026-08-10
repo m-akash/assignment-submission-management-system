@@ -228,14 +228,21 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
             )}
           </SectionPanel>
 
-          {assignment.files.length > 0 && (
-            <SectionPanel
-              title="Materials from your teacher"
-              description={`${assignment.files.length} file${assignment.files.length > 1 ? 's' : ''}`}
-              icon={Paperclip}
-              bodyClassName="space-y-2 p-5"
-            >
-              {assignment.files.map((file) => (
+          {/* Always shown, even with nothing attached: a student who cannot find the
+              materials should be told there are none, not left wondering whether the
+              panel failed to load or they missed it. */}
+          <SectionPanel
+            title="Materials from your teacher"
+            description={
+              assignment.files.length > 0
+                ? `${assignment.files.length} file${assignment.files.length > 1 ? 's' : ''}`
+                : 'No files attached'
+            }
+            icon={Paperclip}
+            bodyClassName="space-y-2 p-5"
+          >
+            {assignment.files.length > 0 ? (
+              assignment.files.map((file) => (
                 <FileRow
                   key={file.id}
                   name={file.originalFileName}
@@ -249,9 +256,14 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                   }
                   onDownload={() => downloadAssignmentFile(file.id, file.originalFileName)}
                 />
-              ))}
-            </SectionPanel>
-          )}
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Your teacher did not attach any files to this assignment — everything you need
+                should be in the instructions above.
+              </p>
+            )}
+          </SectionPanel>
 
           {isGraded && (
             <section className="panel space-y-3 border-success/25 bg-success-muted/40 p-5">
