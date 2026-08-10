@@ -412,10 +412,10 @@ than returning everything.
 | | `GET /enrollments/me/courses` | Student |
 | Assignments | `GET` list and by id | Any (students: published, own classes) |
 | | `POST` · `PUT` · `DELETE` · `POST {id}/publish` | Teacher (author; author from token) |
-| | `POST {id}/attachments/upload` · `DELETE attachments/{id}` | Teacher (author) |
+| | `POST {id}/attachments/upload` · `PUT attachments/{id}` · `DELETE attachments/{id}` | Teacher (author; `PUT` renames, extension fixed) |
 | | `GET attachments/{id}` | Any (authorized stream) |
 | Submissions | `GET` list and by id | Any (own / own assignments / all) |
-| | `POST assignments/{id}/submissions` · `PUT {id}` · `upload` · `DELETE files/{id}` | Student (owner) |
+| | `POST assignments/{id}/submissions` · `PUT {id}` · `upload` · `PUT files/{id}` · `DELETE files/{id}` | Student (owner; rename closes when the submission does) |
 | | `GET assignments/{id}/submissions/me` | Student |
 | | `POST {id}/review` | Teacher (author of the assignment) |
 | | `GET files/{id}` | Any (as reachable as its submission) |
