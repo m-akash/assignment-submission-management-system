@@ -18,6 +18,7 @@ import {
   useDeleteTeacherMapping,
   useCourseOptions,
   useTeacherMappings,
+  useUsers,
 } from '@/hooks/use-admin-resources';
 import { classLabel, gradeLabel, sectionLabel } from '@/lib/format';
 import type { TeacherMapping } from '@/types/api';
@@ -32,24 +33,37 @@ export default function TeacherMappingsPage() {
 
 function MappingsView() {
   const [search, setSearch] = useState('');
+  const [teacherIds, setTeacherIds] = useState<string[]>([]);
   const [courseIds, setCourseIds] = useState<string[]>([]);
   const [classIds, setClassIds] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [deleting, setDeleting] = useState<TeacherMapping | null>(null);
 
+  const teachers = useUsers({ role: 'Teacher', pageSize: 100 });
   const courses = useCourseOptions();
   const classes = useClassOptions();
   const remove = useDeleteTeacherMapping();
   const query = useTeacherMappings({
     search,
+    teacherId: teacherIds,
     courseId: courseIds,
     classId: classIds,
     page,
     pageSize: 10,
   });
   const items = query.data?.items ?? [];
-  const isFiltered = !!search || courseIds.length > 0 || classIds.length > 0;
+  const isFiltered =
+    !!search || teacherIds.length > 0 || courseIds.length > 0 || classIds.length > 0;
+  // Every teacher, not only the mapped ones — an unmapped teacher is a legitimate thing to
+  // filter by, and its empty result is the answer.
+  const teacherOptions = (teachers.data?.items ?? []).map((teacher) => ({
+    value: teacher.id,
+    label: teacher.fullName,
+    // Two teachers can share a name; the email is what tells them apart, and the search box
+    // matches it too.
+    hint: teacher.email,
+  }));
   const courseOptions = (courses.data ?? []).map((s) => ({ value: s.id, label: s.name }));
 
   function withPageReset<T>(setter: (value: T) => void) {
@@ -75,12 +89,19 @@ function MappingsView() {
       />
 
       <div className="panel overflow-hidden">
-        <div className="flex flex-col gap-2 border-b p-4 sm:flex-row">
+        <div className="flex flex-col gap-2 border-b p-4 sm:flex-row sm:flex-wrap">
           <SearchInput
             value={search}
             onChange={withPageReset(setSearch)}
             placeholder="Search teacher, course, grade or section…"
             className="sm:max-w-xs"
+          />
+          <FilterSelect
+            values={teacherIds}
+            onChange={withPageReset(setTeacherIds)}
+            options={teacherOptions}
+            allLabel="All teachers"
+            disabled={teachers.isLoading}
           />
           <FilterSelect
             values={courseIds}

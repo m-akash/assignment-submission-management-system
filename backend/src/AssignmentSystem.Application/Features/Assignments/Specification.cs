@@ -1,3 +1,4 @@
+using System.Globalization;
 using AssignmentSystem.Application.Common.Interfaces;
 using AssignmentSystem.Domain.Assignments;
 using AssignmentSystem.Domain.Enums;
@@ -75,6 +76,29 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
         ApplyPaging(page, pageSize);
 
         var searchLower = search?.Trim().ToLowerInvariant();
+        var hasSearch = !string.IsNullOrWhiteSpace(searchLower);
+        // The list shows numbers as well as text, and one search box has to reach all of it.
+        // A whole number can be a grade or a submission count; anything that parses as a
+        // decimal can be a mark. Each arm switches itself off when the term is not of its
+        // shape, so "algebra" never reaches a numeric comparison.
+        //
+        // Invariant, not the server's culture: the term arrives as a query string typed into
+        // a browser, where "77.5" is 77.5 whatever locale the machine happens to run in.
+        var searchLevel = hasSearch && int.TryParse(searchLower, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedLevel)
+            ? parsedLevel
+            : (int?)null;
+        var searchNumber = hasSearch && decimal.TryParse(searchLower, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsedNumber)
+            ? parsedNumber
+            : (decimal?)null;
+        // Status is stored as an enum, so "pub" cannot be matched with a LIKE. The names are
+        // resolved to values here instead and matched as an IN list.
+        var searchStatuses = hasSearch
+            ? Enum.GetValues<AssignmentStatus>()
+                .Where(status => status.ToString().Contains(searchLower!, StringComparison.OrdinalIgnoreCase))
+                .ToList()
+            : [];
+        var statusSearchFilter = searchStatuses.Count == 0 ? null : searchStatuses;
+
         var classFilter = MultiValueFilter(classIds);
         var courseFilter = MultiValueFilter(courseIds);
         var classCourseFilter = MultiValueFilter(classCourseIds);
@@ -97,12 +121,24 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
             (restrictToClassIds == null || restrictToClassIds.Contains(a.ClassCourse.ClassId)) &&
             (teacherFilter == null || teacherFilter.Contains(a.TeacherId)) &&
             (statusFilter == null || statusFilter.Contains(a.Status)) &&
-            (string.IsNullOrWhiteSpace(searchLower) ||
-             a.Title.ToLower().Contains(searchLower) ||
+            // One box, every column the list renders: the term is matched against the text
+            // columns, and — where it is shaped like one — against the numeric and enum ones
+            // too. The deadline is the one column left out: it is a timestamp rendered in the
+            // reader's locale, so there is no stored text for a term to match against.
+            (!hasSearch ||
+             a.Title.ToLower().Contains(searchLower!) ||
              // DescriptionText, not Description: the description is markup, and matching
              // against it would turn a search for "li" into "every assignment containing a
              // list". The database keeps the stripped copy in step with the original.
-             a.DescriptionText.ToLower().Contains(searchLower));
+             a.DescriptionText.ToLower().Contains(searchLower!) ||
+             a.ClassCourse.Course.Name.ToLower().Contains(searchLower!) ||
+             a.ClassCourse.Course.Code.ToLower().Contains(searchLower!) ||
+             a.Teacher.FullName.ToLower().Contains(searchLower!) ||
+             (searchLevel != null && a.ClassCourse.Class.Level == searchLevel) ||
+             (searchLevel != null && a.SubmissionCount == searchLevel) ||
+             (searchNumber != null && a.MaxMarks == searchNumber) ||
+             (a.ClassCourse.Class.Section != null && a.ClassCourse.Class.Section.ToLower().Contains(searchLower!)) ||
+             (statusSearchFilter != null && statusSearchFilter.Contains(a.Status)));
 #pragma warning restore CA1304, CA1311
     }
 }

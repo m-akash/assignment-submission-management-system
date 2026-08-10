@@ -308,10 +308,16 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
         var (owner, outsider) = await TwoWorldsAsync();
         using var admin = await SignInAsAdminAsync();
 
-        var response = await admin.GetAsync("/api/v1/teacher-assignments?pageSize=250");
+        // Asked for by teacher rather than as one big page: the suite shares a database and
+        // has long since put more than a page of mappings in it, so "the whole list" would
+        // only ever be its first hundred rows — and whether these two landed there would
+        // come down to how their generated names happened to sort.
+        var response = await admin.GetAsync(
+            $"/api/v1/teacher-assignments?teacherId={owner.TeacherId}&teacherId={outsider.TeacherId}");
 
         var mappings = await ReadAsync<List<TeacherAssignmentRow>>(response);
-        mappings.Select(m => m.Id).Should().Contain([owner.TeacherAssignmentId, outsider.TeacherAssignmentId]);
+        mappings.Select(m => m.Id).Should().Contain([owner.TeacherAssignmentId, outsider.TeacherAssignmentId],
+            "an admin is scoped to nobody, so both teachers' mappings come back");
     }
 
     private sealed record TeacherAssignmentRow(Guid Id, Guid TeacherId);

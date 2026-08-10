@@ -25,6 +25,7 @@ import { AssignmentStatusBadge, DeadlineBadge } from '@/components/shared/status
 import { useAssignments, useDeleteAssignment, usePublishAssignment } from '@/hooks/use-assignments';
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
 import { distinctClasses } from '@/lib/classes';
+import { distinctCourses } from '@/lib/courses';
 import { deadlineUrgency, formatDateTime, gradeLabel, sectionLabel } from '@/lib/format';
 import { richTextToPlainText } from '@/lib/rich-text';
 import type { Assignment, AssignmentStatus } from '@/types/api';
@@ -42,6 +43,10 @@ export function TeacherAssignmentsView() {
   const [search, setSearch] = useState('');
   const [statuses, setStatuses] = useState<AssignmentStatus[]>([]);
   const [classIds, setClassIds] = useState<string[]>([]);
+  // One selection behind two boxes. A course and its code are the same choice said two
+  // ways, so picking MATH101 in the code box is picking Mathematics — keeping them as one
+  // piece of state is what stops the pair expressing a combination that matches nothing.
+  const [courseIds, setCourseIds] = useState<string[]>([]);
   const [page, setPage] = useState(1);
 
   const [deleting, setDeleting] = useState<Assignment | null>(null);
@@ -50,10 +55,18 @@ export function TeacherAssignmentsView() {
   const publish = usePublishAssignment();
   const remove = useDeleteAssignment();
 
-  const query = useAssignments({ search, status: statuses, classId: classIds, page, pageSize: 10 });
+  const query = useAssignments({
+    search,
+    status: statuses,
+    classId: classIds,
+    courseId: courseIds,
+    page,
+    pageSize: 10,
+  });
 
-  // Distinct classes the teacher actually teaches — no point offering the rest.
+  // Distinct classes and courses the teacher actually teaches — no point offering the rest.
   const taughtClasses = distinctClasses(mappings.data ?? []);
+  const taughtCourses = distinctCourses(mappings.data ?? []);
 
   /**
    * Opens the assignment's own page when a row is clicked. Skips clicks that originate
@@ -79,7 +92,8 @@ export function TeacherAssignmentsView() {
   }
 
   const items = query.data?.items ?? [];
-  const isFiltered = !!search || statuses.length > 0 || classIds.length > 0;
+  const isFiltered =
+    !!search || statuses.length > 0 || classIds.length > 0 || courseIds.length > 0;
 
   return (
     <div className="space-y-6">
@@ -105,11 +119,11 @@ export function TeacherAssignmentsView() {
       />
 
       <div className="panel overflow-hidden">
-        <div className="flex flex-col gap-2 border-b p-4 sm:flex-row">
+        <div className="flex flex-col gap-2 border-b p-4 sm:flex-row sm:flex-wrap">
           <SearchInput
             value={search}
             onChange={withPageReset(setSearch)}
-            placeholder="Search title or description…"
+            placeholder="Search any column…"
             className="sm:max-w-xs"
           />
           <FilterSelect
@@ -118,6 +132,22 @@ export function TeacherAssignmentsView() {
             options={STATUS_OPTIONS}
             allLabel="Any status"
             className="w-44"
+          />
+          <FilterSelect
+            values={courseIds}
+            onChange={withPageReset(setCourseIds)}
+            options={taughtCourses.map((course) => ({ value: course.id, label: course.name }))}
+            allLabel="All courses"
+            disabled={mappings.isLoading}
+            className="w-44"
+          />
+          <FilterSelect
+            values={courseIds}
+            onChange={withPageReset(setCourseIds)}
+            options={taughtCourses.map((course) => ({ value: course.id, label: course.code }))}
+            allLabel="All codes"
+            disabled={mappings.isLoading}
+            className="w-36"
           />
           <ClassFilter
             classes={taughtClasses}
@@ -158,7 +188,7 @@ export function TeacherAssignmentsView() {
                           title={isFiltered ? 'Nothing matches those filters' : 'No assignments yet'}
                           description={
                             isFiltered
-                              ? 'Try a different search term or status.'
+                              ? 'Try a different search term, course, class or status.'
                               : 'Create your first assignment as a draft, then publish it.'
                           }
                           action={
