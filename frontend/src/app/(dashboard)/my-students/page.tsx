@@ -74,7 +74,7 @@ function MyStudentsView() {
           <SearchInput
             value={search}
             onChange={withPageReset(setSearch)}
-            placeholder="Search student name or email…"
+            placeholder="Search any column…"
             className="sm:max-w-xs"
           />
           <ClassFilter

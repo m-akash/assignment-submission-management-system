@@ -91,10 +91,11 @@ internal sealed class AssignmentsPagedSpecification : Specification<Assignment>
             ? parsedNumber
             : (decimal?)null;
         // Status is stored as an enum, so "pub" cannot be matched with a LIKE. The names are
-        // resolved to values here instead and matched as an IN list.
+        // resolved to values here instead and matched as an IN list. By prefix, not substring:
+        // "d" should mean Draft, not every status whose name happens to contain a "d".
         var searchStatuses = hasSearch
             ? Enum.GetValues<AssignmentStatus>()
-                .Where(status => status.ToString().Contains(searchLower!, StringComparison.OrdinalIgnoreCase))
+                .Where(status => status.ToString().StartsWith(searchLower!, StringComparison.OrdinalIgnoreCase))
                 .ToList()
             : [];
         var statusSearchFilter = searchStatuses.Count == 0 ? null : searchStatuses;

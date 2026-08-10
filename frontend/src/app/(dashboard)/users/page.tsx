@@ -162,7 +162,7 @@ function UsersView() {
           <SearchInput
             value={search}
             onChange={withPageReset(setSearch)}
-            placeholder="Search name or email…"
+            placeholder="Search any column…"
             className="sm:max-w-xs"
           />
           <FilterSelect
