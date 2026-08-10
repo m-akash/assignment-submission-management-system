@@ -220,12 +220,21 @@ export function useReviewSubmission() {
 // ── Download ────────────────────────────────────────────────────────────────
 
 /**
+ * The bytes of one submission attachment. Shared by the download below and the in-page
+ * image viewer, which need the same authorized request and differ only in what they do
+ * with the result — so the endpoint is written down once.
+ */
+export function fetchSubmissionFile(fileId: string): Promise<Blob> {
+  return apiGetBlob(`/api/v1/submissions/files/${fileId}`);
+}
+
+/**
  * Attachments are streamed by the API after an authorization check, so they cannot be
  * linked directly — fetch the blob, then hand it to the browser.
  */
 export async function downloadSubmissionFile(fileId: string, fileName: string): Promise<void> {
   try {
-    const blob = await apiGetBlob(`/api/v1/submissions/files/${fileId}`);
+    const blob = await fetchSubmissionFile(fileId);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

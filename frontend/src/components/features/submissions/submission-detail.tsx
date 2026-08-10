@@ -1,16 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import {
   Award,
   ClipboardList,
-  FileText,
   Inbox,
   Info,
   Loader2,
   Paperclip,
+  PenLine,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -20,19 +21,22 @@ import { Label } from '@/components/ui/label';
 import { RichText } from '@/components/ui/rich-text';
 import { Textarea } from '@/components/ui/textarea';
 import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
+import { ImagePreviewDialog, isViewableImage } from '@/components/shared/file-preview';
 import { BackLink, PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import { EmptyState, ErrorState } from '@/components/shared/states';
 import { SubmissionStatusBadge } from '@/components/shared/status-badge';
 import {
   downloadSubmissionFile,
+  fetchSubmissionFile,
   useReviewSubmission,
   useSubmission,
 } from '@/hooks/use-submissions';
 import { ApiError } from '@/lib/api';
 import { formatDateTime, formatMarks, formatRelative, initials } from '@/lib/format';
+import { isRichTextEmpty } from '@/lib/rich-text';
 import { reviewSchema, type ReviewInput, type ReviewValues } from '@/schemas';
-import type { Submission } from '@/types/api';
+import type { Submission, SubmissionFile } from '@/types/api';
 
 /**
  * One student's work, in full, with the marking alongside it. A page rather than a
@@ -87,10 +91,18 @@ export function SubmissionDetail({
 function Detail({ submission, readOnly }: { submission: Submission; readOnly: boolean }) {
   const review = useReviewSubmission();
 
+  // The attachment being shown inline, if any.
+  const [viewing, setViewing] = useState<SubmissionFile | null>(null);
+
   // Set when the submission row is created, from the assignment's maximum — so the
   // bound the form validates against is the same one the API will apply.
   const maxMarks = submission.marksOutOf ?? 100;
   const isGraded = submission.status === 'Graded';
+  // Students hand in files, not prose — the editor is gone from their screen. Any text
+  // here belongs to a submission made before that, and is still shown so a marker never
+  // loses sight of work that was written.
+  const writtenAnswer = submission.content ?? '';
+  const hasWrittenAnswer = !isRichTextEmpty(writtenAnswer);
 
   // <what the fields hold, context, what validation produces> — `marks` is coerced,
   // so the first and last are not the same type. Seeded at mount from the saved review;
@@ -155,17 +167,20 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
             </Alert>
           )}
 
-          <SectionPanel title="Answer" icon={FileText} bodyClassName="p-5">
-            {submission.content ? (
-              <RichText content={submission.content} />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No written answer — see the attachments.
-              </p>
-            )}
-          </SectionPanel>
+          {/* Only ever present on a submission typed while the student's screen still had
+              an editor; there is no empty panel for the rest, whose work *is* the files. */}
+          {hasWrittenAnswer && (
+            <SectionPanel
+              title="Written answer"
+              description="Submitted as text"
+              icon={PenLine}
+              bodyClassName="p-5"
+            >
+              <RichText content={writtenAnswer} />
+            </SectionPanel>
+          )}
 
-          {submission.files.length > 0 && (
+          {submission.files.length > 0 ? (
             <SectionPanel
               title="Attachments"
               description={`${submission.files.length} file${submission.files.length > 1 ? 's' : ''}`}
@@ -177,10 +192,27 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
                   key={file.id}
                   name={file.originalFileName}
                   size={file.fileSizeBytes}
+                  onView={
+                    // A photographed or scanned answer opens here, so marking does not
+                    // start with a download. A PDF or a document has no inline view.
+                    isViewableImage(file.contentType, file.originalFileName)
+                      ? () => setViewing(file)
+                      : undefined
+                  }
                   onDownload={() => downloadSubmissionFile(file.id, file.originalFileName)}
                 />
               ))}
             </SectionPanel>
+          ) : (
+            // With the answer panel gone when there is no text, an empty submission would
+            // otherwise show nothing at all between the assignment link and the marking.
+            !hasWrittenAnswer && (
+              <SectionPanel title="Submitted work" icon={Paperclip} bodyClassName="p-5">
+                <p className="text-sm text-muted-foreground">
+                  This student has not attached anything yet.
+                </p>
+              </SectionPanel>
+            )
           )}
 
           <SectionPanel
@@ -299,6 +331,20 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
           </SectionPanel>
         </aside>
       </div>
+
+      <ImagePreviewDialog
+        file={
+          viewing && {
+            id: viewing.id,
+            name: viewing.originalFileName,
+            contentType: viewing.contentType,
+            sizeBytes: viewing.fileSizeBytes,
+          }
+        }
+        loadBlob={fetchSubmissionFile}
+        onDownload={(file) => downloadSubmissionFile(file.id, file.name)}
+        onClose={() => setViewing(null)}
+      />
     </div>
   );
 }

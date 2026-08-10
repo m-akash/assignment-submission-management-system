@@ -18,7 +18,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { RichText } from '@/components/ui/rich-text';
 import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
-import { ImagePreviewDialog, isViewableImage } from '@/components/shared/file-preview';
+import {
+  ImagePreviewDialog,
+  isViewableImage,
+  type PreviewFile,
+} from '@/components/shared/file-preview';
 import { BackLink, PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import { EmptyState, ErrorState } from '@/components/shared/states';
@@ -30,6 +34,7 @@ import {
 import { downloadAssignmentFile, fetchAssignmentFile } from '@/hooks/use-assignments';
 import {
   downloadSubmissionFile,
+  fetchSubmissionFile,
   useDeleteSubmissionFile,
   useStudentAssignment,
   useSubmitAssignment,
@@ -46,13 +51,26 @@ import {
   sectionLabel,
 } from '@/lib/format';
 import { isRichTextEmpty } from '@/lib/rich-text';
-import type { AssignmentFile, StudentAssignment } from '@/types/api';
+import type { AssignmentFile, StudentAssignment, SubmissionFile } from '@/types/api';
 
 /** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
 const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
 const MAX_FILES = 3;
 /** UX-only mirror of FileStorage:MaxBytes — picking is deferred, so catch this early. */
 const MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Whichever side of the page a file came from, the viewer wants the same four fields —
+ * and the two DTOs happen to spell them identically.
+ */
+function toPreview(file: AssignmentFile | SubmissionFile): PreviewFile {
+  return {
+    id: file.id,
+    name: file.originalFileName,
+    contentType: file.contentType,
+    sizeBytes: file.fileSizeBytes,
+  };
+}
 
 /**
  * One assignment, in full: the brief a student reads and the files they hand back.
@@ -109,8 +127,12 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
   // Picked files are held here and only sent when the student submits — selecting a
   // file is not itself handing in, so nothing reaches the server until they say so.
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  // The teacher's material being viewed inline, if any.
-  const [viewing, setViewing] = useState<AssignmentFile | null>(null);
+  // The file being viewed inline, if any. Which list it came from decides which endpoint
+  // the bytes are fetched from, so it is carried alongside.
+  const [viewing, setViewing] = useState<{
+    file: PreviewFile;
+    source: 'material' | 'submission';
+  } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const submit = useSubmitAssignment();
@@ -228,7 +250,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                     // An image the teacher attached opens here; a PDF or a document has
                     // nothing to show inline, so it keeps download alone.
                     isViewableImage(file.contentType, file.originalFileName)
-                      ? () => setViewing(file)
+                      ? () => setViewing({ file: toPreview(file), source: 'material' })
                       : undefined
                   }
                   onDownload={() => downloadAssignmentFile(file.id, file.originalFileName)}
@@ -305,6 +327,12 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                     key={file.id}
                     name={file.originalFileName}
                     size={file.fileSizeBytes}
+                    onView={
+                      // Checking what was handed in should not mean downloading it back.
+                      isViewableImage(file.contentType, file.originalFileName)
+                        ? () => setViewing({ file: toPreview(file), source: 'submission' })
+                        : undefined
+                    }
                     onDownload={() => downloadSubmissionFile(file.id, file.originalFileName)}
                     onRemove={readOnly ? undefined : () => removeFile.mutate(file.id)}
                     removeDisabled={removeFile.isPending}
@@ -402,16 +430,13 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
       </div>
 
       <ImagePreviewDialog
-        file={
-          viewing && {
-            id: viewing.id,
-            name: viewing.originalFileName,
-            contentType: viewing.contentType,
-            sizeBytes: viewing.fileSizeBytes,
-          }
+        file={viewing?.file ?? null}
+        loadBlob={viewing?.source === 'submission' ? fetchSubmissionFile : fetchAssignmentFile}
+        onDownload={(file) =>
+          viewing?.source === 'submission'
+            ? downloadSubmissionFile(file.id, file.name)
+            : downloadAssignmentFile(file.id, file.name)
         }
-        loadBlob={fetchAssignmentFile}
-        onDownload={(file) => downloadAssignmentFile(file.id, file.name)}
         onClose={() => setViewing(null)}
       />
     </div>
