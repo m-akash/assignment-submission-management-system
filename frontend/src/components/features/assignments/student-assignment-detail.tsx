@@ -16,9 +16,7 @@ import {
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { RichText } from '@/components/ui/rich-text';
-import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
 import { BackLink, PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
@@ -56,10 +54,13 @@ const MAX_FILES = 3;
 const MAX_BYTES = 2 * 1024 * 1024;
 
 /**
- * One assignment, in full: the brief, the teacher's materials, and the student's own
- * answer on the same screen. A page rather than a dialog because this is the work
- * itself — it deserves the room, a URL the student can return to, and the browser's
- * own back button.
+ * One assignment, in full: the brief a student reads and the files they hand back.
+ * A page rather than a dialog because this is the work itself — it deserves the room,
+ * a URL the student can return to, and the browser's own back button.
+ *
+ * Writing is the teacher's side of this screen: the rich-text editor lives in the
+ * assignment form, and a student only ever *reads* the brief it produces. So the
+ * student's half of the page is attachments — no editor, nothing to compose.
  */
 export function StudentAssignmentDetail({ assignmentId }: { assignmentId: string }) {
   const { assignment, isLoading, isError, error } = useStudentAssignment(assignmentId);
@@ -104,11 +105,8 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
   const submission = assignment.submission;
   const files = submission?.files ?? [];
 
-  // `null` means "showing the saved answer". Once the student types, their draft wins —
-  // so a background refetch can never overwrite work in progress.
-  const [draft, setDraft] = useState<string | null>(null);
   // Picked files are held here and only sent when the student submits — selecting a
-  // file is not itself an answer, so nothing reaches the server until they say so.
+  // file is not itself handing in, so nothing reaches the server until they say so.
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -116,16 +114,23 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
   const upload = useUploadSubmissionFile();
   const removeFile = useDeleteSubmissionFile();
 
-  const content = draft ?? submission?.content ?? '';
-  // The editor reports "" for an emptied document, but a saved answer of "<p></p>" would
-  // otherwise read as an answer — so what counts as written is judged on the words.
-  const hasAnswer = !isRichTextEmpty(content);
+  // A typed answer can only exist on a submission made before this screen dropped its
+  // editor. It is shown back read-only and carried through every save, so nothing a
+  // student wrote is quietly thrown away.
+  const savedAnswer = submission?.content ?? '';
+  const hasSavedAnswer = !isRichTextEmpty(savedAnswer);
   const urgency = deadlineUrgency(assignment.deadlineUtc);
   const isGraded = submission?.status === 'Graded';
   const readOnly = isGraded || (urgency === 'overdue' && !assignment.allowResubmission);
   const attachmentCount = files.length + pendingFiles.length;
-  const hasSomething = hasAnswer || attachmentCount > 0;
+  // An upload creates the submission row but leaves it Pending, so "handed in" is a
+  // question about status, not about whether files exist.
+  const handedIn = !!submission && submission.status !== 'Pending';
+  // Nothing to send once it is in and no new file is waiting — re-posting would only
+  // re-stamp the submitted time.
+  const canHandIn = attachmentCount > 0 && (!handedIn || pendingFiles.length > 0);
   const isBusy = submit.isPending || upload.isPending;
+  const hasInstructions = !isRichTextEmpty(assignment.description);
 
   function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -142,28 +147,27 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
 
   async function onSubmit() {
     try {
-      await submit.mutateAsync({
-        assignmentId: assignment.id,
-        submissionId: submission?.id,
-        // Sent empty when the answer holds no words, so a file-only submission is not
-        // recorded as having an answer made of empty paragraphs.
-        content: hasAnswer ? content : '',
-      });
-
-      // Uploads need a submission to hang off, so they follow the answer. Each file
-      // leaves the staging list as it lands, so a retry after a failure part-way
-      // through does not send the same file twice.
+      // Files go first, and deliberately so: the server refuses a submission that has
+      // neither text nor a file, and the upload endpoint is what creates the submission
+      // row. With no answer to send, uploading is what makes there be something to hand
+      // in. Each file leaves the staging list as it lands, so a retry after a failure
+      // part-way through does not send the same file twice.
       for (const file of pendingFiles) {
         await upload.mutateAsync({ assignmentId: assignment.id, file });
         setPendingFiles((prev) => prev.filter((staged) => staged !== file));
       }
-    } catch {
-      // The mutations already report the failure; keep the draft so nothing is lost.
-      return;
-    }
 
-    // Saved: fall back to the server's copy again.
-    setDraft(null);
+      // Uploading leaves the submission Pending; this call is what hands it in. Any
+      // answer written before the editor went away rides along unchanged.
+      await submit.mutateAsync({
+        assignmentId: assignment.id,
+        submissionId: submission?.id,
+        content: hasSavedAnswer ? savedAnswer : '',
+      });
+    } catch {
+      // The mutations already report the failure; staged files stay put so the student
+      // can retry without picking them again.
+    }
   }
 
   return (
@@ -185,8 +189,24 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
 
       <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
         <div className="space-y-6 lg:col-span-2">
-          <SectionPanel title="Instructions" icon={FileText} bodyClassName="p-5">
-            <RichText content={assignment.description} />
+          {/* The brief, exactly as the teacher wrote it. Framed as a sheet inside the
+              panel so it reads as a document being shown rather than a field. */}
+          <SectionPanel
+            title="Instructions from your teacher"
+            description="What you have been asked to do"
+            icon={FileText}
+            bodyClassName="p-5"
+          >
+            {hasInstructions ? (
+              <div className="rounded-xl border bg-muted/30 p-5">
+                <RichText content={assignment.description} />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Your teacher has not written any instructions for this assignment — check any
+                materials they attached, or ask them directly.
+              </p>
+            )}
           </SectionPanel>
 
           {assignment.files.length > 0 && (
@@ -229,17 +249,34 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
             </section>
           )}
 
+          {/* Only ever seen by a student who typed an answer while this screen still had
+              an editor — shown the same way the teacher marking it sees it. */}
+          {hasSavedAnswer && (
+            <SectionPanel
+              title="Your written answer"
+              description="Submitted earlier · read-only"
+              icon={PenLine}
+              bodyClassName="p-5"
+            >
+              <RichText content={savedAnswer} />
+            </SectionPanel>
+          )}
+        </div>
+
+        {/* Two panels now ride the rail, which together can outgrow the viewport — so it
+            keeps its own scroll rather than pinning the facts half off-screen. */}
+        <aside className="space-y-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+          {/* Handing in is the one thing a student *does* here, so it sits at the top of
+              the rail — above the facts, in reach without scrolling the brief. */}
           <SectionPanel
             title="Your submission"
             description={
               readOnly
                 ? 'Closed for changes'
-                : submission && submission.status !== 'Pending'
-                  ? 'Already submitted — you can still make changes'
-                  : 'Type your answer, attach files, then submit'
+                : `${attachmentCount} of ${MAX_FILES} attached · max 2 MB each`
             }
-            icon={PenLine}
-            bodyClassName="space-y-5 p-5"
+            icon={Paperclip}
+            bodyClassName="space-y-3 p-5"
           >
             {readOnly && (
               <Alert>
@@ -251,99 +288,75 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
               </Alert>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="answer">Your answer</Label>
-              <RichTextEditor
-                id="answer"
-                value={content}
-                onChange={setDraft}
-                disabled={readOnly}
-                placeholder="Type your answer, or attach a file below."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Attachments</Label>
-                <span className="text-xs text-muted-foreground">
-                  {attachmentCount} of {MAX_FILES} · max 2 MB each
-                </span>
-              </div>
-
-              {attachmentCount > 0 && (
-                <div className="divide-y rounded-lg border">
-                  {files.map((file) => (
-                    <FileRow
-                      key={file.id}
-                      name={file.originalFileName}
-                      size={file.fileSizeBytes}
-                      onDownload={() => downloadSubmissionFile(file.id, file.originalFileName)}
-                      onRemove={readOnly ? undefined : () => removeFile.mutate(file.id)}
-                      removeDisabled={removeFile.isPending}
-                    />
-                  ))}
-                  {/* Staged picks: no id and nothing to download yet, so they read as
-                      pending until the answer is submitted. */}
-                  {pendingFiles.map((file, index) => (
-                    <FileRow
-                      key={`${file.name}-${index}`}
-                      name={file.name}
-                      size={file.size}
-                      hint="Pending"
-                      onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
-                      removeDisabled={isBusy}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {!readOnly && (
-                <>
-                  <input
-                    ref={fileInput}
-                    type="file"
-                    hidden
-                    accept={ALLOWED_EXTENSIONS.join(',')}
-                    onChange={onFilePicked}
+            {attachmentCount > 0 ? (
+              <div className="divide-y rounded-lg border">
+                {files.map((file) => (
+                  <FileRow
+                    key={file.id}
+                    name={file.originalFileName}
+                    size={file.fileSizeBytes}
+                    onDownload={() => downloadSubmissionFile(file.id, file.originalFileName)}
+                    onRemove={readOnly ? undefined : () => removeFile.mutate(file.id)}
+                    removeDisabled={removeFile.isPending}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    disabled={isBusy || attachmentCount >= MAX_FILES}
-                    onClick={() => fileInput.current?.click()}
-                  >
-                    {upload.isPending ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Upload className="size-4" />
-                    )}
-                    {attachmentCount >= MAX_FILES ? 'Attachment limit reached' : 'Attach a file'}
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    {pendingFiles.length > 0
-                      ? 'Attached once you submit your answer.'
-                      : `Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`}
-                  </p>
-                </>
-              )}
-            </div>
+                ))}
+                {/* Staged picks: no id and nothing to download yet, so they read as
+                    pending until the student hands in. */}
+                {pendingFiles.map((file, index) => (
+                  <FileRow
+                    key={`${file.name}-${index}`}
+                    name={file.name}
+                    size={file.size}
+                    hint="Pending"
+                    onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+                    removeDisabled={isBusy}
+                  />
+                ))}
+              </div>
+            ) : (
+              !readOnly && (
+                <p className="text-sm text-muted-foreground">
+                  Attach your work as a file, then hand it in.
+                </p>
+              )
+            )}
 
             {!readOnly && (
-              <div className="flex flex-col-reverse items-stretch gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-end">
-                <Button asChild variant="outline">
-                  <Link href="/assignments">Back to list</Link>
+              <>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  hidden
+                  accept={ALLOWED_EXTENSIONS.join(',')}
+                  onChange={onFilePicked}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={isBusy || attachmentCount >= MAX_FILES}
+                  onClick={() => fileInput.current?.click()}
+                >
+                  {upload.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Upload className="size-4" />
+                  )}
+                  {attachmentCount >= MAX_FILES ? 'Attachment limit reached' : 'Attach a file'}
                 </Button>
-                <Button onClick={onSubmit} disabled={isBusy || !hasSomething}>
+                <Button className="w-full" onClick={onSubmit} disabled={isBusy || !canHandIn}>
                   {isBusy && <Loader2 className="size-4 animate-spin" />}
-                  {submission && submission.status !== 'Pending' ? 'Update answer' : 'Submit answer'}
+                  {!handedIn ? 'Hand in' : pendingFiles.length > 0 ? 'Update submission' : 'Handed in'}
                 </Button>
-              </div>
+                <p className="text-xs text-muted-foreground">
+                  {pendingFiles.length > 0
+                    ? 'Sent when you hand in.'
+                    : `Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`}
+                </p>
+              </>
             )}
           </SectionPanel>
-        </div>
 
-        <aside className="lg:sticky lg:top-20">
           <SectionPanel title="At a glance" icon={Info} bodyClassName="divide-y">
             <Fact label="Status">
               {submission ? <SubmissionStatusBadge status={submission.status} /> : <NotStartedBadge />}

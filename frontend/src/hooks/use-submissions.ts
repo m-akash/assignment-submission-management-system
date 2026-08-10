@@ -156,7 +156,7 @@ export function useSubmitAssignment() {
         : apiPost<Submission>(`/api/v1/assignments/${assignmentId}/submissions`, { content }),
     onSuccess: () => {
       invalidateSubmissionViews(queryClient);
-      toast.success('Answer submitted');
+      toast.success('Submission handed in');
     },
     onError: (error: Error) => toast.error(error.message),
   });
