@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   Award,
@@ -11,13 +11,12 @@ import {
   MessageSquareQuote,
   Paperclip,
   PenLine,
-  Upload,
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { RichText } from '@/components/ui/rich-text';
 import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
+import { FileDropzone } from '@/components/shared/file-dropzone';
 import {
   ImagePreviewDialog,
   isViewableImage,
@@ -36,11 +35,13 @@ import {
   downloadSubmissionFile,
   fetchSubmissionFile,
   useDeleteSubmissionFile,
+  useRenameSubmissionFile,
   useStudentAssignment,
   useSubmitAssignment,
   useUploadSubmissionFile,
 } from '@/hooks/use-submissions';
 import { ApiError } from '@/lib/api';
+import { renameFile } from '@/lib/file-name';
 import {
   classLabel,
   deadlineUrgency,
@@ -53,11 +54,7 @@ import {
 import { isRichTextEmpty } from '@/lib/rich-text';
 import type { AssignmentFile, StudentAssignment, SubmissionFile } from '@/types/api';
 
-/** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
-const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
 const MAX_FILES = 3;
-/** UX-only mirror of FileStorage:MaxBytes — picking is deferred, so catch this early. */
-const MAX_BYTES = 2 * 1024 * 1024;
 
 /**
  * Whichever side of the page a file came from, the viewer wants the same four fields —
@@ -133,11 +130,11 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
     file: PreviewFile;
     source: 'material' | 'submission';
   } | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
 
   const submit = useSubmitAssignment();
   const upload = useUploadSubmissionFile();
   const removeFile = useDeleteSubmissionFile();
+  const renameFileOnServer = useRenameSubmissionFile();
 
   // A typed answer can only exist on a submission made before this screen dropped its
   // editor. It is shown back read-only and carried through every save, so nothing a
@@ -157,17 +154,14 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
   const isBusy = submit.isPending || upload.isPending;
   const hasInstructions = !isRichTextEmpty(assignment.description);
 
-  function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-
-    if (file.size > MAX_BYTES) {
-      toast.error(`${file.name} is larger than 2 MB.`);
-      return;
-    }
-
-    setPendingFiles((prev) => [...prev, file]);
+  /**
+   * A staged file renamed in place. Worth having on this side especially: what a phone
+   * calls a photo of a worksheet says nothing to the teacher who has to mark it.
+   */
+  function onRenameStaged(index: number, name: string) {
+    setPendingFiles((prev) =>
+      prev.map((file, i) => (i === index ? renameFile(file, name) : file)),
+    );
   }
 
   async function onSubmit() {
@@ -303,9 +297,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
           <SectionPanel
             title="Your submission"
             description={
-              readOnly
-                ? 'Closed for changes'
-                : `${attachmentCount} of ${MAX_FILES} attached · max 2 MB each`
+              readOnly ? 'Closed for changes' : `${attachmentCount} of ${MAX_FILES} attached`
             }
             icon={Paperclip}
             bodyClassName="space-y-3 p-5"
@@ -334,6 +326,13 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                         : undefined
                     }
                     onDownload={() => downloadSubmissionFile(file.id, file.originalFileName)}
+                    // Already handed in, so this goes to the server — and only while the
+                    // submission is still open, which is the same rule as removing it.
+                    onRename={
+                      readOnly
+                        ? undefined
+                        : (fileName) => renameFileOnServer.mutate({ fileId: file.id, fileName })
+                    }
                     onRemove={readOnly ? undefined : () => removeFile.mutate(file.id)}
                     removeDisabled={removeFile.isPending}
                   />
@@ -346,6 +345,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                     name={file.name}
                     size={file.size}
                     hint="Pending"
+                    onRename={(name) => onRenameStaged(index, name)}
                     onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
                     removeDisabled={isBusy}
                   />
@@ -361,36 +361,21 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
 
             {!readOnly && (
               <>
-                <input
-                  ref={fileInput}
-                  type="file"
-                  hidden
-                  accept={ALLOWED_EXTENSIONS.join(',')}
-                  onChange={onFilePicked}
+                <FileDropzone
+                  remaining={MAX_FILES - attachmentCount}
+                  busy={upload.isPending}
+                  disabled={isBusy}
+                  onFiles={(picked) => setPendingFiles((prev) => [...prev, ...picked])}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  disabled={isBusy || attachmentCount >= MAX_FILES}
-                  onClick={() => fileInput.current?.click()}
-                >
-                  {upload.isPending ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Upload className="size-4" />
-                  )}
-                  {attachmentCount >= MAX_FILES ? 'Attachment limit reached' : 'Attach a file'}
-                </Button>
                 <Button className="w-full" onClick={onSubmit} disabled={isBusy || !canHandIn}>
                   {isBusy && <Loader2 className="size-4 animate-spin" />}
                   {!handedIn ? 'Hand in' : pendingFiles.length > 0 ? 'Update submission' : 'Handed in'}
                 </Button>
-                <p className="text-xs text-muted-foreground">
-                  {pendingFiles.length > 0
-                    ? 'Sent when you hand in.'
-                    : `Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`}
-                </p>
+                {pendingFiles.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Sent when you hand in — rename anything unclear first.
+                  </p>
+                )}
               </>
             )}
           </SectionPanel>

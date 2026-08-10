@@ -179,6 +179,25 @@ export function useUploadSubmissionFile() {
   });
 }
 
+/**
+ * Renames a file already handed in. The server keeps the extension whatever is sent, and
+ * allows this for exactly as long as adding or removing a file is allowed — once the work
+ * is marked, its attachments keep the names the teacher saw.
+ */
+export function useRenameSubmissionFile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ fileId, fileName }: { fileId: string; fileName: string }) =>
+      apiPut<SubmissionFile>(`/api/v1/submissions/files/${fileId}`, { fileName }),
+    onSuccess: (file) => {
+      invalidateSubmissionViews(queryClient);
+      toast.success(`Renamed to ${file.originalFileName}`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
 export function useDeleteSubmissionFile() {
   const queryClient = useQueryClient();
 

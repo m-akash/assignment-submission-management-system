@@ -130,6 +130,25 @@ export function useUploadAssignmentFile() {
   });
 }
 
+/**
+ * Renames an attachment that is already stored. The server keeps the extension whatever
+ * is sent — the bytes were validated against it — so this only ever changes the label
+ * students read and download under.
+ */
+export function useRenameAssignmentFile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ fileId, fileName }: { fileId: string; fileName: string }) =>
+      apiPut<AssignmentFile>(`/api/v1/assignments/attachments/${fileId}`, { fileName }),
+    onSuccess: (file) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.assignments.all });
+      toast.success(`Renamed to ${file.originalFileName}`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
 export function useDeleteAssignmentFile() {
   const queryClient = useQueryClient();
 

@@ -1,12 +1,11 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
-import { CalendarClock, FileText, Loader2, Paperclip, Upload } from 'lucide-react';
-import { toast } from 'sonner';
+import { CalendarClock, FileText, Loader2, Paperclip } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,25 +13,24 @@ import { Label } from '@/components/ui/label';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Combobox } from '@/components/ui/combobox';
 import { DetailSkeleton, FileRow } from '@/components/shared/detail';
+import { FileDropzone } from '@/components/shared/file-dropzone';
 import { PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import {
   downloadAssignmentFile,
   useDeleteAssignmentFile,
+  useRenameAssignmentFile,
   useSaveAssignment,
   useUploadAssignmentFile,
 } from '@/hooks/use-assignments';
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
+import { renameFile } from '@/lib/file-name';
 import { classLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { assignmentSchema, type AssignmentInput, type AssignmentValues } from '@/schemas';
 import type { Assignment, TeacherMapping } from '@/types/api';
 
-/** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
-const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
 const MAX_FILES = 5;
-/** UX-only mirror of FileStorage:MaxBytes — picking is deferred, so catch this early. */
-const MAX_BYTES = 2 * 1024 * 1024;
 
 /** `datetime-local` needs "YYYY-MM-DDTHH:mm" in local time, not a UTC ISO string. */
 function toLocalInput(iso: string): string {
@@ -80,8 +78,8 @@ function Form({
   const save = useSaveAssignment();
   const upload = useUploadAssignmentFile();
   const removeFile = useDeleteAssignmentFile();
+  const renameFileOnServer = useRenameAssignmentFile();
 
-  const fileInput = useRef<HTMLInputElement>(null);
   const files = assignment?.files ?? [];
   // Picked files wait here until the form is submitted: on create there is no
   // assignment id to upload against yet, and on edit a pick is not a decision to
@@ -153,17 +151,11 @@ function Form({
     router.push(`/assignments/${saved.id}`);
   }
 
-  function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-
-    if (file.size > MAX_BYTES) {
-      toast.error(`${file.name} is larger than 2 MB.`);
-      return;
-    }
-
-    setPendingFiles((prev) => [...prev, file]);
+  /** A staged file renamed in place — the same bytes, under the name the teacher meant. */
+  function onRenameStaged(index: number, name: string) {
+    setPendingFiles((prev) =>
+      prev.map((file, i) => (i === index ? renameFile(file, name) : file)),
+    );
   }
 
   return (
@@ -262,62 +254,52 @@ function Form({
 
             <SectionPanel
               title="Materials for students"
-              description={`${attachmentCount} of ${MAX_FILES} · max 2 MB each`}
+              description={`${attachmentCount} of ${MAX_FILES} attached`}
               icon={Paperclip}
               bodyClassName={attachmentCount > 0 ? 'divide-y' : undefined}
             >
+              {/* Already uploaded, so a rename here goes straight to the server — it is
+                  not part of the draft these fields hold. */}
               {files.map((file) => (
                 <FileRow
                   key={file.id}
                   name={file.originalFileName}
                   size={file.fileSizeBytes}
                   onDownload={() => downloadAssignmentFile(file.id, file.originalFileName)}
+                  onRename={(fileName) => renameFileOnServer.mutate({ fileId: file.id, fileName })}
                   onRemove={() => removeFile.mutate(file.id)}
                   removeDisabled={removeFile.isPending}
                 />
               ))}
               {/* Staged picks: no id and nothing to download yet, so they read as
-                  pending until the form is saved. */}
+                  pending until the form is saved — and while they are still in the
+                  browser their names can be corrected. */}
               {pendingFiles.map((file, index) => (
                 <FileRow
                   key={`${file.name}-${index}`}
                   name={file.name}
                   size={file.size}
                   hint="Pending"
+                  onRename={(name) => onRenameStaged(index, name)}
                   onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
                   removeDisabled={isBusy}
                 />
               ))}
 
               <div className="space-y-2 p-5 pt-4">
-                <input
-                  ref={fileInput}
-                  type="file"
-                  hidden
-                  accept={ALLOWED_EXTENSIONS.join(',')}
-                  onChange={onFilePicked}
+                <FileDropzone
+                  remaining={MAX_FILES - attachmentCount}
+                  busy={upload.isPending}
+                  disabled={isBusy}
+                  onFiles={(picked) => setPendingFiles((prev) => [...prev, ...picked])}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  disabled={isBusy || attachmentCount >= MAX_FILES}
-                  onClick={() => fileInput.current?.click()}
-                >
-                  {upload.isPending ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Upload className="size-4" />
-                  )}
-                  {attachmentCount >= MAX_FILES ? 'Attachment limit reached' : 'Attach a file'}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  {pendingFiles.length > 0
-                    ? isEdit
+                {pendingFiles.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {isEdit
                       ? 'Attached once you save your changes.'
-                      : 'Attached once you create the assignment.'
-                    : `Allowed: ${ALLOWED_EXTENSIONS.join(', ')}`}
-                </p>
+                      : 'Attached once you create the assignment.'}
+                  </p>
+                )}
               </div>
             </SectionPanel>
           </div>

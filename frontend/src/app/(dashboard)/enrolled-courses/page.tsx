@@ -9,7 +9,7 @@ import { RoleGuard } from '@/components/shared/role-guard';
 import { SearchInput } from '@/components/shared/search-input';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/states';
 import { useMyStudentCourses } from '@/hooks/use-admin-resources';
-import { classLabel } from '@/lib/format';
+import { gradeLabel, sectionLabel } from '@/lib/format';
 import type { StudentCourse } from '@/types/api';
 
 export default function EnrolledCoursesPage() {
@@ -60,16 +60,17 @@ function EnrolledCoursesView() {
                     <TableHead>Course</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Class</TableHead>
+                    <TableHead>Section</TableHead>
                     <TableHead>Teacher</TableHead>
                     <TableHead>Email</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {query.isLoading ? (
-                    <TableSkeleton columns={5} />
+                    <TableSkeleton columns={6} />
                   ) : items.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="p-0">
+                      <TableCell colSpan={6} className="p-0">
                         <EmptyState
                           icon={GraduationCap}
                           title={search ? 'Nothing matches that search' : 'No courses yet'}
@@ -88,8 +89,9 @@ function EnrolledCoursesView() {
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {course.courseCode}
                         </TableCell>
+                        <TableCell className="text-sm">{gradeLabel(course.classLevel)}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {classLabel(course.classLevel, course.classSection)}
+                          {sectionLabel(course.classSection)}
                         </TableCell>
                         <TableCell>
                           <TeacherNamesCell course={course} />

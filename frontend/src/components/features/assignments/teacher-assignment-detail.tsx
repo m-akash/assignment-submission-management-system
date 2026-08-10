@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -15,12 +15,12 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { RichText } from '@/components/ui/rich-text';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
+import { FileDropzone } from '@/components/shared/file-dropzone';
 import { ImagePreviewDialog, isViewableImage } from '@/components/shared/file-preview';
 import { BackLink, PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
@@ -37,10 +37,12 @@ import {
   useDeleteAssignment,
   useDeleteAssignmentFile,
   usePublishAssignment,
+  useRenameAssignmentFile,
   useUploadAssignmentFile,
 } from '@/hooks/use-assignments';
 import { useSubmissions } from '@/hooks/use-submissions';
 import { ApiError } from '@/lib/api';
+import { renameFile } from '@/lib/file-name';
 import {
   classLabel,
   deadlineUrgency,
@@ -53,11 +55,7 @@ import {
 } from '@/lib/format';
 import type { Assignment, AssignmentFile } from '@/types/api';
 
-/** UX-only mirror of FileStorage:AllowedExtensions; the server re-checks the bytes. */
-const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.png', '.jpg', '.jpeg'];
 const MAX_FILES = 5;
-/** UX-only mirror of FileStorage:MaxBytes — picking is deferred, so catch this early. */
-const MAX_BYTES = 2 * 1024 * 1024;
 
 /** How many submissions the panel shows before deferring to the full inbox. */
 const PREVIEW_COUNT = 8;
@@ -118,12 +116,16 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
   // The material being viewed inline, if any — the teacher sees an image the same way
   // the class will.
   const [viewing, setViewing] = useState<AssignmentFile | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
+  // Picked files wait here until the teacher uploads them. Sending on pick would be one
+  // click fewer, but it also makes the name final at the moment of picking — and what a
+  // scanner or a phone called the file is rarely what the class should see.
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const publish = usePublishAssignment();
   const remove = useDeleteAssignment();
   const upload = useUploadAssignmentFile();
   const removeFile = useDeleteAssignmentFile();
+  const renameFileOnServer = useRenameAssignmentFile();
 
   // Every submission for this assignment: the panel below shows the first few, and the
   // marked/awaiting split needs the whole set rather than one page of it. A single
@@ -136,20 +138,29 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
   const urgency = deadlineUrgency(assignment.deadlineUtc);
   const isDraft = assignment.status === 'Draft';
   const isBusy = publish.isPending || remove.isPending;
+  const attachmentCount = assignment.files.length + pendingFiles.length;
 
-  function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
+  /** A staged file renamed in place — the same bytes, under the name the class will see. */
+  function onRenameStaged(index: number, name: string) {
+    setPendingFiles((prev) =>
+      prev.map((file, i) => (i === index ? renameFile(file, name) : file)),
+    );
+  }
 
-    if (file.size > MAX_BYTES) {
-      toast.error(`${file.name} is larger than 2 MB.`);
-      return;
+  /**
+   * Sends what is staged. Each file leaves the list as it lands, so a retry after a
+   * failure part-way through does not upload the same file twice.
+   */
+  async function onUploadStaged() {
+    for (const file of pendingFiles) {
+      try {
+        await upload.mutateAsync({ assignmentId: assignment.id, file });
+        setPendingFiles((prev) => prev.filter((staged) => staged !== file));
+      } catch {
+        // The mutation already reported it; the rest stay staged for another go.
+        break;
+      }
     }
-
-    // The assignment already exists here, so a pick is an upload — unlike the create
-    // form, which has to stage files until there is an id to hang them off.
-    upload.mutate({ assignmentId: assignment.id, file });
   }
 
   return (
@@ -215,13 +226,9 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
 
           <SectionPanel
             title="Materials for students"
-            description={
-              readOnly || assignment.files.length >= MAX_FILES
-                ? `${assignment.files.length} of ${MAX_FILES} files`
-                : `${assignment.files.length} of ${MAX_FILES} · max 2 MB each`
-            }
+            description={`${attachmentCount} of ${MAX_FILES} attached`}
             icon={Paperclip}
-            bodyClassName={assignment.files.length > 0 ? 'divide-y' : undefined}
+            bodyClassName={attachmentCount > 0 ? 'divide-y' : undefined}
           >
             {assignment.files.map((file) => (
               <FileRow
@@ -234,12 +241,30 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
                     : undefined
                 }
                 onDownload={() => downloadAssignmentFile(file.id, file.originalFileName)}
+                onRename={
+                  readOnly
+                    ? undefined
+                    : (fileName) => renameFileOnServer.mutate({ fileId: file.id, fileName })
+                }
                 onRemove={readOnly ? undefined : () => removeFile.mutate(file.id)}
                 removeDisabled={removeFile.isPending}
               />
             ))}
 
-            {assignment.files.length === 0 && (
+            {/* Staged picks: not sent yet, and renameable until they are. */}
+            {pendingFiles.map((file, index) => (
+              <FileRow
+                key={`${file.name}-${index}`}
+                name={file.name}
+                size={file.size}
+                hint="Not uploaded yet"
+                onRename={(name) => onRenameStaged(index, name)}
+                onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+                removeDisabled={upload.isPending}
+              />
+            ))}
+
+            {attachmentCount === 0 && (
               <p className="px-5 py-4 text-sm text-muted-foreground">
                 {readOnly
                   ? 'No material was attached to this assignment.'
@@ -249,32 +274,30 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
 
             {!readOnly && (
               <div className="space-y-2 p-5 pt-4">
-                <input
-                  ref={fileInput}
-                  type="file"
-                  hidden
-                  accept={ALLOWED_EXTENSIONS.join(',')}
-                  onChange={onFilePicked}
+                <FileDropzone
+                  remaining={MAX_FILES - attachmentCount}
+                  busy={upload.isPending}
+                  onFiles={(picked) => setPendingFiles((prev) => [...prev, ...picked])}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  disabled={upload.isPending || assignment.files.length >= MAX_FILES}
-                  onClick={() => fileInput.current?.click()}
-                >
-                  {upload.isPending ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Upload className="size-4" />
-                  )}
-                  {assignment.files.length >= MAX_FILES
-                    ? 'Attachment limit reached'
-                    : 'Attach a file'}
-                </Button>
+                {pendingFiles.length > 0 && (
+                  <Button
+                    type="button"
+                    className="w-full"
+                    disabled={upload.isPending}
+                    onClick={onUploadStaged}
+                  >
+                    {upload.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Upload className="size-4" />
+                    )}
+                    Upload {pendingFiles.length} file{pendingFiles.length === 1 ? '' : 's'}
+                  </Button>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  Uploaded straight away — students see it as soon as the assignment is
-                  published. Allowed: {ALLOWED_EXTENSIONS.join(', ')}
+                  {pendingFiles.length > 0
+                    ? 'Rename anything unclear first — students see these names.'
+                    : 'Students see attached material as soon as the assignment is published.'}
                 </p>
               </div>
             )}
