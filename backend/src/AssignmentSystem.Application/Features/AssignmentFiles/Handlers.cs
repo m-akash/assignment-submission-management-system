@@ -156,6 +156,58 @@ public sealed class DownloadAssignmentFileHandler : IQueryHandler<DownloadAssign
     }
 }
 
+/// <summary>
+/// Renames an attachment. Same ownership question as deleting one — the name students
+/// read is part of the material, so it is the author's to set — but nothing is written to
+/// or removed from storage: only the row's label changes.
+/// </summary>
+public sealed class RenameAssignmentFileHandler : ICommandHandler<RenameAssignmentFileCommand, AssignmentFileDto>
+{
+    private readonly IRepository<AssignmentFile> _fileRepository;
+    private readonly IAssignmentAccess _access;
+    private readonly IUnitOfWork _unitOfWork;
+    private static readonly AssignmentFileMapper Mapper = new();
+
+    public RenameAssignmentFileHandler(
+        IRepository<AssignmentFile> fileRepository,
+        IAssignmentAccess access,
+        IUnitOfWork unitOfWork)
+    {
+        _fileRepository = fileRepository;
+        _access = access;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result<AssignmentFileDto>> HandleAsync(RenameAssignmentFileCommand command, CancellationToken ct = default)
+    {
+        var spec = new AssignmentFileByIdSpecification(command.FileId);
+        var file = await _fileRepository.FirstOrDefaultAsync(spec, ct);
+        if (file is null)
+        {
+            return Result<AssignmentFileDto>.Failure(Error.NotFound("AssignmentFile.NotFound", "The specified file was not found."));
+        }
+
+        if (_access.MustBeAuthor(file.Assignment) is { } denied)
+        {
+            return Result<AssignmentFileDto>.Failure(denied);
+        }
+
+        try
+        {
+            file.Rename(command.FileName);
+        }
+        catch (DomainException ex)
+        {
+            return Result<AssignmentFileDto>.Failure(Error.Validation("AssignmentFile.Invalid", ex.Message));
+        }
+
+        _fileRepository.Update(file);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return Mapper.MapToDto(file);
+    }
+}
+
 public sealed class DeleteAssignmentFileHandler : ICommandHandler<DeleteAssignmentFileCommand>
 {
     private readonly IRepository<AssignmentFile> _fileRepository;

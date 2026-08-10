@@ -1,3 +1,4 @@
+using AssignmentSystem.Domain.Common;
 using FluentValidation;
 
 namespace AssignmentSystem.Application.Features.Submissions;
@@ -55,6 +56,21 @@ public sealed class ReviewSubmissionCommandValidator : AbstractValidator<ReviewS
         // domain has no meaning for.
         RuleFor(x => x.Status)
             .IsInEnum().WithMessage("That is not a valid submission status.");
+    }
+}
+
+public sealed class RenameSubmissionFileCommandValidator : AbstractValidator<RenameSubmissionFileCommand>
+{
+    public RenameSubmissionFileCommandValidator()
+    {
+        RuleFor(x => x.FileId)
+            .NotEmpty().WithMessage("File id is required.");
+
+        RuleFor(x => x.FileName)
+            .NotEmpty().WithMessage("A file name is required.")
+            // The domain trims this to fit alongside the extension; rejecting outright is
+            // clearer than silently returning a name the caller did not ask for.
+            .MaximumLength(FileNames.MaxLength).WithMessage("That file name is too long.");
     }
 }
 

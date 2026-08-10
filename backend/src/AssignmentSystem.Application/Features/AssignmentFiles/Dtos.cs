@@ -33,3 +33,12 @@ public sealed record AssignmentFileDownloadResult(Stream Stream, string ContentT
 
 [RequiresRole(Role.Teacher)]
 public sealed record DeleteAssignmentFileCommand(Guid FileId) : ICommand;
+
+/// <summary>
+/// Relabels an attachment. <see cref="FileName"/> is a request, not a fact: it is
+/// sanitised, and the extension of the stored file is re-applied whatever the caller
+/// sends — the bytes were validated against that extension at upload, and a rename is
+/// not an opportunity to re-describe them.
+/// </summary>
+[RequiresRole(Role.Teacher)]
+public sealed record RenameAssignmentFileCommand(Guid FileId, string FileName) : ICommand<AssignmentFileDto>;

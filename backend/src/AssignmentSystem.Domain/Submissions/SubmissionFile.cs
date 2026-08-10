@@ -63,7 +63,7 @@ public sealed class SubmissionFile : BaseEntity
             SubmissionId = submissionId,
             UploadedById = uploadedById,
             StoredFileName = storedFileName,
-            OriginalFileName = SanitizeOriginalFileName(originalFileName),
+            OriginalFileName = FileNames.Sanitize(originalFileName),
             ContentType = contentType,
             FileSizeBytes = fileSizeBytes,
             RelativePath = relativePath,
@@ -71,20 +71,18 @@ public sealed class SubmissionFile : BaseEntity
         };
     }
 
-    private static string SanitizeOriginalFileName(string name)
+    /// <summary>
+    /// Relabels the file. Only the name changes: the bytes, the stored name and the
+    /// extension all stay as they were, so the teacher marking this work sees the same
+    /// file under a name that says what it is.
+    /// </summary>
+    public void Rename(string originalFileName)
     {
-        if (string.IsNullOrWhiteSpace(name))
+        if (string.IsNullOrWhiteSpace(originalFileName))
         {
-            return "file";
+            throw new DomainException("A file name is required.");
         }
 
-        // strip any directory components — keep only the file name portion
-        var fileName = name.Replace('\\', '/').Split('/').Last();
-        foreach (var c in Path.GetInvalidFileNameChars())
-        {
-            fileName = fileName.Replace(c, '_');
-        }
-
-        return fileName.Length > 255 ? fileName[..255] : fileName;
+        OriginalFileName = FileNames.WithExtensionOf(StoredFileName, originalFileName);
     }
 }

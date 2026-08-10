@@ -634,6 +634,95 @@ public sealed class DownloadSubmissionFileHandler : IQueryHandler<DownloadSubmis
     }
 }
 
+/// <summary>
+/// Renames an attachment on a submission the caller made. It answers the same questions
+/// deleting one does — is this yours, and is the submission still open — because a name is
+/// part of what was handed in: a teacher who has already marked the work should not find
+/// its files relabelled underneath them.
+/// </summary>
+public sealed class RenameSubmissionFileHandler : ICommandHandler<RenameSubmissionFileCommand, SubmissionFileDto>
+{
+    private readonly IRepository<SubmissionFile> _fileRepository;
+    private readonly IRepository<Submission> _submissionRepository;
+    private readonly IRepository<Assignment> _assignmentRepository;
+    private readonly ISubmissionAccess _access;
+    private readonly IClock _clock;
+    private readonly IUnitOfWork _unitOfWork;
+    private static readonly SubmissionMapper Mapper = new();
+
+    public RenameSubmissionFileHandler(
+        IRepository<SubmissionFile> fileRepository,
+        IRepository<Submission> submissionRepository,
+        IRepository<Assignment> assignmentRepository,
+        ISubmissionAccess access,
+        IClock clock,
+        IUnitOfWork unitOfWork)
+    {
+        _fileRepository = fileRepository;
+        _submissionRepository = submissionRepository;
+        _assignmentRepository = assignmentRepository;
+        _access = access;
+        _clock = clock;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result<SubmissionFileDto>> HandleAsync(RenameSubmissionFileCommand command, CancellationToken ct = default)
+    {
+        var file = await _fileRepository.FirstOrDefaultAsync(new SubmissionFileByIdSpecification(command.FileId), ct);
+        if (file is null)
+        {
+            return Result<SubmissionFileDto>.Failure(Error.NotFound("SubmissionFile.NotFound", "The specified file was not found."));
+        }
+
+        var submission = await _submissionRepository.FirstOrDefaultAsync(new SubmissionWithDetailsSpecification(file.SubmissionId), ct);
+        if (submission is null)
+        {
+            return Result<SubmissionFileDto>.Failure(Error.NotFound("Submission.NotFound", "Associated submission was not found."));
+        }
+
+        if (_access.MustBeSubmitter(submission) is { } denied)
+        {
+            return Result<SubmissionFileDto>.Failure(denied);
+        }
+
+        var assignment = await _assignmentRepository.GetByIdAsync(submission.AssignmentId, ct);
+        if (assignment is null)
+        {
+            return Result<SubmissionFileDto>.Failure(Error.NotFound("Assignment.NotFound", "Associated assignment was not found."));
+        }
+
+        // The same window in which a file may be added or removed — see the delete handler.
+        if (submission.Status == SubmissionStatus.Graded)
+        {
+            return Result<SubmissionFileDto>.Failure(Error.Validation("Submission.Invalid", "Cannot edit a submission that has already been graded."));
+        }
+
+        if (submission.Status == SubmissionStatus.Late)
+        {
+            return Result<SubmissionFileDto>.Failure(Error.Validation("Submission.Invalid", "Cannot edit a late submission after the deadline."));
+        }
+
+        if (_clock.UtcNow >= assignment.DeadlineUtc && !assignment.AllowResubmission)
+        {
+            return Result<SubmissionFileDto>.Failure(Error.Validation("Submission.Invalid", "Cannot update a submission after the deadline."));
+        }
+
+        try
+        {
+            file.Rename(command.FileName);
+        }
+        catch (DomainException ex)
+        {
+            return Result<SubmissionFileDto>.Failure(Error.Validation("SubmissionFile.Invalid", ex.Message));
+        }
+
+        _fileRepository.Update(file);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        return Mapper.MapToFileDto(file);
+    }
+}
+
 public sealed class DeleteSubmissionFileHandler : ICommandHandler<DeleteSubmissionFileCommand>
 {
     private readonly IRepository<SubmissionFile> _fileRepository;

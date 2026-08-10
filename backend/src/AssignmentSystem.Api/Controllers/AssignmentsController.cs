@@ -132,6 +132,19 @@ public sealed class AssignmentsController : ControllerBase
         return File(fileStream, result.Value.ContentType, result.Value.FileName, enableRangeProcessing: true);
     }
 
+    /// <summary>
+    /// Renames an attachment. The stored file is untouched — this changes only the name
+    /// students see and download under, and the extension comes back unchanged whatever
+    /// the request asks for.
+    /// </summary>
+    [HttpPut("attachments/{fileId:guid}")]
+    [Authorize(Roles = "Teacher")]
+    public async Task<IActionResult> RenameAttachment(Guid fileId, [FromBody] RenameFileRequest request, CancellationToken ct)
+    {
+        var result = await _dispatcher.SendAsync(new RenameAssignmentFileCommand(fileId, request.FileName), ct);
+        return result.ToActionResult(this);
+    }
+
     [HttpDelete("attachments/{fileId:guid}")]
     [Authorize(Roles = "Teacher")]
     public async Task<IActionResult> DeleteAttachment(Guid fileId, CancellationToken ct)

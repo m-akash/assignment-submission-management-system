@@ -118,6 +118,19 @@ public sealed class SubmissionsController : ControllerBase
         return File(fileStream, result.Value.ContentType, result.Value.FileName, enableRangeProcessing: true);
     }
 
+    /// <summary>
+    /// Renames one of the caller's own attachments. The stored file is untouched — this
+    /// changes only the name the marking teacher sees, and it is allowed exactly as long
+    /// as adding or removing a file is.
+    /// </summary>
+    [HttpPut("submissions/files/{fileId:guid}")]
+    [Authorize(Roles = "Student")]
+    public async Task<IActionResult> RenameFile(Guid fileId, [FromBody] RenameFileRequest request, CancellationToken ct)
+    {
+        var result = await _dispatcher.SendAsync(new RenameSubmissionFileCommand(fileId, request.FileName), ct);
+        return result.ToActionResult(this);
+    }
+
     [HttpDelete("submissions/files/{fileId:guid}")]
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> DeleteFile(Guid fileId, CancellationToken ct)

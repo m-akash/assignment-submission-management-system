@@ -15,3 +15,9 @@ public sealed class FileUploadRequest
     [FromForm(Name = "file")]
     public IFormFile File { get; init; } = null!;
 }
+
+/// <summary>
+/// The body of a rename. Shared by both attachment kinds — an assignment's material and a
+/// submission's files rename identically, and only the route says which is which.
+/// </summary>
+public sealed record RenameFileRequest(string FileName);
