@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
+import { Eye, EyeOff } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Combobox } from '@/components/ui/combobox';
@@ -33,6 +34,7 @@ export function UserFormDrawer({
   defaultRole?: Role;
 }) {
   const isEdit = !!user;
+  const [showPassword, setShowPassword] = useState(false);
   const classes = useClassOptions();
   const academicYears = useAcademicYearOptions();
   const currentAcademicYear = useCurrentAcademicYear();
@@ -187,12 +189,23 @@ export function UserFormDrawer({
 
       <div className="space-y-2">
         <Label htmlFor="password">{isEdit ? 'New password' : 'Password'}</Label>
-        <Input
-          id="password"
-          type="password"
-          placeholder={isEdit ? 'Leave blank to keep current' : 'At least 8 characters'}
-          {...form.register('password')}
-        />
+        <div className="relative">
+          <Input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            placeholder={isEdit ? 'Leave blank to keep current' : 'At least 8 characters'}
+            className="pr-10"
+            {...form.register('password')}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((visible) => !visible)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            className="absolute top-1/2 right-1.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </button>
+        </div>
         {errors.password && <p className="text-xs text-danger">{errors.password.message}</p>}
       </div>
     </FormDrawer>
