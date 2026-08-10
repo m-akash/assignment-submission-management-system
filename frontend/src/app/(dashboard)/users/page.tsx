@@ -23,7 +23,7 @@ import { EmptyState, ErrorState, TableSkeleton } from '@/components/shared/state
 import { RoleBadge } from '@/components/shared/status-badge';
 import { UserFormDrawer } from '@/components/features/admin/user-form-drawer';
 import { useClassOptions, useDeleteUser, useUsers } from '@/hooks/use-admin-resources';
-import { classLabel, initials } from '@/lib/format';
+import { gradeLabel, initials, sectionLabel } from '@/lib/format';
 import type { Role, User } from '@/types/api';
 
 const ROLE_OPTIONS = [
@@ -106,7 +106,7 @@ function UsersView() {
   const heading = HEADINGS[role];
   // Name, email, role, actions — plus the identity columns that only make sense for one
   // role. On the unfiltered list a mixed table would leave most of them blank.
-  const columnCount = role === 'Student' ? 6 : role === 'Teacher' ? 5 : 4;
+  const columnCount = role === 'Student' ? 8 : role === 'Teacher' ? 5 : 4;
   // The role is a heading here, not a filter the user needs telling about.
   const isFiltered = !!search || classIds.length > 0;
 
@@ -192,6 +192,8 @@ function UsersView() {
                     {role === 'Student' && (
                       <>
                         <TableHead>Class</TableHead>
+                        <TableHead>Section</TableHead>
+                        <TableHead>Session</TableHead>
                         <TableHead>Student ID</TableHead>
                       </>
                     )}
@@ -245,17 +247,34 @@ function UsersView() {
                         </TableCell>
                         {role === 'Student' && (
                           <>
+                            {/* Grade, section and session each get their own column, and every
+                                one of them lists a line per enrollment: a student can hold the
+                                same class in more than one session, and the lines only line up
+                                across the three columns while all three are rendered the same
+                                way. Without the session, two identical rows read as a bug. */}
                             <TableCell className="text-muted-foreground">
-                              {/* One line per enrollment, with the session under it: a student
-                                  can hold the same class in more than one, and without the year
-                                  two identical-looking rows read as a bug. */}
                               {user.classes.length > 0
                                 ? user.classes.map((enrolled) => (
                                     <span key={enrolled.enrollmentId} className="block">
-                                      {classLabel(enrolled.classLevel, enrolled.classSection)}
-                                      <span className="block text-xs">
-                                        {enrolled.academicYearName}
-                                      </span>
+                                      {gradeLabel(enrolled.classLevel)}
+                                    </span>
+                                  ))
+                                : '—'}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {user.classes.length > 0
+                                ? user.classes.map((enrolled) => (
+                                    <span key={enrolled.enrollmentId} className="block">
+                                      {sectionLabel(enrolled.classSection)}
+                                    </span>
+                                  ))
+                                : '—'}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {user.classes.length > 0
+                                ? user.classes.map((enrolled) => (
+                                    <span key={enrolled.enrollmentId} className="block">
+                                      {enrolled.academicYearName}
                                     </span>
                                   ))
                                 : '—'}

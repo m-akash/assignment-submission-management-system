@@ -96,10 +96,10 @@ function LoginForm() {
         />
 
         <div className="relative flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/25 backdrop-blur">
-            <GraduationCap className="size-5" />
+          <div className="flex size-12 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/25 backdrop-blur">
+            <GraduationCap className="size-6" />
           </div>
-          <span className="text-base font-semibold tracking-tight text-white">
+          <span className="text-xl font-semibold tracking-tight text-white">
             Assignment Management System
           </span>
         </div>
@@ -142,10 +142,10 @@ function LoginForm() {
           {/* The auth card lifts the form off the tinted background in both themes. */}
           <div className="rounded-2xl border bg-card/90 p-7 shadow-xl backdrop-blur sm:p-8">
             <div className="flex items-center gap-2.5 pb-5 lg:hidden">
-              <div className="brand-surface flex size-9 items-center justify-center rounded-xl text-white">
-                <GraduationCap className="size-5" />
+              <div className="brand-surface flex size-11 items-center justify-center rounded-xl text-white">
+                <GraduationCap className="size-6" />
               </div>
-              <span className="text-base font-semibold tracking-tight">
+              <span className="text-lg font-semibold tracking-tight">
                 Assignment Management System
               </span>
             </div>
