@@ -18,8 +18,8 @@ import { RichText } from '@/components/ui/rich-text';
 import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
 import { FileDropzone } from '@/components/shared/file-dropzone';
 import {
-  ImagePreviewDialog,
-  isViewableImage,
+  canPreview,
+  FilePreviewDialog,
   type PreviewFile,
 } from '@/components/shared/file-preview';
 import { BackLink, PageHeader } from '@/components/shared/page-header';
@@ -248,9 +248,9 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                   name={file.originalFileName}
                   size={file.fileSizeBytes}
                   onView={
-                    // An image the teacher attached opens here; a PDF or a document has
-                    // nothing to show inline, so it keeps download alone.
-                    isViewableImage(file.contentType, file.originalFileName)
+                    // Whatever the teacher attached is read here — a picture, the PDF
+                    // brief, or a Word document. Only a legacy `.doc` keeps download alone.
+                    canPreview(file.contentType, file.originalFileName)
                       ? () => setViewing({ file: toPreview(file), source: 'material' })
                       : undefined
                   }
@@ -333,7 +333,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                     size={file.fileSizeBytes}
                     onView={
                       // Checking what was handed in should not mean downloading it back.
-                      isViewableImage(file.contentType, file.originalFileName)
+                      canPreview(file.contentType, file.originalFileName)
                         ? () => setViewing({ file: toPreview(file), source: 'submission' })
                         : undefined
                     }
@@ -427,7 +427,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
         </aside>
       </div>
 
-      <ImagePreviewDialog
+      <FilePreviewDialog
         file={viewing?.file ?? null}
         loadBlob={viewing?.source === 'submission' ? fetchSubmissionFile : fetchAssignmentFile}
         onDownload={(file) =>

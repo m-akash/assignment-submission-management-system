@@ -35,7 +35,7 @@ export function Fact({ label, children }: { label: string; children: React.React
 
 /** The allowed upload types, as icons — an image is recognisable before its name is read. */
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg'];
-const DOCUMENT_EXTENSIONS = ['.pdf', '.txt'];
+const DOCUMENT_EXTENSIONS = ['.pdf', '.txt', '.doc', '.docx'];
 
 /** An element rather than a component: picking a component per render would reset it. */
 function fileIcon(extension: string): React.ReactNode {
@@ -53,9 +53,10 @@ function fileIcon(extension: string): React.ReactNode {
  * states it can be in are the component's own: `done` for something the server holds,
  * `idle` — an outline rather than a filled card — for a pick that is still only staged.
  *
- * `onView` is passed only for files that have an inline view — images, in practice; see
- * `isViewableImage` in `file-preview.tsx`. Everything else keeps download as its one
- * action rather than opening something a browser cannot render.
+ * `onView` is passed only for files that have an inline view — everything except the
+ * legacy binary `.doc`, in practice; see `canPreview` in `file-preview.tsx`. A file
+ * without one keeps download as its single action rather than opening a dialog that
+ * would have nothing to put in it.
  *
  * `onRename` is passed only where a correction is still possible. It edits the name and
  * nothing else: the extension is shown beside the field but never inside it, because it

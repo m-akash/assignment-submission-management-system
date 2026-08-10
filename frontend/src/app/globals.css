@@ -530,14 +530,17 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Image viewer
+   Attachment viewer
 
-   Double-clicking an attachment hands its frame to the Fullscreen API. At that
-   size the picture is the whole point, so the frame drops the border and tint it
-   wears inside the dialog and puts the image on a dark ground instead — the same
-   ground the browser paints behind a fullscreen element, so the two meet without
-   a seam. These rules out-specify the frame's own utility classes, which is why
-   the height and radius can be overridden without `!important`.
+   The Fullscreen API is handed the preview frame, whatever that frame happens to
+   be holding. At that size the file is the whole point, so the frame drops the
+   border and tint it wears inside the dialog — and then grounds itself the way
+   its contents want to be read: a picture or a PDF on black, the same ground the
+   browser paints behind a fullscreen element, so the two meet without a seam; a
+   document on the app's own background, because black behind body text is not
+   something anyone reads. These rules out-specify the frame's own utility
+   classes, which is why the height and radius can be overridden without
+   `!important`.
    --------------------------------------------------------------------------- */
 
 .preview-frame:fullscreen {
@@ -545,13 +548,89 @@
   height: 100vh;
   border: 0;
   border-radius: 0;
+}
+
+.preview-frame[data-kind='image']:fullscreen,
+.preview-frame[data-kind='pdf']:fullscreen {
   background: black;
 }
 
-.preview-frame:fullscreen img {
+.preview-frame[data-kind='image']:fullscreen img {
   max-width: 100vw;
   max-height: 100vh;
   cursor: zoom-out;
+}
+
+.preview-frame[data-kind='text']:fullscreen,
+.preview-frame[data-kind='docx']:fullscreen {
+  background: var(--background);
+  padding-block: 1.5rem;
+}
+
+/* Text keeps a readable measure instead of running the width of the screen. */
+.preview-frame[data-kind='text']:fullscreen > *,
+.preview-frame[data-kind='docx']:fullscreen > * {
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   Converted document
+
+   `.rich-text` carries what the editor can produce, which a Word document
+   outruns: it has a title, deeper headings, tables and figures. These rules are
+   that difference and nothing more — paragraphs, lists, quotes and links are
+   still the shared ones above, so a converted brief reads like a written one.
+   --------------------------------------------------------------------------- */
+
+.document-preview h1 {
+  @apply font-heading font-semibold tracking-tight;
+  font-size: 1.15rem;
+  margin-top: 1.4em;
+}
+
+.document-preview h4,
+.document-preview h5,
+.document-preview h6 {
+  @apply font-heading font-semibold tracking-tight;
+  font-size: 0.9rem;
+  margin-top: 1.3em;
+}
+
+.document-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.document-preview th,
+.document-preview td {
+  border: 1px solid var(--border);
+  padding: 0.4em 0.6em;
+  text-align: left;
+  vertical-align: top;
+}
+
+.document-preview th {
+  @apply font-semibold;
+  background: var(--muted);
+}
+
+.document-preview caption {
+  @apply text-muted-foreground;
+  margin-bottom: 0.4em;
+  font-size: 0.75rem;
+}
+
+.document-preview img {
+  max-width: 100%;
+  height: auto;
+  border-radius: calc(var(--radius) * 0.5);
+}
+
+.document-preview hr {
+  border: 0;
+  border-top: 1px solid var(--border);
 }
 
 /* ---------------------------------------------------------------------------

@@ -21,7 +21,7 @@ import { Label } from '@/components/ui/label';
 import { RichText } from '@/components/ui/rich-text';
 import { Textarea } from '@/components/ui/textarea';
 import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
-import { ImagePreviewDialog, isViewableImage } from '@/components/shared/file-preview';
+import { canPreview, FilePreviewDialog } from '@/components/shared/file-preview';
 import { BackLink, PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import { EmptyState, ErrorState } from '@/components/shared/states';
@@ -193,9 +193,10 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
                   name={file.originalFileName}
                   size={file.fileSizeBytes}
                   onView={
-                    // A photographed or scanned answer opens here, so marking does not
-                    // start with a download. A PDF or a document has no inline view.
-                    isViewableImage(file.contentType, file.originalFileName)
+                    // A handed-in answer opens here, so marking does not start with a
+                    // download — whether it was photographed, exported as a PDF, or
+                    // written in Word. Only a legacy `.doc` has no inline view.
+                    canPreview(file.contentType, file.originalFileName)
                       ? () => setViewing(file)
                       : undefined
                   }
@@ -332,7 +333,7 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
         </aside>
       </div>
 
-      <ImagePreviewDialog
+      <FilePreviewDialog
         file={
           viewing && {
             id: viewing.id,

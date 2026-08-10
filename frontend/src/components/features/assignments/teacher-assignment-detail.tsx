@@ -21,7 +21,7 @@ import { RichText } from '@/components/ui/rich-text';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
 import { FileDropzone } from '@/components/shared/file-dropzone';
-import { ImagePreviewDialog, isViewableImage } from '@/components/shared/file-preview';
+import { canPreview, FilePreviewDialog } from '@/components/shared/file-preview';
 import { BackLink, PageHeader } from '@/components/shared/page-header';
 import { SectionPanel } from '@/components/shared/section-panel';
 import { EmptyState, ErrorState } from '@/components/shared/states';
@@ -239,7 +239,7 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
                   name={file.originalFileName}
                   size={file.fileSizeBytes}
                   onView={
-                    isViewableImage(file.contentType, file.originalFileName)
+                    canPreview(file.contentType, file.originalFileName)
                       ? () => setViewing(file)
                       : undefined
                   }
@@ -415,7 +415,7 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
         </aside>
       </div>
 
-      <ImagePreviewDialog
+      <FilePreviewDialog
         file={
           viewing && {
             id: viewing.id,
