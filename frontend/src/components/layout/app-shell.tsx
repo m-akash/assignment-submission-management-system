@@ -44,7 +44,10 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
     >
       <SidebarNav user={user} />
 
-      <SidebarInset>
+      {/* `min-w-0` is not in `SidebarInset`'s own classes, and without it this flex item
+          refuses to shrink below its widest child — a table with eleven columns then
+          pushes the whole page sideways instead of scrolling inside its own container. */}
+      <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-md sm:px-6 lg:px-8">
           <SidebarTrigger className="-ml-1 shrink-0 text-muted-foreground hover:text-foreground" />
 
