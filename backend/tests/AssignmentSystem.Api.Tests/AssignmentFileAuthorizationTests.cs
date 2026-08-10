@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Threading.Tasks;
 using AssignmentSystem.Application.Features.Assignments;
 using AssignmentSystem.Application.Features.AssignmentFiles;
@@ -242,6 +243,103 @@ public class AssignmentFileAuthorizationTests : IntegrationTestBase
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    // ── Rename ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Rename_ByOwningTeacher_ShouldRelabelWithoutTouchingTheBytes()
+    {
+        var scenario = await ScenarioAsync("arn-own");
+        var file = await UploadFileAsync(scenario, "IMG_20240817_113044.pdf");
+
+        var response = await RenameAsync(scenario.Teacher, file.Id, "Week 3 worksheet");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var renamed = await ReadAsync<AssignmentFileDto>(response);
+        renamed.OriginalFileName.Should().Be("Week 3 worksheet.pdf");
+
+        var download = await scenario.Teacher.GetAsync($"/api/v1/assignments/attachments/{file.Id}");
+        download.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await download.Content.ReadAsByteArrayAsync()).Should().Equal(PdfBytes);
+    }
+
+    /// <summary>
+    /// The extension describes the bytes, which were checked against it at upload. A
+    /// rename may change the label and nothing else — otherwise renaming would be a way
+    /// around the signature check the upload had to pass.
+    /// </summary>
+    [Fact]
+    public async Task Rename_ToAnotherExtension_ShouldKeepTheStoredOne()
+    {
+        var scenario = await ScenarioAsync("arn-ext");
+        var file = await UploadFileAsync(scenario, "handout.pdf");
+
+        var response = await RenameAsync(scenario.Teacher, file.Id, "payload.exe");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadAsync<AssignmentFileDto>(response)).OriginalFileName.Should().Be("payload.pdf");
+    }
+
+    [Fact]
+    public async Task Rename_WithPathComponents_ShouldKeepOnlyTheFileName()
+    {
+        var scenario = await ScenarioAsync("arn-path");
+        var file = await UploadFileAsync(scenario, "handout.pdf");
+
+        var response = await RenameAsync(scenario.Teacher, file.Id, "../../etc/passwd");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadAsync<AssignmentFileDto>(response)).OriginalFileName.Should().Be("passwd.pdf");
+    }
+
+    [Fact]
+    public async Task Rename_WithABlankName_ShouldBeRejected()
+    {
+        var scenario = await ScenarioAsync("arn-blank");
+        var file = await UploadFileAsync(scenario, "handout.pdf");
+
+        var response = await RenameAsync(scenario.Teacher, file.Id, "   ");
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task Rename_ByNonOwningTeacher_ShouldBeForbidden()
+    {
+        var scenario = await ScenarioAsync("arn-out");
+        var file = await UploadFileAsync(scenario, "handout.pdf");
+
+        var outsider = await ProvisionWorldAsync("arn-out2");
+        using var outsiderTeacher = await SignInAsync(outsider.TeacherEmail);
+
+        var response = await RenameAsync(outsiderTeacher, file.Id, "mine now");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Rename_ByStudent_ShouldBeForbidden()
+    {
+        var scenario = await ScenarioAsync("arn-stu");
+        var file = await UploadFileAsync(scenario, "handout.pdf");
+
+        var response = await RenameAsync(scenario.Student, file.Id, "not my material");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>Coursework stays read-only for admins, renaming included.</summary>
+    [Fact]
+    public async Task Rename_ByAdmin_ShouldBeForbidden()
+    {
+        var scenario = await ScenarioAsync("arn-adm");
+        var file = await UploadFileAsync(scenario, "handout.pdf");
+        using var admin = await SignInAsAdminAsync();
+
+        var response = await RenameAsync(admin, file.Id, "tidier name");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private sealed record Scenario(TestWorld World, AssignmentDto Assignment, HttpClient Teacher, HttpClient Student);
@@ -273,4 +371,9 @@ public class AssignmentFileAuthorizationTests : IntegrationTestBase
 
         return await client.PostAsync($"/api/v1/assignments/{assignmentId}/attachments/upload", form);
     }
+
+    private static async Task<HttpResponseMessage> RenameAsync(HttpClient client, Guid fileId, string fileName) =>
+        await client.PutAsJsonAsync(
+            $"/api/v1/assignments/attachments/{fileId}",
+            new Api.Common.RenameFileRequest(fileName));
 }

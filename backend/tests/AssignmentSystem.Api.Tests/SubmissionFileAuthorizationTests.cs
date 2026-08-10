@@ -231,6 +231,87 @@ public class SubmissionFileAuthorizationTests : IntegrationTestBase
         delete.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
+    // ── Rename ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Rename_ByOwningStudent_ShouldRelabelWithoutTouchingTheBytes()
+    {
+        var scenario = await ScenarioAsync("rn-own");
+        var file = await UploadFileAsync(scenario, "IMG_20240817_113044.pdf");
+
+        var response = await RenameAsync(scenario.Student, file.Id, "Question 3 working");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var renamed = await ReadAsync<SubmissionFileDto>(response);
+        renamed.OriginalFileName.Should().Be("Question 3 working.pdf");
+
+        var download = await scenario.Student.GetAsync($"/api/v1/submissions/files/{file.Id}");
+        (await download.Content.ReadAsByteArrayAsync()).Should().Equal(PdfBytes);
+    }
+
+    /// <summary>
+    /// The extension describes the bytes, which were checked against it at upload. A
+    /// rename may change the label and nothing else — otherwise renaming would be a way
+    /// around the signature check the upload had to pass.
+    /// </summary>
+    [Fact]
+    public async Task Rename_ToAnotherExtension_ShouldKeepTheStoredOne()
+    {
+        var scenario = await ScenarioAsync("rn-ext");
+        var file = await UploadFileAsync(scenario, "answer.pdf");
+
+        var response = await RenameAsync(scenario.Student, file.Id, "payload.exe");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadAsync<SubmissionFileDto>(response)).OriginalFileName.Should().Be("payload.pdf");
+    }
+
+    [Fact]
+    public async Task Rename_ByAnotherStudent_ShouldBeForbidden()
+    {
+        var scenario = await ScenarioAsync("rn-peer");
+        var file = await UploadFileAsync(scenario, "answer.pdf");
+
+        var classmateEmail = await AddStudentToClassAsync(scenario.World.ClassId, "rnpeer");
+        using var classmate = await SignInAsync(classmateEmail);
+
+        var response = await RenameAsync(classmate, file.Id, "actually mine");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Rename_ByTeacher_ShouldBeForbidden()
+    {
+        var scenario = await ScenarioAsync("rn-tch");
+        var file = await UploadFileAsync(scenario, "answer.pdf");
+
+        var response = await RenameAsync(scenario.Teacher, file.Id, "tidier name");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    /// <summary>
+    /// Marked work is settled. Renaming is allowed for exactly as long as adding or
+    /// removing a file is, so what the teacher graded keeps the names they saw.
+    /// </summary>
+    [Fact]
+    public async Task Rename_AfterGrading_ShouldBeRejected()
+    {
+        var scenario = await ScenarioAsync("rn-grd");
+        var file = await UploadFileAsync(scenario, "answer.pdf");
+        var submission = await SubmitAsync(scenario.Student, scenario.Assignment.Id, "My answer.");
+
+        var grade = await scenario.Teacher.PostAsJsonAsync(
+            $"/api/v1/submissions/{submission.Id}/review",
+            new Api.Controllers.ReviewSubmissionRequest(90m, "Good work", Domain.Enums.SubmissionStatus.Graded));
+        grade.EnsureSuccessStatusCode();
+
+        var response = await RenameAsync(scenario.Student, file.Id, "second thoughts");
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private sealed record Scenario(TestWorld World, AssignmentDto Assignment, HttpClient Teacher, HttpClient Student);
@@ -262,4 +343,9 @@ public class SubmissionFileAuthorizationTests : IntegrationTestBase
 
         return await client.PostAsync($"/api/v1/assignments/{assignmentId}/submissions/upload", form);
     }
+
+    private static async Task<HttpResponseMessage> RenameAsync(HttpClient client, Guid fileId, string fileName) =>
+        await client.PutAsJsonAsync(
+            $"/api/v1/submissions/files/{fileId}",
+            new Api.Common.RenameFileRequest(fileName));
 }
