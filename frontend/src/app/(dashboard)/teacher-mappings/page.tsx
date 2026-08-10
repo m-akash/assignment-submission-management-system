@@ -60,9 +60,6 @@ function MappingsView() {
   const teacherOptions = (teachers.data?.items ?? []).map((teacher) => ({
     value: teacher.id,
     label: teacher.fullName,
-    // Two teachers can share a name; the email is what tells them apart, and the search box
-    // matches it too.
-    hint: teacher.email,
   }));
   const courseOptions = (courses.data ?? []).map((s) => ({ value: s.id, label: s.name }));
 
