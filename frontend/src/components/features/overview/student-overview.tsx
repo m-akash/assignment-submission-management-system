@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Award, CheckCircle2, ClipboardList, Send, TimerOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { HeroBanner, heroButton } from '@/components/shared/hero-banner';
 import { ProgressRing } from '@/components/shared/progress-ring';
 import { SectionPanel } from '@/components/shared/section-panel';
@@ -201,12 +202,11 @@ export function StudentOverview({
                       </p>
                       {/* A share bar rather than a second number: the percentage is what
                           makes two assignments with different maximums comparable. */}
-                      <div className="mt-1 h-1 w-16 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-success"
-                          style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
-                        />
-                      </div>
+                      <Progress
+                        value={Math.min(100, Math.max(0, percent))}
+                        aria-label={`${item.title}: ${percent}%`}
+                        className="mt-1 w-16 *:data-[slot=progress-indicator]:bg-success"
+                      />
                     </div>
                   </li>
                 );

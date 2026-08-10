@@ -3,6 +3,14 @@
 import { useRef, useState } from 'react';
 import { Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Attachment,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentMedia,
+  AttachmentTitle,
+  AttachmentTrigger,
+} from '@/components/ui/attachment';
 import { formatBytes } from '@/lib/format';
 import { splitFileName } from '@/lib/file-name';
 import { cn } from '@/lib/utils';
@@ -11,6 +19,10 @@ import { cn } from '@/lib/utils';
  * Where files come into the app: drag a stack of them onto the panel, or click to browse.
  * Teachers attach material and students hand work back — the same gesture on both sides,
  * so it is one component rather than a pair that drift apart.
+ *
+ * It is shadcn's `Attachment` in its `idle` state — the outlined, not-yet-filled version
+ * of the very card each picked file becomes — so the empty slot and the files it fills
+ * are visibly the same object rather than two unrelated boxes.
  *
  * What lands here is only ever *staged*. Nothing is sent until the surrounding screen says
  * so, which is what makes renaming possible at all: a picked file can still be corrected
@@ -122,10 +134,8 @@ export function FileDropzone({
         }}
       />
 
-      <button
-        type="button"
-        disabled={isClosed}
-        onClick={() => input.current?.click()}
+      <Attachment
+        state={busy ? 'uploading' : 'idle'}
         onDragEnter={(event) => {
           event.preventDefault();
           depth.current += 1;
@@ -151,39 +161,41 @@ export function FileDropzone({
           take(event.dataTransfer.files);
         }}
         className={cn(
-          'flex w-full flex-col items-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-center transition-colors outline-none',
-          'focus-visible:ring-3 focus-visible:ring-ring/50',
-          dragging
-            ? 'border-primary bg-primary/10'
-            : 'border-input hover:border-primary/60 hover:bg-muted/50',
-          isClosed && 'cursor-not-allowed opacity-60 hover:border-input hover:bg-transparent',
+          'w-full transition-colors',
+          dragging && 'border-primary bg-primary/10',
+          isClosed ? 'opacity-60' : 'cursor-pointer hover:bg-muted/50',
         )}
       >
-        <span
-          className={cn(
-            'flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors',
-            dragging && 'bg-primary/15 text-primary',
-          )}
-        >
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-        </span>
+        <AttachmentMedia className={cn(dragging && 'bg-primary/15 text-primary')}>
+          {busy ? <Loader2 className="animate-spin" /> : <Upload />}
+        </AttachmentMedia>
 
-        <span className="text-sm font-medium">
-          {isFull
-            ? fullMessage
-            : busy
-              ? 'Uploading…'
-              : dragging
-                ? 'Drop to attach'
-                : 'Drag files here, or click to browse'}
-        </span>
+        <AttachmentContent>
+          <AttachmentTitle>
+            {isFull
+              ? fullMessage
+              : busy
+                ? 'Uploading…'
+                : dragging
+                  ? 'Drop to attach'
+                  : 'Drag files here, or click to browse'}
+          </AttachmentTitle>
+          <AttachmentDescription className="overflow-visible whitespace-normal">
+            {isFull
+              ? 'Remove a file to attach another.'
+              : `${accept.join(', ')} · up to ${formatBytes(maxBytes)} each · ${remaining} slot${remaining === 1 ? '' : 's'} left`}
+          </AttachmentDescription>
+        </AttachmentContent>
 
-        <span className="text-xs text-muted-foreground">
-          {isFull
-            ? 'Remove a file to attach another.'
-            : `${accept.join(', ')} · up to ${formatBytes(maxBytes)} each · ${remaining} slot${remaining === 1 ? '' : 's'} left`}
-        </span>
-      </button>
+        {/* Covers the whole card, so the click target is the panel rather than a button
+            inside it — and stays a real button, so the keyboard reaches it. */}
+        <AttachmentTrigger
+          disabled={isClosed}
+          aria-label="Attach files"
+          onClick={() => input.current?.click()}
+          className="rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50"
+        />
+      </Attachment>
     </div>
   );
 }

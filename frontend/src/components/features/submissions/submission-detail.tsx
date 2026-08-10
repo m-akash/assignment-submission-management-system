@@ -185,7 +185,7 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
               title="Attachments"
               description={`${submission.files.length} file${submission.files.length > 1 ? 's' : ''}`}
               icon={Paperclip}
-              bodyClassName="divide-y"
+              bodyClassName="space-y-2 p-5"
             >
               {submission.files.map((file) => (
                 <FileRow

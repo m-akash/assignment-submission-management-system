@@ -2,8 +2,9 @@
 
 import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FormDrawer } from '@/components/shared/form-drawer';
@@ -74,12 +75,40 @@ export function AcademicYearFormDrawer({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="startDate">Starts</Label>
-          <Input id="startDate" type="date" {...form.register('startDate')} />
+          {/* Controlled rather than registered: the picker hands back a "YYYY-MM-DD"
+              string of its own, not a change event a DOM ref can be read off. */}
+          <Controller
+            control={form.control}
+            name="startDate"
+            render={({ field }) => (
+              <DatePicker
+                id="startDate"
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                placeholder="First day"
+                invalid={!!errors.startDate}
+              />
+            )}
+          />
           {errors.startDate && <p className="text-xs text-danger">{errors.startDate.message}</p>}
         </div>
         <div className="space-y-2">
           <Label htmlFor="endDate">Ends</Label>
-          <Input id="endDate" type="date" {...form.register('endDate')} />
+          <Controller
+            control={form.control}
+            name="endDate"
+            render={({ field }) => (
+              <DatePicker
+                id="endDate"
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                placeholder="Last day"
+                invalid={!!errors.endDate}
+              />
+            )}
+          />
           {errors.endDate && <p className="text-xs text-danger">{errors.endDate.message}</p>}
         </div>
       </div>

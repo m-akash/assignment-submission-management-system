@@ -8,6 +8,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { CalendarClock, FileText, Loader2, Paperclip } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { DateTimePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
@@ -256,7 +257,7 @@ function Form({
               title="Materials for students"
               description={`${attachmentCount} of ${MAX_FILES} attached`}
               icon={Paperclip}
-              bodyClassName={attachmentCount > 0 ? 'divide-y' : undefined}
+              bodyClassName="space-y-2 p-5"
             >
               {/* Already uploaded, so a rename here goes straight to the server — it is
                   not part of the draft these fields hold. */}
@@ -280,27 +281,26 @@ function Form({
                   name={file.name}
                   size={file.size}
                   hint="Pending"
+                  pending
                   onRename={(name) => onRenameStaged(index, name)}
                   onRemove={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
                   removeDisabled={isBusy}
                 />
               ))}
 
-              <div className="space-y-2 p-5 pt-4">
-                <FileDropzone
-                  remaining={MAX_FILES - attachmentCount}
-                  busy={upload.isPending}
-                  disabled={isBusy}
-                  onFiles={(picked) => setPendingFiles((prev) => [...prev, ...picked])}
-                />
-                {pendingFiles.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {isEdit
-                      ? 'Attached once you save your changes.'
-                      : 'Attached once you create the assignment.'}
-                  </p>
-                )}
-              </div>
+              <FileDropzone
+                remaining={MAX_FILES - attachmentCount}
+                busy={upload.isPending}
+                disabled={isBusy}
+                onFiles={(picked) => setPendingFiles((prev) => [...prev, ...picked])}
+              />
+              {pendingFiles.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {isEdit
+                    ? 'Attached once you save your changes.'
+                    : 'Attached once you create the assignment.'}
+                </p>
+              )}
             </SectionPanel>
           </div>
 
@@ -312,10 +312,22 @@ function Form({
             >
               <div className="space-y-2">
                 <Label htmlFor="deadlineLocal">Deadline</Label>
-                <Input
-                  id="deadlineLocal"
-                  type="datetime-local"
-                  {...form.register('deadlineLocal')}
+                {/* Controlled rather than registered: the picker owns a calendar and a
+                    time field, and hands back the one "YYYY-MM-DDTHH:mm" string the
+                    schema validates. */}
+                <Controller
+                  control={form.control}
+                  name="deadlineLocal"
+                  render={({ field }) => (
+                    <DateTimePicker
+                      id="deadlineLocal"
+                      value={field.value}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      placeholder="Pick a day"
+                      invalid={!!errors.deadlineLocal}
+                    />
+                  )}
                 />
                 {errors.deadlineLocal && (
                   <p className="text-xs text-danger">{errors.deadlineLocal.message}</p>
