@@ -401,7 +401,6 @@ public sealed class DbSeeder
                 var submission = Submission.Create(
                     item.Assignment.Id,
                     student.Id,
-                    note,
                     hasFile: true,
                     item.Assignment,
                     new FixedClock(submittedAt),

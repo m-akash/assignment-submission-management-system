@@ -43,13 +43,8 @@ namespace AssignmentSystem.Application.Features.Notifications;
 /// </summary>
 internal static class NotificationMessages
 {
-    /// <summary>Submitted answers are shown in full — formatting and all — up to this many
-    /// words; longer ones are clipped to plain text with a pointer to the app, so one very
-    /// long answer cannot blow up the mail.</summary>
-    private const int ContentPreviewLimit = 600;
-
-    /// <summary>Teacher feedback is shown in full up to this length, mirroring the content
-    /// preview limit — feedback can run to the domain's 2000-character cap.</summary>
+    /// <summary>Teacher feedback is shown in full up to this length — it can run to the
+    /// domain's 2000-character cap, and one long comment should not blow up the mail.</summary>
     private const int FeedbackPreviewLimit = 800;
 
     public static (string Subject, string Body) AssignmentPublished(
@@ -136,12 +131,6 @@ internal static class NotificationMessages
         }
 
         content.Append(DetailTable([.. rows]));
-
-        if (!string.IsNullOrWhiteSpace(submission.Content))
-        {
-            content.Append(Heading("Written answer"))
-                   .Append(RichPreview(submission.Content, ContentPreviewLimit));
-        }
 
         if (submission.Files.Count > 0)
         {
@@ -489,24 +478,6 @@ internal static class NotificationMessages
         submission.Marks is { } marks
             ? $"{FormatMarks(marks)} / {FormatMarks(submission.MarksOutOf ?? 0m)}"
             : "not recorded";
-
-    /// <summary>
-    /// A quoted preview of author-formatted prose, kept within <paramref name="limit"/>.
-    ///
-    /// Length is judged on the words rather than the markup, so a short answer written as a
-    /// list is not clipped for being formatted. Clipping itself has to drop the formatting
-    /// entirely: cutting markup at a character offset lands mid-tag as readily as not, and a
-    /// mail whose body ends in a half-open element is a worse outcome than a plain-text
-    /// excerpt. Short answers — which is nearly all of them — keep their structure.
-    /// </summary>
-    private static string RichPreview(string? html, int limit)
-    {
-        var text = HtmlContent.ToPlainText(html);
-
-        return text.Length <= limit
-            ? EmailTemplates.RichQuote(HtmlContent.Sanitize(html))
-            : Quote(EscTruncated(text, limit));
-    }
 
     /// <summary>HTML-escape a user-supplied value for safe insertion into the template.</summary>
     private static string Esc(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);

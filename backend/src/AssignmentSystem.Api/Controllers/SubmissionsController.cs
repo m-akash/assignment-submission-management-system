@@ -53,11 +53,16 @@ public sealed class SubmissionsController : ControllerBase
         return result.ToActionResult(this);
     }
 
+    /// <summary>
+    /// Hands in whatever the student has already uploaded for this assignment. No body:
+    /// attachments are referenced implicitly, so the request cannot claim files it does
+    /// not own — nor hand in an assignment with nothing attached.
+    /// </summary>
     [HttpPost("assignments/{assignmentId:guid}/submissions")]
     [Authorize(Roles = "Student")]
-    public async Task<IActionResult> SubmitAssignment(Guid assignmentId, [FromBody] SubmitAssignmentRequest request, CancellationToken ct)
+    public async Task<IActionResult> SubmitAssignment(Guid assignmentId, CancellationToken ct)
     {
-        var command = new SubmitAssignmentCommand(assignmentId, request.Content);
+        var command = new SubmitAssignmentCommand(assignmentId);
         var result = await _dispatcher.SendAsync(command, ct);
         if (!result.IsSuccess)
         {
@@ -66,11 +71,12 @@ public sealed class SubmissionsController : ControllerBase
         return CreatedAtAction(nameof(GetSubmissionById), new { id = result.Value!.Id }, new ApiResponse<SubmissionDto> { Success = true, Data = result.Value });
     }
 
+    /// <summary>Re-hands-in a submission after its attachments changed. Also bodiless.</summary>
     [HttpPut("submissions/{id:guid}")]
     [Authorize(Roles = "Student")]
-    public async Task<IActionResult> UpdateSubmission(Guid id, [FromBody] UpdateSubmissionRequest request, CancellationToken ct)
+    public async Task<IActionResult> UpdateSubmission(Guid id, CancellationToken ct)
     {
-        var command = new UpdateSubmissionCommand(id, request.Content);
+        var command = new UpdateSubmissionCommand(id);
         var result = await _dispatcher.SendAsync(command, ct);
         return result.ToActionResult(this);
     }
@@ -140,12 +146,5 @@ public sealed class SubmissionsController : ControllerBase
     }
 }
 
-/// <summary>
-/// Attachments are referenced implicitly: whatever the student has already uploaded for
-/// this assignment is part of the submission. The request carries no file ids, so it
-/// cannot claim files it does not own.
-/// </summary>
-public sealed record SubmitAssignmentRequest(string? Content);
-public sealed record UpdateSubmissionRequest(string? Content);
 public sealed record ReviewSubmissionRequest(decimal Marks, string? Feedback, SubmissionStatus Status);
 

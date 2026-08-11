@@ -157,9 +157,9 @@ internal static class DemoCurriculum
     ];
 
     /// <summary>
-    /// What each student wrote in the text box alongside their attachment. Five of them, taken
-    /// in turn across a class, so a teacher's marking queue does not read as one student
-    /// copied five times.
+    /// The cover note at the top of each student's answer sheet. Five of them, taken in turn
+    /// across a class, so a teacher's marking queue does not read as one student copied five
+    /// times.
     /// </summary>
     public static readonly string[] AnswerNotes =
     [

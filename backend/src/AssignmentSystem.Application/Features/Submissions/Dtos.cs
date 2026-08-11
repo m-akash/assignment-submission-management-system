@@ -20,7 +20,6 @@ public sealed record SubmissionDto(
     string AssignmentTitle,
     Guid StudentId,
     string StudentName,
-    string? Content,
     SubmissionStatus Status,
     DateTime? SubmittedAtUtc,
     decimal? Marks,
@@ -32,19 +31,17 @@ public sealed record SubmissionDto(
     List<SubmissionFileDto> Files
 );
 
-// Note: neither command takes file ids. Attachments are created by the upload endpoint
-// and belong to the submission already; trusting a client-supplied id list would let a
-// caller satisfy the "text or file" rule with ids it does not own — or with none at all.
+// Note: neither command carries anything but an id. A submission is its attachments,
+// which the upload endpoint has already stored against it; trusting a client-supplied
+// file id list would let a caller hand in files it does not own — or none at all.
 [RequiresRole(Role.Student)]
 public sealed record SubmitAssignmentCommand(
-    Guid AssignmentId,
-    string? Content
+    Guid AssignmentId
 ) : ICommand<SubmissionDto>;
 
 [RequiresRole(Role.Student)]
 public sealed record UpdateSubmissionCommand(
-    Guid Id,
-    string? Content
+    Guid Id
 ) : ICommand<SubmissionDto>;
 
 [RequiresRole(Role.Teacher)]

@@ -79,41 +79,21 @@ public sealed class SubmitAssignmentHandler : ICommandHandler<SubmitAssignmentCo
         // submitted state is news, so the teacher is not mailed on every keystroke-save.
         var wasAlreadySubmitted = submission is { Status: SubmissionStatus.Submitted or SubmissionStatus.Late };
 
-        // The answer is authored as HTML in the rich-text editor and rendered as HTML to the
-        // teacher marking it, so the allowlist is applied here, before it is stored. Reduced to
-        // null when it carries no words: an emptied editor still posts "<p></p>", and the "text
-        // answer or a file" rule below counts anything non-null as an answer.
-        var content = HtmlContent.SanitizeOrNull(command.Content);
+        // A submission is its attachments, and the upload endpoint is what creates the row.
+        // With nothing uploaded there is nothing to hand in — and no row to hand in either.
+        if (submission is null)
+        {
+            return Result<SubmissionDto>.Failure(Error.Validation(
+                "Submission.Empty",
+                "Attach at least one file before submitting."));
+        }
 
         try
         {
-            if (submission is not null)
-            {
-                // Submission already exists (files were uploaded first). Update it.
-                // "Has files" comes from what is stored, not from what the client claims.
-                var hasFiles = submission.Files.Count > 0;
-                submission.UpdateContent(content, hasFiles, assignment.AllowResubmission, assignment.DeadlineUtc, _clock);
-                _submissionRepository.Update(submission);
-            }
-            else
-            {
-                // No prior upload created a submission row, so text is the only possible content.
-                const bool hasFiles = false;
-                submission = Submission.Create(
-                    command.AssignmentId,
-                    _currentUser.UserId.GetValueOrDefault(),
-                    content,
-                    hasFiles,
-                    assignment,
-                    _clock,
-                    finalize: true);
-
-                await _submissionRepository.AddAsync(submission, ct);
-
-                // Track submission count increment in assignment
-                assignment.IncrementSubmissionCount();
-                _assignmentRepository.Update(assignment);
-            }
+            // "Has files" comes from what is stored, not from what the client claims.
+            var hasFiles = submission.Files.Count > 0;
+            submission.MarkSubmitted(hasFiles, assignment.AllowResubmission, assignment.DeadlineUtc, _clock);
+            _submissionRepository.Update(submission);
 
             var isNowSubmitted = submission.Status is SubmissionStatus.Submitted or SubmissionStatus.Late;
             if (isNowSubmitted && !wasAlreadySubmitted)
@@ -182,8 +162,7 @@ public sealed class UpdateSubmissionHandler : ICommandHandler<UpdateSubmissionCo
         try
         {
             var hasFiles = submission.Files.Count > 0;
-            submission.UpdateContent(
-                HtmlContent.SanitizeOrNull(command.Content),
+            submission.MarkSubmitted(
                 hasFiles,
                 assignment.AllowResubmission,
                 assignment.DeadlineUtc,
@@ -486,7 +465,6 @@ public sealed class UploadSubmissionFileHandler : ICommandHandler<UploadSubmissi
                 submission = Submission.Create(
                     command.AssignmentId,
                     _currentUser.UserId.GetValueOrDefault(),
-                    content: null,
                     hasFile: true,
                     assignment,
                     _clock);
@@ -795,12 +773,11 @@ public sealed class DeleteSubmissionFileHandler : ICommandHandler<DeleteSubmissi
             return Result.Failure(Error.Validation("Submission.Invalid", "Cannot update a submission after the deadline."));
         }
 
-        // Check if removing this file leaves the submission empty (only if it has already been submitted/finalized)
-        if (submission.Status != SubmissionStatus.Pending &&
-            submission.Files.Count <= 1 &&
-            string.IsNullOrWhiteSpace(submission.Content))
+        // Removing the last attachment would leave a submission that has been handed in
+        // with nothing in it. A Pending row is fair game: nothing has been claimed yet.
+        if (submission.Status != SubmissionStatus.Pending && submission.Files.Count <= 1)
         {
-            return Result.Failure(Error.Validation("Submission.Empty", "A submission must include a text answer or at least one file attachment."));
+            return Result.Failure(Error.Validation("Submission.Empty", "A submission must include at least one file attachment."));
         }
 
         // Delete from storage

@@ -17,8 +17,6 @@ internal sealed class SubmissionConfiguration : IEntityTypeConfiguration<Submiss
         builder.Property(s => s.AssignmentId).IsRequired();
         builder.Property(s => s.StudentId).IsRequired();
 
-        builder.Property(s => s.Content); // nullable: file-only submissions allowed
-
         builder.Property(s => s.Status)
             .HasConversion<int>()
             .HasDefaultValue(SubmissionStatus.Pending)

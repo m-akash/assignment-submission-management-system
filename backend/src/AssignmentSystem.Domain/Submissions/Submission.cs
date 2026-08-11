@@ -22,9 +22,6 @@ public sealed class Submission : BaseEntity
     public Guid StudentId { get; private set; }
     public ApplicationUser Student { get; private set; } = null!;
 
-    /// <summary>Text answer; nullable when only a file is attached.</summary>
-    public string? Content { get; private set; }
-
     public SubmissionStatus Status { get; private set; } = SubmissionStatus.Pending;
 
     public DateTime? SubmittedAtUtc { get; private set; }
@@ -48,10 +45,14 @@ public sealed class Submission : BaseEntity
     /// student belongs to the assignment's class (rule B1) and that the assignment
     /// is published (rule X3). Sets Late if the deadline has passed (rule X2).
     /// </summary>
+    /// <param name="hasFile">
+    /// Whether a file is being attached in the same breath. A submission *is* its
+    /// attachments, so a row with none has nothing in it — the caller passes what is
+    /// actually stored, never what a client claims.
+    /// </param>
     public static Submission Create(
         Guid assignmentId,
         Guid studentId,
-        string? content,
         bool hasFile,
         Assignment assignment,
         IClock clock,
@@ -62,9 +63,9 @@ public sealed class Submission : BaseEntity
             throw new DomainException("Cannot submit to an unpublished assignment.");
         }
 
-        if (!HasContent(content, hasFile))
+        if (!hasFile)
         {
-            throw new DomainException("A submission must include a text answer or a file.");
+            throw new DomainException("A submission must include at least one file.");
         }
 
         var now = clock.UtcNow;
@@ -74,7 +75,6 @@ public sealed class Submission : BaseEntity
         {
             AssignmentId = assignmentId,
             StudentId = studentId,
-            Content = NormalizeContent(content),
             Status = pastDeadline ? SubmissionStatus.Late : (finalize ? SubmissionStatus.Submitted : SubmissionStatus.Pending),
             SubmittedAtUtc = now,
             MarksOutOf = assignment.MaxMarks,
@@ -82,11 +82,12 @@ public sealed class Submission : BaseEntity
     }
 
     /// <summary>
-    /// Updates the text answer before the deadline (rule B2). Refuses once the
-    /// deadline has passed unless the assignment allows resubmission. A Late
-    /// submission cannot be edited (rule X2).
+    /// Hands the submission in before the deadline (rule B2) — the student's uploads are
+    /// already stored, and this is what moves the row out of Pending and re-stamps the
+    /// submitted time. Refuses once the deadline has passed unless the assignment allows
+    /// resubmission. A Late submission cannot be edited (rule X2).
     /// </summary>
-    public void UpdateContent(string? content, bool hasFile, bool allowResubmission, DateTime deadlineUtc, IClock clock)
+    public void MarkSubmitted(bool hasFile, bool allowResubmission, DateTime deadlineUtc, IClock clock)
     {
         if (Status == SubmissionStatus.Graded)
         {
@@ -114,12 +115,11 @@ public sealed class Submission : BaseEntity
             Status = SubmissionStatus.Submitted;
         }
 
-        if (!HasContent(content, hasFile))
+        if (!hasFile)
         {
-            throw new DomainException("A submission must include a text answer or a file.");
+            throw new DomainException("A submission must include at least one file.");
         }
 
-        Content = NormalizeContent(content);
         SubmittedAtUtc = now;
     }
 
@@ -182,10 +182,4 @@ public sealed class Submission : BaseEntity
     }
 
     public bool IsOwnedBy(Guid studentId) => StudentId == studentId;
-
-    private static bool HasContent(string? content, bool hasFile) =>
-        !string.IsNullOrWhiteSpace(content) || hasFile;
-
-    private static string? NormalizeContent(string? content) =>
-        string.IsNullOrWhiteSpace(content) ? null : content.Trim();
 }
