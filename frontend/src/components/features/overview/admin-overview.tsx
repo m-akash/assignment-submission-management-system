@@ -243,21 +243,6 @@ export function AdminOverview({ name }: { name: string }) {
         </ChartFrame>
       </div>
 
-      <ChartFrame
-        title="Submission rate by class"
-        description="Received as a share of students × published assignments. Lowest first."
-        icon={GaugeCircle}
-        isLoading={charts.isLoading}
-        isFetching={charts.isFetching}
-        error={charts.error}
-        isEmpty={charts.data?.classActivity.length === 0}
-        emptyIcon={GraduationCap}
-        emptyTitle="Nothing published yet"
-        emptyDescription="A class appears here once work has been published for it."
-      >
-        <ClassRateChart data={charts.data?.classActivity ?? []} />
-      </ChartFrame>
-
       <SectionPanel
         title="Set up a class"
         description="A teacher can only create assignments for an offering they are assigned to, so the order matters."
@@ -293,6 +278,24 @@ export function AdminOverview({ name }: { name: string }) {
           ))}
         </ol>
       </SectionPanel>
+
+      {/* Last on the page: it grows a row per class with published work, so it is the one
+          panel whose height is not fixed — anything after it would sit at an unpredictable
+          depth as the school fills up. */}
+      <ChartFrame
+        title="Submission rate by class"
+        description="Received as a share of students × published assignments. Lowest first."
+        icon={GaugeCircle}
+        isLoading={charts.isLoading}
+        isFetching={charts.isFetching}
+        error={charts.error}
+        isEmpty={charts.data?.classActivity.length === 0}
+        emptyIcon={GraduationCap}
+        emptyTitle="Nothing published yet"
+        emptyDescription="A class appears here once work has been published for it."
+      >
+        <ClassRateChart data={charts.data?.classActivity ?? []} />
+      </ChartFrame>
     </div>
   );
 }

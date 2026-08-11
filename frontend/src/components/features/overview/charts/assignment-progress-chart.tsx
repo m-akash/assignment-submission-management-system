@@ -29,6 +29,14 @@ export function AssignmentProgressChart({ data }: { data: AssignmentProgressStat
     notSubmitted: { label: 'Not handed in', color: SHARE_STEPS[2] },
   } satisfies ChartConfig;
 
+  // The biggest class on the chart. Fixing the axis to it is what makes a bar's length mean
+  // "a class": left to pick its own round number, recharts pads the axis past the largest
+  // total, so every bar stopped short of the panel and a full roster read as a partial one.
+  const largestClass = data.reduce(
+    (max, row) => Math.max(max, row.graded + row.awaitingMarking + row.notSubmitted),
+    0,
+  );
+
   const height = Math.max(180, data.length * 38 + 40);
 
   return (
@@ -39,17 +47,17 @@ export function AssignmentProgressChart({ data }: { data: AssignmentProgressStat
         data={data}
         margin={{ left: 4, right: 12, top: 4 }}
       >
-        <XAxis type="number" allowDecimals={false} hide />
+        <XAxis type="number" domain={[0, largestClass || 1]} allowDecimals={false} hide />
         <YAxis
           type="category"
           dataKey="title"
           tickLine={false}
           axisLine={false}
-          width={140}
+          width={190}
           tickMargin={6}
           // A brief's title is a sentence; cut it rather than let it push the plot off the
           // panel. The full title is in the tooltip and on the assignments page.
-          tickFormatter={(title: string) => (title.length > 20 ? `${title.slice(0, 19)}…` : title)}
+          tickFormatter={(title: string) => (title.length > 28 ? `${title.slice(0, 27)}…` : title)}
         />
         <ChartTooltip
           cursor={false}

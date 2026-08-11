@@ -56,7 +56,9 @@ export function ClassRateChart({ data }: { data: ClassActivityStat[] }) {
           dataKey="label"
           tickLine={false}
           axisLine={false}
-          width={116}
+          // Wide enough for "Class 10 · Section A" on one line — the label is a grade and a
+          // section, and wrapping it splits one name across two rows of ticks.
+          width={150}
           tickMargin={6}
         />
         <ChartTooltip

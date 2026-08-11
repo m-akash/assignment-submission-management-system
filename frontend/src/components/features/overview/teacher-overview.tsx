@@ -121,26 +121,6 @@ export function TeacherOverview({ name }: { name: string }) {
         />
       </div>
 
-      <ChartFrame
-        title="Where each assignment stands"
-        description="Your published work, split across the class it was set for."
-        icon={ListChecks}
-        isLoading={charts.isLoading}
-        isFetching={charts.isFetching}
-        error={charts.error}
-        isEmpty={charts.data?.assignmentProgress.length === 0}
-        emptyIcon={ClipboardList}
-        emptyTitle="Nothing published yet"
-        emptyDescription="Publish an assignment and its class will appear here, marked and unmarked."
-        action={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/assignments">Assignments</Link>
-          </Button>
-        }
-      >
-        <AssignmentProgressChart data={charts.data?.assignmentProgress ?? []} />
-      </ChartFrame>
-
       <div className="grid gap-6 xl:grid-cols-2">
         <ChartFrame
           title="Marking throughput"
@@ -275,6 +255,28 @@ export function TeacherOverview({ name }: { name: string }) {
           )}
         </SectionPanel>
       </div>
+
+      {/* Last on the page: it grows a row per published assignment, so it is the one panel
+          whose height is not fixed — anything after it would sit at an unpredictable depth. */}
+      <ChartFrame
+        title="Where each assignment stands"
+        description="Your published work, split across the class it was set for."
+        icon={ListChecks}
+        isLoading={charts.isLoading}
+        isFetching={charts.isFetching}
+        error={charts.error}
+        isEmpty={charts.data?.assignmentProgress.length === 0}
+        emptyIcon={ClipboardList}
+        emptyTitle="Nothing published yet"
+        emptyDescription="Publish an assignment and its class will appear here, marked and unmarked."
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/assignments">Assignments</Link>
+          </Button>
+        }
+      >
+        <AssignmentProgressChart data={charts.data?.assignmentProgress ?? []} />
+      </ChartFrame>
     </div>
   );
 }
