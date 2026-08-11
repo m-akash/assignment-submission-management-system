@@ -47,10 +47,12 @@ All seeded accounts share one password.
 | Teacher | `teacher@assignment.test` | `Password123!` |
 | Student | `student@assignment.test` | `Password123!` |
 
-The demo teacher is `INS-001`; the demo student is `10-A-001` — grade 10, section A — where
-the seeded assignments and submissions live — so that login shows a populated dashboard at once.
-Also seeded, same password: `teacher2…teacher5@assignment.test`, and
-`student1…student30` + `student32…student40@assignment.test` (the 31st seat is the demo login).
+The demo teacher is `INS-001`, the school's mathematics and physics master, and every seeded
+assignment is theirs. The demo student is `10-A-001` — grade 10, section A — a class the demo
+teacher takes for two subjects, so both logins show a populated dashboard at once: draft and
+published assignments with real attachments on one side, submitted and marked work on the other.
+Also seeded, same password: `teacher2…teacher7@assignment.test`, and
+`student1…student40` + `student42…student70@assignment.test` (the 41st seat is the demo login).
 
 ### Running manually
 
@@ -371,20 +373,46 @@ session — only where there are enrollments to point at it — flags it current
 student keeps working, backfills every row, and only then sets the column NOT NULL.
 
 `DbSeeder` runs idempotently on startup (skipped once the admin exists) and builds a plausible
-small school rather than three lonely accounts:
+secondary school rather than three lonely accounts:
 
-| academic years | classes | courses | offerings | users | enrollments | teaching mappings | assignments | submissions |
-|---|---|---|---|---|---|---|---|---|
-| 2 (one current) | 8 | 8 | 40 | 46 | 40 | 35 | 7 (6 published, 1 draft) | 7 (across all four statuses) |
+| academic years | classes | courses | offerings | users | enrollments | teaching mappings | assignments | attachments | submissions |
+|---|---|---|---|---|---|---|---|---|---|
+| 2 (one current) | 14 | 36 | 72 | 78 | 70 | 28 | 24 (8 published, 16 drafts) | 32 on assignments, 40 on submissions | 40 (all graded) |
 
-Grades 7–10 in sections A and B; grades 7–8 study four subjects (Bangla, English, General Math,
-General Science), grades 9–10 study six (Physics, Chemistry, Higher Mathematics, Biology,
-Bangla, English); 5 teachers round-robin across the mapped offerings, 7 each; 5 students per
-class. **Five offerings are deliberately left without a teacher** so the admin's teacher-mapping
-screen has real work waiting rather than a fully-wired school. **No notifications are seeded** —
-they are a consequence of publishing, submitting or grading, and a manufactured backlog would
-mean a fresh checkout emailing forty fictional addresses on startup. Publish an assignment to
-watch the outbox fill.
+Grades 6–12 in sections A and B, 5 students each. A subject is a **separate course per grade** —
+grade 6 Bangla and grade 11 Bangla are different syllabuses taught to different rooms, and one
+row for both would mean one teacher mapping and one assignment list for both. The grade is
+encoded in the code, so it is readable without a lookup:
+
+| subject | grades | codes |
+|---|---|---|
+| Bangla, English | 6–12 | `BAN601`, `ENG601` … `BAN1201`, `ENG1201` |
+| General Mathematics, General Science | 6–8 | `GMATH601`, `GSCI601` … `GMATH801`, `GSCI801` |
+| Higher Mathematics, Physics, Chemistry, Biology | 9–12 | `HMATH901`, `PHY901` … `BIO1201` |
+
+Every class studies its full subject list, but **only two offerings per section arrive with a
+teacher on them** — the other 44 are left blank on purpose, so the admin's teacher-mapping screen
+has genuine work waiting rather than a school that is already fully wired. The 7 teachers each
+keep to their own subjects rather than being round-robined across whatever is left.
+
+The demo teacher holds 8 of those offerings and each one carries **three assignments — one
+published, two still drafts**, so the teacher login shows both halves of the authoring workflow
+and the student login sees only what it should. Every assignment carries a **real attachment**
+(the published ones carry two: a PDF worksheet and a PNG figure; the drafts a worksheet and a
+plain-text instruction sheet), and every published assignment has been **submitted to by all five
+students of its class, each with an attachment, and marked with marks and feedback**. So viewing
+and downloading an attachment, previewing a PDF, an image and a text file, and reading a grade are
+all demonstrable on the first login rather than after an evaluator has done the setup by hand.
+
+The attachments are generated, not checked in: `DemoPdf` and `DemoPng` write the two binary
+formats by hand — a real cross-reference table, a real zlib-compressed image — because the upload
+policy verifies file signatures, so nothing that merely claimed to be a PDF would survive the same
+path an upload takes. `DemoDocumentTests` re-parses both formats independently and puts every
+generated file through that policy, which is what keeps "hand-written format" honest.
+
+**No notifications are seeded** — they are a consequence of publishing, submitting or grading, and
+a manufactured backlog would mean a fresh checkout emailing seventy fictional addresses on
+startup. Publish an assignment to watch the outbox fill.
 
 ## API
 
@@ -504,12 +532,12 @@ rows. Teachers and students can read the same endpoint, scoped server-side to th
 cd backend && dotnet test
 ```
 
-**216 tests, all passing.**
+**334 tests, all passing.**
 
 | Project | Tests | Covers |
 |---|---|---|
-| `Application.Tests` | 64 | Domain invariants (assignment lifecycle, submission state machine, marks bounds, outbox backoff), handlers with mocked repositories, the authorization pipeline, the upload policy. No external dependencies. |
-| `Api.Tests` | 152 | End-to-end via `WebApplicationFactory` against a **real Postgres container** (Testcontainers): per-endpoint authorization, the submit → grade workflow, enrollment and offering rules, DB constraints, login throttling, rate limiting, password setup, paging/sorting determinism, request hardening, and outbox behaviour including concurrent claims. |
+| `Application.Tests` | 122 | Domain invariants (assignment lifecycle, submission state machine, marks bounds, outbox backoff), handlers with mocked repositories, the authorization pipeline, the upload policy, and the seeder's generated attachments — each PDF's cross-reference table and each PNG's chunk CRCs re-parsed independently, then put through the app's own upload validation. No external dependencies. |
+| `Api.Tests` | 212 | End-to-end via `WebApplicationFactory` against a **real Postgres container** (Testcontainers): per-endpoint authorization, the submit → grade workflow, enrollment and offering rules, DB constraints, login throttling, rate limiting, password setup, paging/sorting determinism, request hardening, outbox behaviour including concurrent claims, and the shape of the seeded school — including that every seeded attachment's bytes are readable from storage and are the file its row claims. |
 
 `dotnet test tests/AssignmentSystem.Application.Tests` runs the fast half with no Docker. The
 integration project **needs Docker running** — Testcontainers starts and disposes the database
