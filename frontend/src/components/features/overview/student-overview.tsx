@@ -142,6 +142,45 @@ export function StudentOverview({
         />
       </div>
 
+            <section className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-heading text-base font-semibold">Up next</h2>
+            <p className="text-sm text-muted-foreground">Soonest deadline first.</p>
+          </div>
+          {items.length > upNext.length && (
+            <Button asChild variant="outline" size="sm">
+              <Link href="/assignments">See all {items.length}</Link>
+            </Button>
+          )}
+        </div>
+
+        {isError ? (
+          <ErrorState className="panel" message={error instanceof Error ? error.message : undefined} />
+        ) : isLoading ? (
+          <CardGridSkeleton count={4} />
+        ) : upNext.length === 0 ? (
+          <EmptyState
+            icon={CheckCircle2}
+            title="You are all caught up"
+            description="Every assignment for your class has been submitted."
+            className="panel"
+          />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {upNext.map((assignment, index) => (
+              <div
+                key={assignment.id}
+                className="animate-rise"
+                style={{ '--rise-delay': `${index * 60}ms` } as React.CSSProperties}
+              >
+                <AssignmentCard assignment={assignment} href={`/assignments/${assignment.id}`} />
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <ChartFrame
           title="Your marks"
@@ -186,50 +225,6 @@ export function StudentOverview({
         </ChartFrame>
       </div>
 
-      {/* What to do next comes before how it has gone so far: the charts above are a record,
-          and this is the only thing on the page a student can act on. Full width now, so the
-          four soonest deadlines sit in one row instead of two. */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="font-heading text-base font-semibold">Up next</h2>
-            <p className="text-sm text-muted-foreground">Soonest deadline first.</p>
-          </div>
-          {items.length > upNext.length && (
-            <Button asChild variant="outline" size="sm">
-              <Link href="/assignments">See all {items.length}</Link>
-            </Button>
-          )}
-        </div>
-
-        {isError ? (
-          <ErrorState className="panel" message={error instanceof Error ? error.message : undefined} />
-        ) : isLoading ? (
-          <CardGridSkeleton count={4} />
-        ) : upNext.length === 0 ? (
-          <EmptyState
-            icon={CheckCircle2}
-            title="You are all caught up"
-            description="Every assignment for your class has been submitted."
-            className="panel"
-          />
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {upNext.map((assignment, index) => (
-              <div
-                key={assignment.id}
-                className="animate-rise"
-                style={{ '--rise-delay': `${index * 60}ms` } as React.CSSProperties}
-              >
-                <AssignmentCard assignment={assignment} href={`/assignments/${assignment.id}`} />
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* The per-course averages and the marks that produced them, side by side — the same
-          column split as the charts above, so the two rows line up down the page. */}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <ChartFrame
           title="Average per course"
