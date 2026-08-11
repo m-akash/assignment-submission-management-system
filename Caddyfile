@@ -3,8 +3,6 @@
 }
 
 https://{$SITE_HOST:localhost} {
-	tls internal
-
 	# /api/* and /health → backend (.NET API on 8080)
 	@api path /api/* /health
 	reverse_proxy @api api:8080
