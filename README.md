@@ -107,6 +107,14 @@ dotnet ef database update --project src/AssignmentSystem.Infrastructure --startu
 - **Pagination, sorting, filtering and search on every list endpoint.** Sort keys are a
   per-endpoint allow-list, each with a unique tiebreaker so paging cannot repeat or skip a row;
   page size is capped at 100 server-side.
+- **Charted overviews, aggregated server-side.** Nine charts across the three dashboards — an
+  activity trend, submission rate per class, per-assignment progress, the spread of a teacher's
+  marking, a student's marks over time and average per course, and part-to-whole bars for
+  coursework status and handing in on time. Each series is a grouped read behind one role-scoped
+  endpoint, so no screen ships a table of submissions to the browser to count it there. Chart
+  colours come from tokens validated per theme for lightness, chroma, contrast and
+  protanopia/deuteranopia separation; ordered scales use one hue in steps rather than separate
+  hues, so the progression survives colour blindness.
 - **Operability** — Serilog (console + daily file), a correlation id on every request and error,
   RFC 7807 ProblemDetails for every failure, Swagger with JWT wired in, `/health` covering the
   database.
@@ -147,7 +155,7 @@ FluentValidation · Serilog · Swashbuckle · Mapperly · MailKit · xUnit + Flu
 Testcontainers. Warnings are errors, with code style enforced in the build.
 
 **Frontend** — Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui ·
-TanStack Query · React Hook Form + Zod · Axios.
+TanStack Query · React Hook Form + Zod · Axios · Recharts (dashboard charts).
 
 **Database** — PostgreSQL, UUID keys, Fluent API only (no data annotations in the domain), soft
 delete via global query filters, optimistic concurrency on every entity through Postgres `xmin`.
@@ -448,7 +456,18 @@ than returning everything.
 | | `GET files/{id}` | Any (as reachable as its submission) |
 | Notifications | `GET /notifications` | Any (non-admins scoped to their own mail) |
 | | `GET summary` · `POST {id}/retry` · `POST dispatch` | Admin |
+| Dashboard | `GET /dashboard/admin` · `GET /dashboard/teacher` · `GET /dashboard/student` | One role each — not one shape per caller |
 | Health | `GET /health` | Anonymous |
+
+The dashboard endpoints answer with the series behind the overview charts, already grouped:
+activity per day, the draft/published split and each class's submission rate for an admin;
+per-assignment progress, marking throughput and the spread of marks given for a teacher; marks
+over time, the average per course and a timeliness record for a student. They exist because the
+tiles above the charts can be counted with `?pageSize=1` and a pagination total but a trend or a
+distribution cannot — the alternative is shipping every submission to the browser and grouping
+it there. Each is scoped server-side from the token (a teacher's own authored work, a student's
+own submissions), so the aggregates cannot include anyone else's. `days` on the two trend
+endpoints is clamped to 7–90 rather than rejected.
 
 ## Security
 
@@ -531,12 +550,12 @@ rows. Teachers and students can read the same endpoint, scoped server-side to th
 cd backend && dotnet test
 ```
 
-**334 tests, all passing.**
+**347 tests, all passing.**
 
 | Project | Tests | Covers |
 |---|---|---|
-| `Application.Tests` | 122 | Domain invariants (assignment lifecycle, submission state machine, marks bounds, outbox backoff), handlers with mocked repositories, the authorization pipeline, the upload policy, and the seeder's generated attachments — each PDF's cross-reference table and each PNG's chunk CRCs re-parsed independently, then put through the app's own upload validation. No external dependencies. |
-| `Api.Tests` | 212 | End-to-end via `WebApplicationFactory` against a **real Postgres container** (Testcontainers): per-endpoint authorization, the submit → grade workflow, enrollment and offering rules, DB constraints, login throttling, rate limiting, password setup, paging/sorting determinism, request hardening, outbox behaviour including concurrent claims, and the shape of the seeded school — including that every seeded attachment's bytes are readable from storage and are the file its row claims. |
+| `Application.Tests` | 123 | Domain invariants (assignment lifecycle, submission state machine, marks bounds, outbox backoff), handlers with mocked repositories, the authorization pipeline, the upload policy, and the seeder's generated attachments — each PDF's cross-reference table and each PNG's chunk CRCs re-parsed independently, then put through the app's own upload validation. No external dependencies. |
+| `Api.Tests` | 224 | End-to-end via `WebApplicationFactory` against a **real Postgres container** (Testcontainers): per-endpoint authorization, the submit → grade workflow, enrollment and offering rules, DB constraints, login throttling, rate limiting, password setup, paging/sorting determinism, request hardening, outbox behaviour including concurrent claims, the dashboard aggregates (that a teacher's chart excludes another teacher's work, that a student's averages exclude a classmate's marks, that a progress bar's segments sum to the class roster, and that the trend window is dense and clamped), and the shape of the seeded school — including that every seeded attachment's bytes are readable from storage and are the file its row claims. |
 
 `dotnet test tests/AssignmentSystem.Application.Tests` runs the fast half with no Docker. The
 integration project **needs Docker running** — Testcontainers starts and disposes the database
