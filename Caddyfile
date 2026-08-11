@@ -3,8 +3,11 @@
 }
 
 https://{$SITE_HOST:localhost} {
-	# /api/* and /health → backend (.NET API on 8080)
-	@api path /api/* /health
+	# /api/*, /health and /swagger/* → backend (.NET API on 8080). Swagger only
+	# answers when Swagger:Enabled is set; otherwise the API 404s it itself.
+	# Both /swagger and /swagger/* are listed — the bare path redirects to
+	# /swagger/index.html, and a wildcard alone would not match it.
+	@api path /api/* /health /swagger /swagger/*
 	reverse_proxy @api api:8080
 
 	# Everything else → Next.js frontend (3000)

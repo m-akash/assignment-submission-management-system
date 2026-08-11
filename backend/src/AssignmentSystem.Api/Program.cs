@@ -182,7 +182,9 @@ try
         }
     }
 
-    if (app.Environment.IsDevelopment())
+    // Always on in development. Elsewhere it stays off unless Swagger:Enabled is set,
+    // since the UI publishes the whole API surface — worth opting into deliberately.
+    if (app.Environment.IsDevelopment() || builder.Configuration.GetValue("Swagger:Enabled", false))
     {
         app.UseSwagger();
         app.UseSwaggerUI();

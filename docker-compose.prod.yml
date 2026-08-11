@@ -57,6 +57,7 @@ services:
       Email__ClaimTimeoutSeconds: ${Email__ClaimTimeoutSeconds:-300}
       Database__AutoMigrate: "true"
       Database__SeedOnStartup: "true"
+      Swagger__Enabled: ${Swagger__Enabled:-false}
       ASPNETCORE_ENVIRONMENT: Production
     expose:
       - "8080"
