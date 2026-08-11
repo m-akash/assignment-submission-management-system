@@ -253,7 +253,7 @@ export function DetailSkeleton() {
         <Skeleton className="h-7 w-2/3" />
         <Skeleton className="h-3 w-52" />
       </div>
-      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3 lg:items-start">
         <div className="space-y-6 lg:col-span-2">
           <div className="panel space-y-3 p-5">
             <Skeleton className="h-4 w-24" />

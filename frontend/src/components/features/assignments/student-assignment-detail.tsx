@@ -225,7 +225,12 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
         </MetaItem>
       </MetaBar>
 
-      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+      {/* `grid-cols-[minmax(0,1fr)]` rather than a bare single column: an `auto` track is
+          sized by its item's min-content, so one unbreakable file name or URL inside would
+          widen the column past the viewport and scroll the whole page sideways. Tailwind's
+          `grid-cols-3` already spells its tracks `minmax(0,1fr)`, which is why only the
+          small-screen layout was affected — this gives the one-column case the same floor. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3 lg:items-start">
         <div className="space-y-6 lg:col-span-2">
           {/* The brief, exactly as the teacher wrote it. Framed as a sheet inside the
               panel so it reads as a document being shown rather than a field. */}
@@ -381,7 +386,7 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
           {/* Directly under what was handed in, because that is what it is about: the mark
               for these files, and the teacher's words on them. */}
           {isGraded && (
-            <section className="panel space-y-3 border-success/25 bg-success-muted/40 p-5">
+            <section className="panel min-w-0 space-y-3 overflow-hidden border-success/25 bg-success-muted/40 p-5">
               <div className="flex items-center gap-2">
                 <Award className="size-5 text-success" />
                 <h2 className="font-heading text-sm font-semibold">
@@ -391,7 +396,11 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
               {submission.feedback && (
                 <p className="flex gap-2 text-sm text-muted-foreground">
                   <MessageSquareQuote className="mt-0.5 size-4 shrink-0" />
-                  <span className="whitespace-pre-wrap">{submission.feedback}</span>
+                  {/* A teacher's own words, so their line breaks are kept — but a long
+                      unbroken run in them still has to wrap rather than widen the rail. */}
+                  <span className="min-w-0 wrap-break-word whitespace-pre-wrap">
+                    {submission.feedback}
+                  </span>
                 </p>
               )}
               {submission.reviewedByName && (

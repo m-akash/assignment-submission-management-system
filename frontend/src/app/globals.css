@@ -331,6 +331,10 @@
 
 .rich-text {
   @apply text-sm leading-relaxed;
+  /* A brief is pasted into as often as it is typed, and what gets pasted is a link. A URL
+     has no space to break at, so without this one is as wide as it is long — wider than a
+     phone, and the panel it sits in either clips it or drags the page sideways. */
+  overflow-wrap: break-word;
 }
 
 /* Space *between* blocks only: no leading gap above the first line, and no

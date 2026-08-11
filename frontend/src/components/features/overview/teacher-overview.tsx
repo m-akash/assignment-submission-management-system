@@ -233,15 +233,20 @@ export function TeacherOverview({ name }: { name: string }) {
                     href={`/submissions?courseId=${mapping.courseId}&classId=${mapping.classId}`}
                     className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/40"
                   >
-                    <span className="shrink-0 rounded-md bg-muted px-2 py-1 font-mono text-[0.7rem] font-medium text-muted-foreground">
+                    {/* Codes run from 6 to 9 characters, so the badge holds one width —
+                        left to size itself, every course name starts at a different place. */}
+                    <span
+                      title={mapping.courseCode}
+                      className="w-20 shrink-0 truncate rounded-md bg-muted px-2 py-1 text-center font-mono text-[0.7rem] font-medium text-muted-foreground"
+                    >
                       {mapping.courseCode}
                     </span>
-                    <div className="min-w-0 flex-1 truncate text-sm font-medium">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
                       {mapping.courseName}
-                    </div>
-                    <div className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                    </span>
+                    <span className="shrink-0 text-sm whitespace-nowrap text-muted-foreground">
                       {classLabel(mapping.classLevel, mapping.classSection)}
-                    </div>
+                    </span>
                   </Link>
                 </li>
               ))}

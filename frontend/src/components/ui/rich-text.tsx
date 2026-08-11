@@ -22,7 +22,13 @@ export function RichText({
   if (!content) return null;
 
   if (!isRenderableHtml(content)) {
-    return <p className={cn('text-sm leading-relaxed whitespace-pre-wrap', className)}>{content}</p>;
+    // `wrap-break-word` mirrors what the `.rich-text` class gives the HTML branch, so a
+    // pasted link wraps whether it was stored as markup or as the plain text that predates it.
+    return (
+      <p className={cn('text-sm leading-relaxed wrap-break-word whitespace-pre-wrap', className)}>
+        {content}
+      </p>
+    );
   }
 
   return (

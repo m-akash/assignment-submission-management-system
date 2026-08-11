@@ -144,7 +144,9 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
         <span className="text-xs font-medium text-primary">Open</span>
       </Link>
 
-      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+      {/* See the note on the student assignment page's grid: a bare one-column `auto` track
+          takes its width from the widest unbreakable thing inside it. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3 lg:items-start">
         <div className="space-y-6 lg:col-span-2">
           {submission.status === 'Late' && (
             <Alert>
@@ -212,7 +214,9 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
                 <div className="space-y-1.5">
                   <p className="eyebrow">Feedback</p>
                   {submission.feedback ? (
-                    <p className="text-sm whitespace-pre-wrap">{submission.feedback}</p>
+                    <p className="text-sm wrap-break-word whitespace-pre-wrap">
+                      {submission.feedback}
+                    </p>
                   ) : (
                     <p className="text-sm text-muted-foreground">No feedback given yet.</p>
                   )}

@@ -270,7 +270,9 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
         </MetaItem>
       </MetaBar>
 
-      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+      {/* See the note on the student page's grid: a bare one-column `auto` track takes its
+          width from the widest unbreakable thing inside it, which pushes the page sideways. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3 lg:items-start">
         <div className="space-y-6 lg:col-span-2">
           <SectionPanel title="Instructions" icon={FileText} bodyClassName="p-5">
             <RichText content={assignment.description} />

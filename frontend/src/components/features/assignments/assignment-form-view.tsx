@@ -200,7 +200,9 @@ function Form({
       )}
 
       <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-        <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+        {/* See the note on the student assignment page's grid: a bare one-column `auto` track
+            takes its width from the widest unbreakable thing inside it. */}
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-3 lg:items-start">
           <div className="space-y-6 lg:col-span-2">
             <SectionPanel title="The work" icon={FileText} bodyClassName="space-y-4 p-5">
               <div className="space-y-3">
