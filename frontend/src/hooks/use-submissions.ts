@@ -142,18 +142,18 @@ export function useSubmitAssignment() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    // A submission is its attachments, so there is nothing to send in the body: the
+    // server hands in whatever the student has already uploaded for this assignment.
     mutationFn: ({
       assignmentId,
       submissionId,
-      content,
     }: {
       assignmentId: string;
       submissionId?: string;
-      content: string;
     }) =>
       submissionId
-        ? apiPut<Submission>(`/api/v1/submissions/${submissionId}`, { content })
-        : apiPost<Submission>(`/api/v1/assignments/${assignmentId}/submissions`, { content }),
+        ? apiPut<Submission>(`/api/v1/submissions/${submissionId}`, {})
+        : apiPost<Submission>(`/api/v1/assignments/${assignmentId}/submissions`, {}),
     onSuccess: () => {
       invalidateSubmissionViews(queryClient);
       toast.success('Submission handed in');

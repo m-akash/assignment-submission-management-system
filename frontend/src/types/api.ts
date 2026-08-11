@@ -254,7 +254,6 @@ export interface Submission {
   assignmentTitle: string;
   studentId: string;
   studentName: string;
-  content: string | null;
   status: SubmissionStatus;
   submittedAtUtc: string | null;
   marks: number | null;

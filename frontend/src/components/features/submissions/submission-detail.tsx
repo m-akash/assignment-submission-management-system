@@ -4,21 +4,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import {
-  Award,
-  ClipboardList,
-  Inbox,
-  Info,
-  Loader2,
-  Paperclip,
-  PenLine,
-} from 'lucide-react';
+import { Award, ClipboardList, Inbox, Info, Loader2, Paperclip } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RichText } from '@/components/ui/rich-text';
 import { Textarea } from '@/components/ui/textarea';
 import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
 import { canPreview, FilePreviewDialog } from '@/components/shared/file-preview';
@@ -34,15 +25,14 @@ import {
 } from '@/hooks/use-submissions';
 import { ApiError } from '@/lib/api';
 import { formatDateTime, formatMarks, formatRelative, initials } from '@/lib/format';
-import { isRichTextEmpty } from '@/lib/rich-text';
 import { reviewSchema, type ReviewInput, type ReviewValues } from '@/schemas';
 import type { Submission, SubmissionFile } from '@/types/api';
 
 /**
  * One student's work, in full, with the marking alongside it. A page rather than a
- * dialog because marking is reading first: the answer, its attachments and the mark
- * being given all need to be visible at once, and a marked piece deserves a URL a
- * teacher can come back to.
+ * dialog because marking is reading first: the attachments handed in and the mark being
+ * given need to be visible at once, and a marked piece deserves a URL a teacher can come
+ * back to.
  */
 export function SubmissionDetail({
   submissionId,
@@ -98,11 +88,6 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
   // bound the form validates against is the same one the API will apply.
   const maxMarks = submission.marksOutOf ?? 100;
   const isGraded = submission.status === 'Graded';
-  // Students submit files, not prose — the editor is gone from their screen. Any text
-  // here belongs to a submission made before that, and is still shown so a marker never
-  // loses sight of work that was written.
-  const writtenAnswer = submission.content ?? '';
-  const hasWrittenAnswer = !isRichTextEmpty(writtenAnswer);
 
   // <what the fields hold, context, what validation produces> — `marks` is coerced,
   // so the first and last are not the same type. Seeded at mount from the saved review;
@@ -167,19 +152,6 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
             </Alert>
           )}
 
-          {/* Only ever present on a submission typed while the student's screen still had
-              an editor; there is no empty panel for the rest, whose work *is* the files. */}
-          {hasWrittenAnswer && (
-            <SectionPanel
-              title="Written answer"
-              description="Submitted as text"
-              icon={PenLine}
-              bodyClassName="p-5"
-            >
-              <RichText content={writtenAnswer} />
-            </SectionPanel>
-          )}
-
           {submission.files.length > 0 ? (
             <SectionPanel
               title="Attachments"
@@ -205,15 +177,14 @@ function Detail({ submission, readOnly }: { submission: Submission; readOnly: bo
               ))}
             </SectionPanel>
           ) : (
-            // With the answer panel gone when there is no text, an empty submission would
-            // otherwise show nothing at all between the assignment link and the marking.
-            !hasWrittenAnswer && (
-              <SectionPanel title="Submitted work" icon={Paperclip} bodyClassName="p-5">
-                <p className="text-sm text-muted-foreground">
-                  This student has not attached anything yet.
-                </p>
-              </SectionPanel>
-            )
+            // A submission is its attachments, so a row without one is a submission
+            // started and not finished — said plainly rather than left as a gap between
+            // the assignment link and the marking.
+            <SectionPanel title="Submitted work" icon={Paperclip} bodyClassName="p-5">
+              <p className="text-sm text-muted-foreground">
+                This student has not attached anything yet.
+              </p>
+            </SectionPanel>
           )}
 
           <SectionPanel

@@ -12,7 +12,6 @@ import {
   Loader2,
   MessageSquareQuote,
   Paperclip,
-  PenLine,
   Target,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -143,11 +142,6 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
   const removeFile = useDeleteSubmissionFile();
   const renameFileOnServer = useRenameSubmissionFile();
 
-  // A typed answer can only exist on a submission made before this screen dropped its
-  // editor. It is shown back read-only and carried through every save, so nothing a
-  // student wrote is quietly thrown away.
-  const savedAnswer = submission?.content ?? '';
-  const hasSavedAnswer = !isRichTextEmpty(savedAnswer);
   const urgency = deadlineUrgency(assignment.deadlineUtc);
   const isGraded = submission?.status === 'Graded';
   const readOnly = isGraded || (urgency === 'overdue' && !assignment.allowResubmission);
@@ -173,22 +167,19 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
 
   async function onSubmit() {
     try {
-      // Files go first, and deliberately so: the server refuses a submission that has
-      // neither text nor a file, and the upload endpoint is what creates the submission
-      // row. With no answer to send, uploading is what makes there be something to hand
-      // in. Each file leaves the staging list as it lands, so a retry after a failure
-      // part-way through does not send the same file twice.
+      // Files go first, and necessarily so: a submission is its attachments, and the
+      // upload endpoint is what creates the row. Uploading is what makes there be
+      // something to hand in. Each file leaves the staging list as it lands, so a retry
+      // after a failure part-way through does not send the same file twice.
       for (const file of pendingFiles) {
         await upload.mutateAsync({ assignmentId: assignment.id, file });
         setPendingFiles((prev) => prev.filter((staged) => staged !== file));
       }
 
-      // Uploading leaves the submission Pending; this call is what hands it in. Any
-      // answer written before the editor went away rides along unchanged.
+      // Uploading leaves the submission Pending; this call is what hands it in.
       await submit.mutateAsync({
         assignmentId: assignment.id,
         submissionId: submission?.id,
-        content: hasSavedAnswer ? savedAnswer : '',
       });
     } catch {
       // The mutations already report the failure; staged files stay put so the student
@@ -292,48 +283,14 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
               </p>
             )}
           </SectionPanel>
-
-          {isGraded && (
-            <section className="panel space-y-3 border-success/25 bg-success-muted/40 p-5">
-              <div className="flex items-center gap-2">
-                <Award className="size-5 text-success" />
-                <h2 className="font-heading text-sm font-semibold">
-                  Marked: {formatMarks(submission.marks, submission.marksOutOf)}
-                </h2>
-              </div>
-              {submission.feedback && (
-                <p className="flex gap-2 text-sm text-muted-foreground">
-                  <MessageSquareQuote className="mt-0.5 size-4 shrink-0" />
-                  <span className="whitespace-pre-wrap">{submission.feedback}</span>
-                </p>
-              )}
-              {submission.reviewedByName && (
-                <p className="text-xs text-muted-foreground">
-                  by {submission.reviewedByName} · {formatDateTime(submission.reviewedAtUtc)}
-                </p>
-              )}
-            </section>
-          )}
-
-          {/* Only ever seen by a student who typed an answer while this screen still had
-              an editor — shown the same way the teacher marking it sees it. */}
-          {hasSavedAnswer && (
-            <SectionPanel
-              title="Your written answer"
-              description="Submitted earlier · read-only"
-              icon={PenLine}
-              bodyClassName="p-5"
-            >
-              <RichText content={savedAnswer} />
-            </SectionPanel>
-          )}
         </div>
 
-        {/* Handing in is the one thing a student *does* here, and now the only thing on
-            the rail — the facts moved to the strip under the title. It keeps its own
-            scroll: an alert, three files and a drop area can still outgrow a short
-            viewport, and the Submit button must never be the part left off-screen. */}
-        <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+        {/* The student's own side of the assignment: what they handed in, and what came
+            back for it. The facts moved to the strip under the title, so the rail carries
+            only these two. It keeps its own scroll — an alert, three files, a drop area
+            and the mark can outgrow a short viewport, and the Submit button must never be
+            the part left off-screen. */}
+        <aside className="space-y-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
           <SectionPanel
             title="Your submission"
             description={
@@ -420,6 +377,30 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
               </>
             )}
           </SectionPanel>
+
+          {/* Directly under what was handed in, because that is what it is about: the mark
+              for these files, and the teacher's words on them. */}
+          {isGraded && (
+            <section className="panel space-y-3 border-success/25 bg-success-muted/40 p-5">
+              <div className="flex items-center gap-2">
+                <Award className="size-5 text-success" />
+                <h2 className="font-heading text-sm font-semibold">
+                  Marked: {formatMarks(submission.marks, submission.marksOutOf)}
+                </h2>
+              </div>
+              {submission.feedback && (
+                <p className="flex gap-2 text-sm text-muted-foreground">
+                  <MessageSquareQuote className="mt-0.5 size-4 shrink-0" />
+                  <span className="whitespace-pre-wrap">{submission.feedback}</span>
+                </p>
+              )}
+              {submission.reviewedByName && (
+                <p className="text-xs text-muted-foreground">
+                  by {submission.reviewedByName} · {formatDateTime(submission.reviewedAtUtc)}
+                </p>
+              )}
+            </section>
+          )}
         </aside>
       </div>
 
