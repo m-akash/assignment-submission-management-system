@@ -198,12 +198,39 @@ public abstract class IntegrationTestBase
         return await ReadAsync<AssignmentDto>(publish);
     }
 
-    /// <summary>Submits a text answer as the given student.</summary>
-    protected static async Task<SubmissionDto> SubmitAsync(HttpClient studentClient, Guid assignmentId, string content)
+    /// <summary>The smallest bytes the upload policy accepts as a PDF — a valid header and a line.</summary>
+    protected static readonly byte[] SubmissionPdfBytes = [0x25, 0x50, 0x44, 0x46, .. "-1.7 test"u8];
+
+    /// <summary>
+    /// Attaches a file to the given student's submission. The upload endpoint is what creates
+    /// the submission row, so this is the first half of handing in.
+    /// </summary>
+    protected static async Task<SubmissionFileDto> AttachAsync(
+        HttpClient studentClient, Guid assignmentId, string fileName = "answer.pdf")
     {
-        var response = await studentClient.PostAsJsonAsync(
-            $"/api/v1/assignments/{assignmentId}/submissions",
-            new SubmitAssignmentRequest(content));
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(SubmissionPdfBytes);
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        form.Add(file, "file", fileName);
+
+        var response = await studentClient.PostAsync(
+            $"/api/v1/assignments/{assignmentId}/submissions/upload", form);
+
+        response.EnsureSuccessStatusCode();
+        return await ReadAsync<SubmissionFileDto>(response);
+    }
+
+    /// <summary>
+    /// Hands in as the given student: attaches a file, then submits. A submission is its
+    /// attachments, so both halves are needed wherever a test wants one that exists.
+    /// </summary>
+    protected static async Task<SubmissionDto> SubmitAsync(
+        HttpClient studentClient, Guid assignmentId, string fileName = "answer.pdf")
+    {
+        await AttachAsync(studentClient, assignmentId, fileName);
+
+        var response = await studentClient.PostAsync(
+            $"/api/v1/assignments/{assignmentId}/submissions", null);
 
         response.EnsureSuccessStatusCode();
         return await ReadAsync<SubmissionDto>(response);

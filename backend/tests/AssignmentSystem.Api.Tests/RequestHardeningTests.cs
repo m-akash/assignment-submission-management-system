@@ -77,10 +77,10 @@ public class RequestHardeningTests : IntegrationTestBase
         pagination.PageSize.Should().Be(PageDefaults.MaxPageSize);
     }
 
-    // ── Submission content cannot be faked ────────────────────────────────────
+    // ── A submission cannot be conjured without an attachment ─────────────────
 
     [Fact]
-    public async Task Submit_WithNoTextAndNoUploadedFile_ShouldBeRejected()
+    public async Task Submit_WithNoUploadedFile_ShouldBeRejected()
     {
         var world = await ProvisionWorldAsync("empty");
         using var teacher = await SignInAsync(world.TeacherEmail);
@@ -88,18 +88,17 @@ public class RequestHardeningTests : IntegrationTestBase
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
-        var response = await student.PostAsJsonAsync(
-            $"/api/v1/assignments/{assignment.Id}/submissions",
-            new SubmitAssignmentRequest(null));
+        var response = await student.PostAsync($"/api/v1/assignments/{assignment.Id}/submissions", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("at least one file");
     }
 
     /// <summary>
     /// The request contract used to carry <c>fileIds</c>, and a non-empty list was accepted
     /// as proof that the submission had attachments. Any ids — including another student's —
-    /// satisfied it, so an empty submission could be created. The field is gone; sending it
-    /// changes nothing.
+    /// satisfied it, so an empty submission could be created. The endpoint reads no body at
+    /// all now; sending one changes nothing.
     /// </summary>
     [Fact]
     public async Task Submit_WithFabricatedFileIds_ShouldStillBeRejectedAsEmpty()
@@ -110,31 +109,31 @@ public class RequestHardeningTests : IntegrationTestBase
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
-        // Raw JSON, so the removed property is genuinely on the wire.
+        // Raw JSON, so the removed properties are genuinely on the wire.
         using var body = JsonContent.Create(new
         {
-            content = (string?)null,
+            content = "Text is no longer a submission.",
             fileIds = new[] { Guid.NewGuid(), Guid.NewGuid() },
         });
 
         var response = await student.PostAsync($"/api/v1/assignments/{assignment.Id}/submissions", body);
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("text answer or a file");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("at least one file");
     }
 
     [Fact]
-    public async Task Submit_WithTextOnly_ShouldSucceed()
+    public async Task Submit_WithAnUploadedFile_ShouldSucceed()
     {
-        var world = await ProvisionWorldAsync("textonly");
+        var world = await ProvisionWorldAsync("attached");
         using var teacher = await SignInAsync(world.TeacherEmail);
         using var student = await SignInAsync(world.StudentEmail);
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
-        var submission = await SubmitAsync(student, assignment.Id, "Just text, no attachment.");
+        var submission = await SubmitAsync(student, assignment.Id);
 
-        submission.Content.Should().Be("Just text, no attachment.");
-        submission.Files.Should().BeEmpty();
+        submission.Status.Should().Be(Domain.Enums.SubmissionStatus.Submitted);
+        submission.Files.Should().ContainSingle();
     }
 }

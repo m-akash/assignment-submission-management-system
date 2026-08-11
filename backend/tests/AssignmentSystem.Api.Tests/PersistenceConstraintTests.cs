@@ -38,11 +38,11 @@ public class PersistenceConstraintTests : IntegrationTestBase
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
-        var first = await SubmitAsync(student, assignment.Id, "First attempt.");
-        var second = await SubmitAsync(student, assignment.Id, "Second attempt.");
+        var first = await SubmitAsync(student, assignment.Id);
+        var second = await SubmitAsync(student, assignment.Id);
 
         second.Id.Should().Be(first.Id, "a resubmission updates the existing row");
-        second.Content.Should().Be("Second attempt.");
+        second.Files.Should().HaveCount(2, "both hand-ins attached to the same submission");
 
         var listed = await teacher.GetAsync($"/api/v1/submissions?assignmentId={assignment.Id}&pageSize=100");
         var submissions = await ReadAsync<List<SubmissionDto>>(listed);
@@ -57,7 +57,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
         using var student = await SignInAsync(world.StudentEmail);
 
         var dto = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
-        await SubmitAsync(student, dto.Id, "The one and only.");
+        await SubmitAsync(student, dto.Id);
 
         // Bypass the handler's "does one already exist?" check and go straight at the table.
         await using var scope = Api.CreateScope();
@@ -65,7 +65,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
         var assignment = await context.Assignments.SingleAsync(a => a.Id == dto.Id);
 
         var duplicate = Submission.Create(
-            assignment.Id, world.StudentId, "Sneaky duplicate.", hasFile: false, assignment, SystemUtcClock.Instance);
+            assignment.Id, world.StudentId, hasFile: true, assignment, SystemUtcClock.Instance);
         context.Submissions.Add(duplicate);
 
         var act = async () => await context.SaveChangesAsync();
@@ -83,7 +83,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
         using var student = await SignInAsync(world.StudentEmail);
 
         var dto = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
-        var submission = await SubmitAsync(student, dto.Id, "Original answer.");
+        var submission = await SubmitAsync(student, dto.Id);
 
         // Two scopes read the same row version, then both try to write it.
         await using var scopeA = Api.CreateScope();
@@ -116,7 +116,7 @@ public class PersistenceConstraintTests : IntegrationTestBase
         using var student = await SignInAsync(world.StudentEmail);
 
         var dto = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
-        var submission = await SubmitAsync(student, dto.Id, "Original answer.");
+        var submission = await SubmitAsync(student, dto.Id);
 
         // Hold a copy read before the API writes, then try to commit it afterwards —
         // the shape of two markers grading the same submission at once.

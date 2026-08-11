@@ -82,7 +82,7 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
-        await SubmitAsync(student, assignment.Id, "Here is my work.");
+        await SubmitAsync(student, assignment.Id);
 
         var received = (await NotificationsForAssignmentAsync(admin, assignment.Id))
             .Where(n => n.Type == NotificationType.SubmissionReceived)
@@ -107,9 +107,9 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
 
-        await SubmitAsync(student, assignment.Id, "First attempt.");
-        await SubmitAsync(student, assignment.Id, "Second attempt, still before the deadline.");
-        await SubmitAsync(student, assignment.Id, "Third attempt.");
+        await SubmitAsync(student, assignment.Id);
+        await SubmitAsync(student, assignment.Id);
+        await SubmitAsync(student, assignment.Id);
 
         var received = (await NotificationsForAssignmentAsync(admin, assignment.Id))
             .Count(n => n.Type == NotificationType.SubmissionReceived);
@@ -127,7 +127,7 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId, maxMarks: 50m);
-        var submission = await SubmitAsync(student, assignment.Id, "My answer.");
+        var submission = await SubmitAsync(student, assignment.Id);
 
         var review = await teacher.PostAsJsonAsync(
             $"/api/v1/submissions/{submission.Id}/review",
@@ -157,7 +157,7 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
-        var submission = await SubmitAsync(student, assignment.Id, "My answer.");
+        var submission = await SubmitAsync(student, assignment.Id);
 
         var review = await teacher.PostAsJsonAsync(
             $"/api/v1/submissions/{submission.Id}/review",
@@ -371,7 +371,7 @@ public sealed class NotificationOutboxTests : IntegrationTestBase
         using var student = await SignInAsync(world.StudentEmail);
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
-        await SubmitAsync(student, assignment.Id, "Work.");
+        await SubmitAsync(student, assignment.Id);
 
         var response = await student.GetAsync(
             $"/api/v1/notifications?recipientId={world.TeacherId}&pageSize=100");

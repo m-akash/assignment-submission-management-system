@@ -66,9 +66,8 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
 
         var assignment = await CreatePublishedAssignmentAsync(ownerTeacher, owner.ClassCourseId);
 
-        var response = await outsiderStudent.PostAsJsonAsync(
-            $"/api/v1/assignments/{assignment.Id}/submissions",
-            new SubmitAssignmentRequest("Not my class."));
+        var response = await outsiderStudent.PostAsync(
+            $"/api/v1/assignments/{assignment.Id}/submissions", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -100,9 +99,8 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
 
         var draft = await CreateAssignmentAsync(teacher, world.ClassCourseId);
 
-        var response = await student.PostAsJsonAsync(
-            $"/api/v1/assignments/{draft.Id}/submissions",
-            new SubmitAssignmentRequest("Too early."));
+        var response = await student.PostAsync(
+            $"/api/v1/assignments/{draft.Id}/submissions", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -171,7 +169,7 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
         using var outsiderTeacher = await SignInAsync(outsider.TeacherEmail);
 
         var assignment = await CreatePublishedAssignmentAsync(ownerTeacher, owner.ClassCourseId);
-        var submission = await SubmitAsync(ownerStudent, assignment.Id, "My work.");
+        var submission = await SubmitAsync(ownerStudent, assignment.Id);
 
         var response = await outsiderTeacher.PostAsJsonAsync(
             $"/api/v1/submissions/{submission.Id}/review",
@@ -189,7 +187,7 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
         using var outsiderTeacher = await SignInAsync(outsider.TeacherEmail);
 
         var assignment = await CreatePublishedAssignmentAsync(ownerTeacher, owner.ClassCourseId);
-        var submission = await SubmitAsync(ownerStudent, assignment.Id, "My work.");
+        var submission = await SubmitAsync(ownerStudent, assignment.Id);
 
         var response = await outsiderTeacher.GetAsync($"/api/v1/submissions/{submission.Id}");
 
@@ -205,7 +203,7 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
         using var outsiderTeacher = await SignInAsync(outsider.TeacherEmail);
 
         var assignment = await CreatePublishedAssignmentAsync(ownerTeacher, owner.ClassCourseId);
-        var submission = await SubmitAsync(ownerStudent, assignment.Id, "My work.");
+        var submission = await SubmitAsync(ownerStudent, assignment.Id);
 
         var mine = await ownerTeacher.GetAsync("/api/v1/submissions?pageSize=100");
         (await ReadAsync<List<SubmissionDto>>(mine)).Select(s => s.Id).Should().Contain(submission.Id);
@@ -228,7 +226,7 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
         using var classmate = await SignInAsync(classmateEmail);
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
-        var submission = await SubmitAsync(author, assignment.Id, "Private answer.");
+        var submission = await SubmitAsync(author, assignment.Id);
 
         (await classmate.GetAsync($"/api/v1/assignments/{assignment.Id}")).StatusCode
             .Should().Be(HttpStatusCode.OK, "the classmate is in the same class");
@@ -248,11 +246,9 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
         using var classmate = await SignInAsync(classmateEmail);
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
-        var submission = await SubmitAsync(author, assignment.Id, "Private answer.");
+        var submission = await SubmitAsync(author, assignment.Id);
 
-        var response = await classmate.PutAsJsonAsync(
-            $"/api/v1/submissions/{submission.Id}",
-            new UpdateSubmissionRequest("Tampered."));
+        var response = await classmate.PutAsync($"/api/v1/submissions/{submission.Id}", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -331,7 +327,7 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
         using var admin = await SignInAsAdminAsync();
 
         var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
-        var submission = await SubmitAsync(student, assignment.Id, "Visible to admin.");
+        var submission = await SubmitAsync(student, assignment.Id);
 
         (await admin.GetAsync($"/api/v1/assignments/{assignment.Id}")).StatusCode.Should().Be(HttpStatusCode.OK);
         (await admin.GetAsync($"/api/v1/submissions/{submission.Id}")).StatusCode.Should().Be(HttpStatusCode.OK);

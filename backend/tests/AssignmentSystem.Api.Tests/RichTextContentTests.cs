@@ -12,8 +12,9 @@ using Xunit;
 namespace AssignmentSystem.Api.Tests;
 
 /// <summary>
-/// The two fields authored as markup — an assignment brief and a student's written answer —
-/// end to end: what survives storage, what does not, and what search makes of it.
+/// The one field authored as markup — an assignment brief — end to end: what survives
+/// storage, what does not, and what search makes of it. Students hand in files, so no
+/// student-authored markup reaches the database at all.
 /// </summary>
 public sealed class RichTextContentTests : IntegrationTestBase
 {
@@ -70,42 +71,6 @@ public sealed class RichTextContentTests : IntegrationTestBase
         created.Description.Should().NotContain("script").And.NotContain("onclick");
         created.Description.Should().Contain("<strong>chapter 4</strong>", "formatting is the point");
         created.Description.Should().Contain("Then answer.", "only the handler was stripped, not the sentence");
-    }
-
-    [Fact]
-    public async Task SubmittingAnAnswer_ShouldKeepItsFormattingAndDropItsScripts()
-    {
-        var world = await ProvisionWorldAsync("rtanswer");
-        using var teacher = await SignInAsync(world.TeacherEmail);
-        using var student = await SignInAsync(world.StudentEmail);
-
-        var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
-        var submission = await SubmitAsync(
-            student,
-            assignment.Id,
-            "<p>My answer:</p><ol><li>First</li></ol><img src=x onerror=\"steal()\">");
-
-        submission.Content.Should().NotContain("onerror").And.NotContain("<img");
-        submission.Content.Should().Contain("<ol>").And.Contain("First");
-    }
-
-    [Fact]
-    public async Task SubmittingAnEmptyEditorWithNoFile_ShouldBeRejected()
-    {
-        var world = await ProvisionWorldAsync("rtempty");
-        using var teacher = await SignInAsync(world.TeacherEmail);
-        using var student = await SignInAsync(world.StudentEmail);
-
-        var assignment = await CreatePublishedAssignmentAsync(teacher, world.ClassCourseId);
-
-        // What an editor posts once it has been typed into and cleared again. It is neither
-        // null nor whitespace, so nothing short of reading the words inside it can tell that
-        // this student has not actually answered.
-        var response = await student.PostAsJsonAsync(
-            $"/api/v1/assignments/{assignment.Id}/submissions",
-            new SubmitAssignmentRequest("<p></p>"));
-
-        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
     [Fact]

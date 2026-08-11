@@ -43,9 +43,9 @@ public class AssignmentSubmissionFlowTests : IntegrationTestBase
         var visible = await student.GetAsync($"/api/v1/assignments/{assignment.Id}");
         visible.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var submitResponse = await student.PostAsJsonAsync(
-            $"/api/v1/assignments/{assignment.Id}/submissions",
-            new SubmitAssignmentRequest("Here is my text response."));
+        await AttachAsync(student, assignment.Id, "my-answer.pdf");
+        var submitResponse = await student.PostAsync(
+            $"/api/v1/assignments/{assignment.Id}/submissions", null);
         submitResponse.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var submission = await ReadAsync<SubmissionDto>(submitResponse);

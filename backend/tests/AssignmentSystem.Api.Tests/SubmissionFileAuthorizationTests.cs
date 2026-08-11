@@ -204,8 +204,9 @@ public class SubmissionFileAuthorizationTests : IntegrationTestBase
         var scenario = await ScenarioAsync("del-own");
         var file = await UploadFileAsync(scenario, "answer.pdf");
 
-        // A text answer keeps the submission non-empty once the attachment is gone.
-        await SubmitAsync(scenario.Student, scenario.Assignment.Id, "Text answer plus a file.");
+        // Handing in attaches a second file, which keeps the submission non-empty once
+        // the one under test is gone.
+        await SubmitAsync(scenario.Student, scenario.Assignment.Id);
 
         var delete = await scenario.Student.DeleteAsync($"/api/v1/submissions/files/{file.Id}");
         delete.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -215,15 +216,14 @@ public class SubmissionFileAuthorizationTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Delete_LastFile_WhenNoTextAnswer_ShouldBeRejected()
+    public async Task Delete_LastFile_AfterHandingIn_ShouldBeRejected()
     {
         var scenario = await ScenarioAsync("del-last");
         var file = await UploadFileAsync(scenario, "answer.pdf");
 
-        // Finalise the submission with the uploaded file as its only content — no text.
-        var submit = await scenario.Student.PostAsJsonAsync(
-            $"/api/v1/assignments/{scenario.Assignment.Id}/submissions",
-            new Api.Controllers.SubmitAssignmentRequest(null));
+        // Hand in with that upload as the submission's only attachment.
+        var submit = await scenario.Student.PostAsync(
+            $"/api/v1/assignments/{scenario.Assignment.Id}/submissions", null);
         submit.EnsureSuccessStatusCode();
 
         var delete = await scenario.Student.DeleteAsync($"/api/v1/submissions/files/{file.Id}");
@@ -300,7 +300,7 @@ public class SubmissionFileAuthorizationTests : IntegrationTestBase
     {
         var scenario = await ScenarioAsync("rn-grd");
         var file = await UploadFileAsync(scenario, "answer.pdf");
-        var submission = await SubmitAsync(scenario.Student, scenario.Assignment.Id, "My answer.");
+        var submission = await SubmitAsync(scenario.Student, scenario.Assignment.Id);
 
         var grade = await scenario.Teacher.PostAsJsonAsync(
             $"/api/v1/submissions/{submission.Id}/review",

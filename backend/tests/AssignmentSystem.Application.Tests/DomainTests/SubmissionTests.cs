@@ -52,8 +52,7 @@ public class SubmissionTests
         Action act = () => Submission.Create(
             draftAssignment.Id,
             Guid.NewGuid(),
-            "Answer",
-            false,
+            hasFile: true,
             draftAssignment,
             _clockMock.Object);
 
@@ -62,19 +61,18 @@ public class SubmissionTests
     }
 
     [Fact]
-    public void Create_WithoutAnswerOrFile_ShouldThrowDomainException()
+    public void Create_WithoutFile_ShouldThrowDomainException()
     {
         // Act
         Action act = () => Submission.Create(
             _assignment.Id,
             Guid.NewGuid(),
-            null,
-            false,
+            hasFile: false,
             _assignment,
             _clockMock.Object);
 
         // Assert
-        act.Should().Throw<DomainException>().WithMessage("A submission must include a text answer or a file.");
+        act.Should().Throw<DomainException>().WithMessage("A submission must include at least one file.");
     }
 
     [Fact]
@@ -87,8 +85,7 @@ public class SubmissionTests
         var submission = Submission.Create(
             _assignment.Id,
             Guid.NewGuid(),
-            "Late Answer",
-            false,
+            hasFile: true,
             _assignment,
             _clockMock.Object);
 
@@ -103,8 +100,7 @@ public class SubmissionTests
         var submission = Submission.Create(
             _assignment.Id,
             Guid.NewGuid(),
-            "My work",
-            false,
+            hasFile: true,
             _assignment,
             _clockMock.Object);
 
@@ -124,7 +120,7 @@ public class SubmissionTests
     {
         // Arrange: a submission on a published assignment, then graded against a draft.
         var submission = Submission.Create(
-            _assignment.Id, Guid.NewGuid(), "My work", false, _assignment, _clockMock.Object);
+            _assignment.Id, Guid.NewGuid(), hasFile: true, _assignment, _clockMock.Object);
 
         var draft = Assignment.Create(
             Guid.NewGuid(), Guid.NewGuid(),
@@ -141,7 +137,7 @@ public class SubmissionTests
     public void Grade_WithNegativeMarks_ShouldThrowDomainException()
     {
         var submission = Submission.Create(
-            _assignment.Id, Guid.NewGuid(), "My work", false, _assignment, _clockMock.Object);
+            _assignment.Id, Guid.NewGuid(), hasFile: true, _assignment, _clockMock.Object);
 
         Action act = () => submission.Grade(-1m, null, Guid.NewGuid(), _assignment, _clockMock.Object);
 
@@ -150,45 +146,61 @@ public class SubmissionTests
 
     /// <summary>Rule B2 — the deadline closes editing when resubmission is not allowed.</summary>
     [Fact]
-    public void UpdateContent_AfterDeadline_WhenResubmissionDisallowed_ShouldThrowDomainException()
+    public void MarkSubmitted_AfterDeadline_WhenResubmissionDisallowed_ShouldThrowDomainException()
     {
         var submission = Submission.Create(
-            _assignment.Id, Guid.NewGuid(), "First answer", false, _assignment, _clockMock.Object);
+            _assignment.Id, Guid.NewGuid(), hasFile: true, _assignment, _clockMock.Object);
 
         _clockMock.Setup(c => c.UtcNow).Returns(_assignment.DeadlineUtc.AddMinutes(1));
 
-        Action act = () => submission.UpdateContent(
-            "Second answer", hasFile: false, allowResubmission: false, _assignment.DeadlineUtc, _clockMock.Object);
+        Action act = () => submission.MarkSubmitted(
+            hasFile: true, allowResubmission: false, _assignment.DeadlineUtc, _clockMock.Object);
 
         act.Should().Throw<DomainException>().WithMessage("Cannot update a submission after the deadline.");
     }
 
     /// <summary>Rule X2 — a permitted post-deadline edit is recorded as Late.</summary>
     [Fact]
-    public void UpdateContent_AfterDeadline_WhenResubmissionAllowed_ShouldMarkAsLate()
+    public void MarkSubmitted_AfterDeadline_WhenResubmissionAllowed_ShouldMarkAsLate()
     {
         var submission = Submission.Create(
-            _assignment.Id, Guid.NewGuid(), "First answer", false, _assignment, _clockMock.Object);
+            _assignment.Id, Guid.NewGuid(), hasFile: true, _assignment, _clockMock.Object);
 
         _clockMock.Setup(c => c.UtcNow).Returns(_assignment.DeadlineUtc.AddMinutes(1));
 
-        submission.UpdateContent(
-            "Second answer", hasFile: false, allowResubmission: true, _assignment.DeadlineUtc, _clockMock.Object);
+        submission.MarkSubmitted(
+            hasFile: true, allowResubmission: true, _assignment.DeadlineUtc, _clockMock.Object);
 
         submission.Status.Should().Be(SubmissionStatus.Late);
     }
 
     [Fact]
-    public void UpdateContent_WhenAlreadyGraded_ShouldThrowDomainException()
+    public void MarkSubmitted_WhenAlreadyGraded_ShouldThrowDomainException()
     {
         var submission = Submission.Create(
-            _assignment.Id, Guid.NewGuid(), "My work", false, _assignment, _clockMock.Object);
+            _assignment.Id, Guid.NewGuid(), hasFile: true, _assignment, _clockMock.Object);
         submission.Grade(80m, "Done", Guid.NewGuid(), _assignment, _clockMock.Object);
 
-        Action act = () => submission.UpdateContent(
-            "Sneaky edit", hasFile: false, allowResubmission: true, _assignment.DeadlineUtc, _clockMock.Object);
+        Action act = () => submission.MarkSubmitted(
+            hasFile: true, allowResubmission: true, _assignment.DeadlineUtc, _clockMock.Object);
 
         act.Should().Throw<DomainException>().WithMessage("Cannot edit a submission that has already been graded.");
+    }
+
+    /// <summary>
+    /// The attachments are what a submission is, so handing in with the last one removed is
+    /// refused — the check is on what is stored, which is why the caller passes it in.
+    /// </summary>
+    [Fact]
+    public void MarkSubmitted_WithoutFile_ShouldThrowDomainException()
+    {
+        var submission = Submission.Create(
+            _assignment.Id, Guid.NewGuid(), hasFile: true, _assignment, _clockMock.Object);
+
+        Action act = () => submission.MarkSubmitted(
+            hasFile: false, allowResubmission: true, _assignment.DeadlineUtc, _clockMock.Object);
+
+        act.Should().Throw<DomainException>().WithMessage("A submission must include at least one file.");
     }
 
     [Fact]
@@ -198,8 +210,7 @@ public class SubmissionTests
         var submission = Submission.Create(
             _assignment.Id,
             Guid.NewGuid(),
-            "My work",
-            false,
+            hasFile: true,
             _assignment,
             _clockMock.Object);
 
