@@ -1,0 +1,116 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: asm-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-assignment_system}
+      POSTGRES_USER: ${POSTGRES_USER:-assignments}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-assignments}
+
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - /data/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-assignments} -d ${POSTGRES_DB:-assignment_system}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [appnet]
+    restart: unless-stopped
+
+  api:
+    # Build on the EC2 host. (A GHCR/Actions path exists in
+    # .github/workflows/deploy.yml but needs a billing-unlocked GitHub account,
+    # so the EC2 build is the active path.)
+    build:
+      context: ./backend
+      dockerfile: src/AssignmentSystem.Api/Dockerfile
+    container_name: asm-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Default: ${ConnectionStrings__Default}
+      Jwt__Key: ${Jwt__Key}
+      Jwt__Issuer: ${Jwt__Issuer:-AssignmentSystem.Api}
+      Jwt__Audience: ${Jwt__Audience:-AssignmentSystem.Web}
+      Jwt__AccessTokenMinutes: ${Jwt__AccessTokenMinutes:-5}
+      Jwt__RefreshTokenDays: ${Jwt__RefreshTokenDays:-7}
+      FileStorage__Root: "/data/submissions"
+      Auth__PasswordSetupTokenHours: ${Auth__PasswordSetupTokenHours:-48}
+      Auth__MinimumPasswordLength: ${Auth__MinimumPasswordLength:-6}
+      Auth__MaxFailedLoginAttempts: ${Auth__MaxFailedLoginAttempts:-5}
+      Auth__LockoutMinutes: ${Auth__LockoutMinutes:-15}
+      RateLimiting__CredentialsPerMinute: ${RateLimiting__CredentialsPerMinute:-10}
+      Cors__Origins__0: ${Cors__Origins__0}
+      Email__Host: ${Email__Host}
+      Email__Port: ${Email__Port:-587}
+      Email__UseSsl: ${Email__UseSsl:-true}
+      Email__Username: ${Email__Username}
+      Email__Password: ${Email__Password}
+      Email__FromAddress: ${Email__FromAddress}
+      Email__FromName: ${Email__FromName:-Assignment System}
+      Email__AppBaseUrl: ${Email__AppBaseUrl}
+      Email__EnableDispatcher: ${Email__EnableDispatcher:-true}
+      Email__DispatchIntervalSeconds: ${Email__DispatchIntervalSeconds:-30}
+      Email__BatchSize: ${Email__BatchSize:-25}
+      Email__MaxDeliveryAttempts: ${Email__MaxDeliveryAttempts:-3}
+      Email__RetryBackoffSeconds: ${Email__RetryBackoffSeconds:-30}
+      Email__ClaimTimeoutSeconds: ${Email__ClaimTimeoutSeconds:-300}
+      Database__AutoMigrate: "true"
+      Database__SeedOnStartup: "true"
+      ASPNETCORE_ENVIRONMENT: Production
+    expose:
+      - "8080"
+    volumes:
+      - /data/submissions:/data/submissions
+    networks: [appnet]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  web:
+    # Built on the EC2 host with NEXT_PUBLIC_API_URL baked at build time.
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    container_name: asm-web
+    depends_on: [api]
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NODE_ENV: production
+    expose:
+      - "3000"
+    networks: [appnet]
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: asm-caddy
+    depends_on: [api, web]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [appnet]
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  appnet:
+    driver: bridge

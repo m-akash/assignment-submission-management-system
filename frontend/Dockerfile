@@ -10,28 +10,30 @@ ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# next.config.ts sets output: "standalone", so the build produces a self-contained
+# server in .next/standalone that needs no node_modules at runtime.
 RUN npm run build
 
-# Stage 2: Runtime stage
+# Stage 2: Runtime stage — lean, no node_modules, runs the standalone server.
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
+# The standalone output does NOT copy public/ or .next/static by itself — both must
+# be layered on top manually. See: https://nextjs.org/docs/app/api-reference/config/next-config-js/output
 COPY --from=builder /app/public ./public
-
-RUN chown -R nextjs:nodejs /app
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs
 
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
 
-CMD ["npm", "start"]
+# Standalone server entrypoint (no `npm start` — saves a process layer too).
+CMD ["node", "server.js"]
