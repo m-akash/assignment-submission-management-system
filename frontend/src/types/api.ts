@@ -298,3 +298,101 @@ export interface NotificationSummary {
   sent: number;
   failed: number;
 }
+
+// ── Dashboard charts ────────────────────────────────────────────────────────
+// Pre-aggregated series from `GET /api/v1/dashboard/{role}`. These are the shapes the
+// stats reader answers with, not derived from the list endpoints: a trend or a
+// distribution cannot be counted with `?pageSize=1`, and grouping every submission in
+// the browser stops working at the first school with real data in it.
+
+/**
+ * One day of activity. `date` is a calendar day in UTC ("2026-08-11") — not an instant,
+ * so it must never be run through a `Date` that would shift it into local time.
+ */
+export interface DailyActivityPoint {
+  date: string;
+  submitted: number;
+  graded: number;
+}
+
+/** Assignments by publication state. The two add up to every assignment. */
+export interface AssignmentStatusBreakdown {
+  draft: number;
+  published: number;
+}
+
+/**
+ * How much of what a class was set has arrived. `expected` is students × published
+ * assignments, so `received / expected` is the class's submission rate — and is zero for
+ * a class with no students, which callers must check before dividing.
+ */
+export interface ClassActivityStat {
+  classId: string;
+  classLevel: number;
+  classSection: string | null;
+  students: number;
+  publishedAssignments: number;
+  expected: number;
+  received: number;
+}
+
+/**
+ * One published assignment split across the class it was set for. The three counts sum to
+ * the roster: a student is marked, waiting to be marked, or has not handed in.
+ */
+export interface AssignmentProgressStat {
+  assignmentId: string;
+  title: string;
+  deadlineUtc: string;
+  graded: number;
+  awaitingMarking: number;
+  notSubmitted: number;
+}
+
+/** A band of the percentage scale and how many marks fell in it. */
+export interface GradeBandStat {
+  band: string;
+  count: number;
+}
+
+/** One graded piece of work as a percentage, in the order it was marked. */
+export interface MarkPointStat {
+  submissionId: string;
+  assignmentTitle: string;
+  courseCode: string;
+  reviewedAtUtc: string;
+  percent: number;
+}
+
+export interface CourseAverageStat {
+  courseId: string;
+  courseName: string;
+  courseCode: string;
+  averagePercent: number;
+  gradedCount: number;
+}
+
+/** Handed-in work against its deadline, plus what never arrived. */
+export interface SubmissionTimelinessStat {
+  onTime: number;
+  late: number;
+  notSubmitted: number;
+}
+
+export interface AdminDashboardStats {
+  activityTrend: DailyActivityPoint[];
+  assignmentStatus: AssignmentStatusBreakdown;
+  classActivity: ClassActivityStat[];
+}
+
+export interface TeacherDashboardStats {
+  assignmentProgress: AssignmentProgressStat[];
+  markingTrend: DailyActivityPoint[];
+  gradeDistribution: GradeBandStat[];
+}
+
+export interface StudentDashboardStats {
+  marksOverTime: MarkPointStat[];
+  courseAverages: CourseAverageStat[];
+  timeliness: SubmissionTimelinessStat;
+}

@@ -53,6 +53,13 @@ export const queryKeys = {
     list: (filters: unknown) => ['assignments', 'list', filters] as const,
     detail: (id: string) => ['assignments', 'detail', id] as const,
   },
+  dashboard: {
+    all: ['dashboard'] as const,
+    /** One key per role — a caller only ever holds one of the three. */
+    admin: (days: number) => ['dashboard', 'admin', days] as const,
+    teacher: (days: number) => ['dashboard', 'teacher', days] as const,
+    student: ['dashboard', 'student'] as const,
+  },
   submissions: {
     all: ['submissions'] as const,
     list: (filters: unknown) => ['submissions', 'list', filters] as const,

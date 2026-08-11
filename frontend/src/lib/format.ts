@@ -16,6 +16,16 @@ export function formatRelative(iso: string | null | undefined): string {
   return formatDistanceToNowStrict(parseISO(iso), { addSuffix: true });
 }
 
+/**
+ * A plain calendar day ("2026-08-11") as a short axis label. Deliberately not
+ * `formatDate`: that one reads an instant, and passing a date-only string to a `Date`
+ * would parse it as UTC midnight and render as the previous day for anyone west of
+ * Greenwich. `parseISO` reads a date-only string as local midnight, so the day survives.
+ */
+export function formatCalendarDay(day: string): string {
+  return format(parseISO(day), 'd MMM');
+}
+
 export type DeadlineUrgency = 'overdue' | 'due-soon' | 'upcoming';
 
 /**
