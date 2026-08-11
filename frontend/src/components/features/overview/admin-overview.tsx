@@ -2,14 +2,17 @@
 
 import Link from 'next/link';
 import {
+  Activity,
   ArrowRight,
   Backpack,
   BookOpen,
   ClipboardList,
+  GaugeCircle,
   GraduationCap,
   Inbox,
   Layers,
   Link2,
+  Send,
   UserCog,
   Users,
 } from 'lucide-react';
@@ -26,6 +29,11 @@ import {
   useUsers,
 } from '@/hooks/use-admin-resources';
 import { useSubmissions } from '@/hooks/use-submissions';
+import { DEFAULT_TREND_DAYS, useAdminDashboard } from '@/hooks/use-dashboard';
+import { ActivityTrendChart } from './charts/activity-trend-chart';
+import { ChartFrame } from './charts/chart-frame';
+import { ClassRateChart } from './charts/class-rate-chart';
+import { SHARE_STEPS, ShareBar } from './charts/share-bar';
 
 /**
  * Counts come from each list endpoint's pagination total with `pageSize=1`, so the
@@ -74,10 +82,16 @@ export function AdminOverview({ name }: { name: string }) {
   const mappings = useTeacherMappings(COUNT_ONLY);
   const assignments = useAssignments(COUNT_ONLY);
   const submissions = useSubmissions(COUNT_ONLY);
+  // The charts below cannot be counted the way the tiles above are: a trend and a per-class
+  // rate are grouped reads, so they come pre-aggregated from one endpoint.
+  const charts = useAdminDashboard();
 
   const firstName = name.split(' ')[0];
   const studentCount = students.data?.pagination.total ?? 0;
   const teacherCount = teachers.data?.pagination.total ?? 0;
+
+  const assignmentStatus = charts.data?.assignmentStatus;
+  const assignmentTotal = (assignmentStatus?.draft ?? 0) + (assignmentStatus?.published ?? 0);
 
   return (
     <div className="space-y-6">
@@ -180,6 +194,69 @@ export function AdminOverview({ name }: { name: string }) {
           href="/submissions"
         />
       </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <ChartFrame
+          title="Activity"
+          description={`Work handed in and marked, last ${DEFAULT_TREND_DAYS} days.`}
+          icon={Activity}
+          isLoading={charts.isLoading}
+          isFetching={charts.isFetching}
+          error={charts.error}
+          isEmpty={charts.data?.activityTrend.every((day) => day.submitted + day.graded === 0)}
+          emptyIcon={Activity}
+          emptyTitle="No activity yet"
+          emptyDescription="Once students start handing work in, the last fortnight will be plotted here."
+        >
+          <ActivityTrendChart data={charts.data?.activityTrend ?? []} receivedLabel="Submitted" />
+        </ChartFrame>
+
+        <ChartFrame
+          title="Coursework status"
+          description="How much of what teachers have written is live."
+          icon={Send}
+          isLoading={charts.isLoading}
+          isFetching={charts.isFetching}
+          error={charts.error}
+          isEmpty={assignmentTotal === 0}
+          emptyIcon={ClipboardList}
+          emptyTitle="No assignments yet"
+          emptyDescription="Teachers create work for the offerings they are assigned to."
+          contentClassName="flex h-full flex-col justify-center"
+          action={
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/assignments">All</Link>
+            </Button>
+          }
+        >
+          <ShareBar
+            total={assignmentTotal}
+            segments={[
+              {
+                label: 'Published',
+                count: assignmentStatus?.published ?? 0,
+                color: SHARE_STEPS[0],
+              },
+              { label: 'Draft', count: assignmentStatus?.draft ?? 0, color: SHARE_STEPS[2] },
+            ]}
+          />
+        </ChartFrame>
+      </div>
+
+      <ChartFrame
+        title="Submission rate by class"
+        description="Received as a share of students × published assignments. Lowest first."
+        icon={GaugeCircle}
+        isLoading={charts.isLoading}
+        isFetching={charts.isFetching}
+        error={charts.error}
+        isEmpty={charts.data?.classActivity.length === 0}
+        emptyIcon={GraduationCap}
+        emptyTitle="Nothing published yet"
+        emptyDescription="A class appears here once work has been published for it."
+      >
+        <ClassRateChart data={charts.data?.classActivity ?? []} />
+      </ChartFrame>
 
       <SectionPanel
         title="Set up a class"

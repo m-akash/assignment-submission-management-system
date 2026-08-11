@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Award, CheckCircle2, ClipboardList, Send, TimerOff } from 'lucide-react';
+import { Award, BookOpen, CheckCircle2, ClipboardList, Clock, Send, TimerOff, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { HeroBanner, heroButton } from '@/components/shared/hero-banner';
@@ -10,8 +10,13 @@ import { SectionPanel } from '@/components/shared/section-panel';
 import { StatCard } from '@/components/shared/stat-card';
 import { CardGridSkeleton, EmptyState, ErrorState } from '@/components/shared/states';
 import { useStudentAssignments } from '@/hooks/use-submissions';
+import { useStudentDashboard } from '@/hooks/use-dashboard';
 import { classLabel, deadlineUrgency, formatMarks, formatRelative } from '@/lib/format';
 import { AssignmentCard } from '@/components/features/assignments/assignment-card';
+import { ChartFrame } from './charts/chart-frame';
+import { CourseAverageChart } from './charts/course-average-chart';
+import { MarksTrendChart } from './charts/marks-trend-chart';
+import { SHARE_STEPS, ShareBar } from './charts/share-bar';
 import type { EnrolledClass } from '@/types/api';
 
 export function StudentOverview({
@@ -33,6 +38,9 @@ export function StudentOverview({
       : null;
 
   const { items, isLoading, isError, error } = useStudentAssignments({});
+  // Marks and timeliness come pre-aggregated: the averages below are over the student's whole
+  // graded history, which the assignment list this page already holds does not carry.
+  const charts = useStudentDashboard();
   const firstName = name.split(' ')[0];
 
   const outstanding = items.filter(
@@ -63,6 +71,10 @@ export function StudentOverview({
     .slice(0, 4);
 
   const donePercent = items.length > 0 ? Math.round((graded.length / items.length) * 100) : 0;
+
+  const timeliness = charts.data?.timeliness;
+  const timelinessTotal =
+    (timeliness?.onTime ?? 0) + (timeliness?.late ?? 0) + (timeliness?.notSubmitted ?? 0);
 
   return (
     <div className="space-y-6">
@@ -129,6 +141,65 @@ export function StudentOverview({
           progress={donePercent}
         />
       </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <ChartFrame
+          title="Your marks"
+          description="Every graded piece of work as a percentage, most recent last."
+          icon={TrendingUp}
+          isLoading={charts.isLoading}
+          isFetching={charts.isFetching}
+          error={charts.error}
+          isEmpty={charts.data?.marksOverTime.length === 0}
+          emptyIcon={Award}
+          emptyTitle="No marks yet"
+          emptyDescription="Your marks are plotted here once a teacher has graded your work."
+        >
+          <MarksTrendChart data={charts.data?.marksOverTime ?? []} />
+        </ChartFrame>
+
+        <ChartFrame
+          title="Handing in on time"
+          description="Every assignment your class has been set."
+          icon={Clock}
+          isLoading={charts.isLoading}
+          isFetching={charts.isFetching}
+          error={charts.error}
+          isEmpty={timelinessTotal === 0}
+          emptyIcon={Clock}
+          emptyTitle="Nothing set yet"
+          emptyDescription="Once work is published for your class, your record appears here."
+          contentClassName="flex h-full flex-col justify-center"
+        >
+          <ShareBar
+            total={timelinessTotal}
+            segments={[
+              { label: 'On time', count: timeliness?.onTime ?? 0, color: SHARE_STEPS[0] },
+              { label: 'Late', count: timeliness?.late ?? 0, color: SHARE_STEPS[1] },
+              {
+                label: 'Not handed in',
+                count: timeliness?.notSubmitted ?? 0,
+                color: SHARE_STEPS[2],
+              },
+            ]}
+          />
+        </ChartFrame>
+      </div>
+
+      <ChartFrame
+        title="Average per course"
+        description="Across everything marked in each subject. Lowest first."
+        icon={BookOpen}
+        isLoading={charts.isLoading}
+        isFetching={charts.isFetching}
+        error={charts.error}
+        isEmpty={charts.data?.courseAverages.length === 0}
+        emptyIcon={BookOpen}
+        emptyTitle="No marked work yet"
+        emptyDescription="A subject appears here once one of its assignments has been graded."
+      >
+        <CourseAverageChart data={charts.data?.courseAverages ?? []} />
+      </ChartFrame>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
         <section className="space-y-4">

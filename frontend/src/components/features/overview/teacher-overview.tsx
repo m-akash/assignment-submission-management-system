@@ -1,7 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { ClipboardList, FileEdit, GraduationCap, Inbox, Plus, Send } from 'lucide-react';
+import {
+  Activity,
+  BarChart3,
+  ClipboardList,
+  FileEdit,
+  GraduationCap,
+  Inbox,
+  ListChecks,
+  Plus,
+  Send,
+} from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,7 +23,12 @@ import { SubmissionStatusBadge } from '@/components/shared/status-badge';
 import { useAssignments } from '@/hooks/use-assignments';
 import { useMyTeacherMappings } from '@/hooks/use-admin-resources';
 import { useSubmissions } from '@/hooks/use-submissions';
+import { DEFAULT_TREND_DAYS, useTeacherDashboard } from '@/hooks/use-dashboard';
 import { classLabel, formatRelative, initials } from '@/lib/format';
+import { ActivityTrendChart } from './charts/activity-trend-chart';
+import { AssignmentProgressChart } from './charts/assignment-progress-chart';
+import { ChartFrame } from './charts/chart-frame';
+import { GradeDistributionChart } from './charts/grade-distribution-chart';
 
 const COUNT_ONLY = { page: 1, pageSize: 1 };
 
@@ -24,6 +39,9 @@ export function TeacherOverview({ name }: { name: string }) {
   const graded = useSubmissions({ ...COUNT_ONLY, status: 'Graded' });
   const recent = useSubmissions({ page: 1, pageSize: 6, status: 'Submitted' });
   const mappings = useMyTeacherMappings();
+  // Scoped server-side to work this teacher authored — the same ownership column rule B3
+  // checks, so nothing here can show another teacher's backlog.
+  const charts = useTeacherDashboard();
 
   const firstName = name.split(' ')[0];
   const awaitingCount = awaiting.data?.pagination.total ?? 0;
@@ -101,6 +119,58 @@ export function TeacherOverview({ name }: { name: string }) {
           loading={drafts.isLoading}
           href="/assignments"
         />
+      </div>
+
+      <ChartFrame
+        title="Where each assignment stands"
+        description="Your published work, split across the class it was set for."
+        icon={ListChecks}
+        isLoading={charts.isLoading}
+        isFetching={charts.isFetching}
+        error={charts.error}
+        isEmpty={charts.data?.assignmentProgress.length === 0}
+        emptyIcon={ClipboardList}
+        emptyTitle="Nothing published yet"
+        emptyDescription="Publish an assignment and its class will appear here, marked and unmarked."
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/assignments">Assignments</Link>
+          </Button>
+        }
+      >
+        <AssignmentProgressChart data={charts.data?.assignmentProgress ?? []} />
+      </ChartFrame>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <ChartFrame
+          title="Marking throughput"
+          description={`Arrived against marked, last ${DEFAULT_TREND_DAYS} days.`}
+          icon={Activity}
+          isLoading={charts.isLoading}
+          isFetching={charts.isFetching}
+          error={charts.error}
+          isEmpty={charts.data?.markingTrend.every((day) => day.submitted + day.graded === 0)}
+          emptyIcon={Activity}
+          emptyTitle="No activity yet"
+          emptyDescription="Once work starts arriving, the last fortnight will be plotted here."
+        >
+          <ActivityTrendChart data={charts.data?.markingTrend ?? []} receivedLabel="Arrived" />
+        </ChartFrame>
+
+        <ChartFrame
+          title="Spread of marks"
+          description="Every mark you have given, as a share of what it was out of."
+          icon={BarChart3}
+          isLoading={charts.isLoading}
+          isFetching={charts.isFetching}
+          error={charts.error}
+          isEmpty={charts.data?.gradeDistribution.every((band) => band.count === 0)}
+          emptyIcon={BarChart3}
+          emptyTitle="No marks yet"
+          emptyDescription="Grade a submission and the spread of your marking appears here."
+        >
+          <GradeDistributionChart data={charts.data?.gradeDistribution ?? []} />
+        </ChartFrame>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
