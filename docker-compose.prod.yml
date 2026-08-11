@@ -20,9 +20,6 @@ services:
     restart: unless-stopped
 
   api:
-    # Build on the EC2 host. (A GHCR/Actions path exists in
-    # .github/workflows/deploy.yml but needs a billing-unlocked GitHub account,
-    # so the EC2 build is the active path.)
     build:
       context: ./backend
       dockerfile: src/AssignmentSystem.Api/Dockerfile
@@ -97,6 +94,8 @@ services:
     image: caddy:2-alpine
     container_name: asm-caddy
     depends_on: [api, web]
+    environment:
+      SITE_HOST: ${SITE_HOST}
     ports:
       - "80:80"
       - "443:443"
