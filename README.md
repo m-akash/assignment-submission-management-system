@@ -6,7 +6,7 @@ over PostgreSQL, with a Next.js frontend.
 **Admins** manage users, academic years, classes, courses, course offerings, enrollments and teacher
 assignments, and see everything. **Teachers** create and publish assignments for an offering
 they teach, then grade submissions with marks and feedback. **Students** see assignments for
-their enrolled classes, submit text and/or files, and read their marks once graded. Six events
+their enrolled classes, hand in their work as files, and read their marks once graded. Six events
 queue an email automatically; a new account's mail carries a single-use link to choose a
 password, never a password.
 
@@ -127,7 +127,7 @@ Enforced server-side, and covered by tests.
 | | Draft → Published is one-way. Deadline must be at least an hour ahead. Max marks > 0. |
 | | Once a published assignment has submissions, only its description may change — the goalposts cannot move under work already handed in. |
 | **Submissions** | One per student per assignment (unique DB constraint); resubmitting updates that row. |
-| | Must contain text, a file, or both — never nothing. |
+| | Must carry at least one file — a submission *is* its attachments, and handing in with nothing attached is refused. |
 | | Submitting after the deadline marks it `Late`; late and graded submissions cannot be edited. Editing after the deadline needs `allowResubmission`. |
 | | Marks are bounded by the assignment maximum and cannot be negative; feedback ≤ 2000 chars. |
 | | A teacher may change a submission's status, except to `Late` — that is derived from the deadline. |
@@ -259,7 +259,6 @@ erDiagram
         uuid id PK
         uuid assignment_id FK
         uuid student_id FK
-        text content "nullable, file-only allowed"
         int status "0 Pending, 1 Submitted, 2 Graded, 3 Late"
         timestamptz submitted_at_utc
         numeric marks
@@ -596,7 +595,8 @@ Recorded where the requirements were not explicit.
 10. **Custom identity, not ASP.NET Core Identity** — one `ApplicationUser` discriminated by a
     `Role` enum, to keep the model explicit and the schema legible.
 11. **Self-registration is disabled** — a closed, admin-provisioned system.
-12. **Submissions may carry text, files, or both;** bytes go to disk behind `IFileStorage`, only
+12. **A submission is its attachments** — students hand in files, never prose, so there is no
+    student-authored markup in the database at all. Bytes go to disk behind `IFileStorage`, only
     metadata to the database.
 13. **Marks are `numeric(5,2)`**, rounded at the domain boundary so the stored and validated
     values cannot disagree.
