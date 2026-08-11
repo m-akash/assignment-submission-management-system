@@ -4,18 +4,27 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   Award,
+  CalendarClock,
+  CheckCheck,
   ClipboardList,
   FileText,
-  Info,
+  History,
   Loader2,
   MessageSquareQuote,
   Paperclip,
   PenLine,
+  Target,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { RichText } from '@/components/ui/rich-text';
-import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
+import {
+  DetailSkeleton,
+  FileRow,
+  MetaBar,
+  MetaDivider,
+  MetaItem,
+} from '@/components/shared/detail';
 import { FileDropzone } from '@/components/shared/file-dropzone';
 import {
   canPreview,
@@ -48,8 +57,6 @@ import {
   formatDateTime,
   formatMarks,
   formatRelative,
-  gradeLabel,
-  sectionLabel,
 } from '@/lib/format';
 import { isRichTextEmpty } from '@/lib/rich-text';
 import type { AssignmentFile, StudentAssignment, SubmissionFile } from '@/types/api';
@@ -196,15 +203,36 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
         eyebrow={`${assignment.courseCode} · ${assignment.courseName}`}
         title={assignment.title}
         description={`Set by ${assignment.teacherName} for ${classLabel(assignment.classLevel, assignment.classSection)}`}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <DeadlineBadge urgency={urgency}>
-              {urgency === 'overdue' ? 'Closed' : 'Due'} {formatRelative(assignment.deadlineUtc)}
-            </DeadlineBadge>
-            {submission ? <SubmissionStatusBadge status={submission.status} /> : <NotStartedBadge />}
-          </div>
-        }
       />
+
+      {/* Where the summary rail used to be: where this assignment stands and the dates
+          and figures behind it, on one line under the title. The same strip the teacher's
+          page carries, answering the student's question instead — am I done, and by when. */}
+      <MetaBar>
+        {submission ? <SubmissionStatusBadge status={submission.status} /> : <NotStartedBadge />}
+        <DeadlineBadge urgency={urgency}>
+          {urgency === 'overdue' ? 'Closed' : 'Due'} {formatRelative(assignment.deadlineUtc)}
+        </DeadlineBadge>
+        <MetaDivider />
+        <MetaItem icon={CalendarClock} label="Deadline">
+          {formatDateTime(assignment.deadlineUtc)}
+        </MetaItem>
+        <MetaItem icon={isGraded ? Award : Target} label={isGraded ? 'Marks' : 'Out of'}>
+          <span className="tabular-nums">
+            {isGraded ? formatMarks(submission.marks, submission.marksOutOf) : assignment.maxMarks}
+          </span>
+        </MetaItem>
+        {/* Only once there is a time to show: "Submitted —" beside a badge already
+            reading "Not started" says the same thing twice, and less clearly. */}
+        {submission?.submittedAtUtc && (
+          <MetaItem icon={CheckCheck} label="Submitted">
+            {formatDateTime(submission.submittedAtUtc)}
+          </MetaItem>
+        )}
+        <MetaItem icon={History} label="Late changes">
+          {assignment.allowResubmission ? 'Allowed' : 'Not allowed'}
+        </MetaItem>
+      </MetaBar>
 
       <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
         <div className="space-y-6 lg:col-span-2">
@@ -301,11 +329,11 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
           )}
         </div>
 
-        {/* Two panels now ride the rail, which together can outgrow the viewport — so it
-            keeps its own scroll rather than pinning the facts half off-screen. */}
-        <aside className="space-y-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
-          {/* Handing in is the one thing a student *does* here, so it sits at the top of
-              the rail — above the facts, in reach without scrolling the brief. */}
+        {/* Handing in is the one thing a student *does* here, and now the only thing on
+            the rail — the facts moved to the strip under the title. It keeps its own
+            scroll: an alert, three files and a drop area can still outgrow a short
+            viewport, and the Submit button must never be the part left off-screen. */}
+        <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
           <SectionPanel
             title="Your submission"
             description={
@@ -391,38 +419,6 @@ function Detail({ assignment }: { assignment: StudentAssignment }) {
                 )}
               </>
             )}
-          </SectionPanel>
-
-          <SectionPanel title="At a glance" icon={Info} bodyClassName="divide-y">
-            <Fact label="Status">
-              {submission ? <SubmissionStatusBadge status={submission.status} /> : <NotStartedBadge />}
-            </Fact>
-            <Fact label="Deadline">
-              <span className="block">{formatDateTime(assignment.deadlineUtc)}</span>
-              <span className="block text-xs font-normal text-muted-foreground">
-                {formatRelative(assignment.deadlineUtc)}
-              </span>
-            </Fact>
-            <Fact label={isGraded ? 'Marks' : 'Out of'}>
-              <span className="tabular-nums">
-                {isGraded
-                  ? formatMarks(submission.marks, submission.marksOutOf)
-                  : assignment.maxMarks}
-              </span>
-            </Fact>
-            <Fact label="Submitted">{formatDateTime(submission?.submittedAtUtc)}</Fact>
-            <Fact label="Late changes">
-              {assignment.allowResubmission ? 'Allowed' : 'Not allowed'}
-            </Fact>
-            <Fact label="Course">
-              <span className="block">{assignment.courseName}</span>
-              <span className="block font-mono text-xs font-normal text-muted-foreground">
-                {assignment.courseCode}
-              </span>
-            </Fact>
-            <Fact label="Class">{gradeLabel(assignment.classLevel)}</Fact>
-            <Fact label="Section">{sectionLabel(assignment.classSection)}</Fact>
-            <Fact label="Teacher">{assignment.teacherName}</Fact>
           </SectionPanel>
         </aside>
       </div>

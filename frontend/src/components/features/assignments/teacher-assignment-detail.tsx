@@ -4,14 +4,17 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
+  CalendarClock,
+  CalendarPlus,
   ClipboardList,
   FileText,
+  History,
   Inbox,
-  Info,
   Loader2,
   Paperclip,
   Pencil,
   Send,
+  Target,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -19,7 +22,13 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { RichText } from '@/components/ui/rich-text';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { DetailSkeleton, Fact, FileRow } from '@/components/shared/detail';
+import {
+  DetailSkeleton,
+  FileRow,
+  MetaBar,
+  MetaDivider,
+  MetaItem,
+} from '@/components/shared/detail';
 import { FileDropzone } from '@/components/shared/file-dropzone';
 import { canPreview, FilePreviewDialog } from '@/components/shared/file-preview';
 import { BackLink, PageHeader } from '@/components/shared/page-header';
@@ -43,22 +52,52 @@ import {
 import { useSubmissions } from '@/hooks/use-submissions';
 import { ApiError } from '@/lib/api';
 import { renameFile } from '@/lib/file-name';
+import { cn } from '@/lib/utils';
 import {
   classLabel,
   deadlineUrgency,
+  formatDate,
   formatDateTime,
   formatMarks,
   formatRelative,
-  gradeLabel,
   initials,
-  sectionLabel,
 } from '@/lib/format';
 import type { Assignment, AssignmentFile } from '@/types/api';
 
 const MAX_FILES = 5;
 
-/** How many submissions the panel shows before deferring to the full inbox. */
-const PREVIEW_COUNT = 8;
+/** One figure of the marking split, three across the top of the submissions rail. */
+function Tally({
+  label,
+  value,
+  emphasis,
+}: {
+  label: string;
+  value: number;
+  /** Work still owed by the teacher, coloured so it is read before the other two. */
+  emphasis?: boolean;
+}) {
+  return (
+    <div className="px-2 py-2.5 text-center">
+      <p
+        className={cn(
+          'font-heading text-lg leading-none font-semibold tabular-nums',
+          emphasis && 'text-warning',
+        )}
+      >
+        {value}
+      </p>
+      <p className="eyebrow mt-1 text-[0.6rem]">{label}</p>
+    </div>
+  );
+}
+
+/**
+ * How many submissions the panel shows before deferring to the full inbox. The panel is a
+ * side rail that stays with the page as it scrolls, so the list is kept to what fits
+ * beside the brief rather than to what the class could hand in.
+ */
+const PREVIEW_COUNT = 6;
 
 /**
  * One assignment as its author sees it: the brief, the material students receive, and
@@ -172,51 +211,64 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
         description={
           readOnly
             ? `Set by ${assignment.teacherName} for ${classLabel(assignment.classLevel, assignment.classSection)}`
-            : `For ${classLabel(assignment.classLevel, assignment.classSection)} · ${assignment.maxMarks} marks`
-        }
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <AssignmentStatusBadge status={assignment.status} />
-            <DeadlineBadge urgency={urgency}>
-              {urgency === 'overdue' ? 'Closed' : 'Due'} {formatRelative(assignment.deadlineUtc)}
-            </DeadlineBadge>
-
-            {!readOnly && (
-              <>
-                {isDraft && (
-                  <Button
-                    size="sm"
-                    disabled={isBusy}
-                    onClick={() => publish.mutate(assignment.id)}
-                  >
-                    {publish.isPending ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Send className="size-4" />
-                    )}
-                    Publish
-                  </Button>
-                )}
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/assignments/${assignment.id}/edit`}>
-                    <Pencil className="size-4" />
-                    Edit
-                  </Link>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={isBusy}
-                  onClick={() => setConfirmingDelete(true)}
-                >
-                  <Trash2 className="size-4" />
-                  Delete
-                </Button>
-              </>
-            )}
-          </div>
+            : `For ${classLabel(assignment.classLevel, assignment.classSection)}`
         }
       />
+
+      {/* Where the summary rail used to be: the assignment's state, its figures and the
+          buttons that change them, all on the one line under the title. What a teacher
+          opens this page asking is answered before the brief is scrolled past. */}
+      <MetaBar
+        actions={
+          !readOnly && (
+            <>
+              {isDraft && (
+                <Button size="sm" disabled={isBusy} onClick={() => publish.mutate(assignment.id)}>
+                  {publish.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4" />
+                  )}
+                  Publish
+                </Button>
+              )}
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/assignments/${assignment.id}/edit`}>
+                  <Pencil className="size-4" />
+                  Edit
+                </Link>
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={isBusy}
+                onClick={() => setConfirmingDelete(true)}
+              >
+                <Trash2 className="size-4" />
+                Delete
+              </Button>
+            </>
+          )
+        }
+      >
+        <AssignmentStatusBadge status={assignment.status} />
+        <DeadlineBadge urgency={urgency}>
+          {urgency === 'overdue' ? 'Closed' : 'Due'} {formatRelative(assignment.deadlineUtc)}
+        </DeadlineBadge>
+        <MetaDivider />
+        <MetaItem icon={CalendarClock} label="Deadline">
+          {formatDateTime(assignment.deadlineUtc)}
+        </MetaItem>
+        <MetaItem icon={Target} label="Out of">
+          <span className="tabular-nums">{assignment.maxMarks}</span>
+        </MetaItem>
+        <MetaItem icon={History} label="Late changes">
+          {assignment.allowResubmission ? 'Allowed' : 'Not allowed'}
+        </MetaItem>
+        <MetaItem icon={CalendarPlus} label="Created">
+          {formatDate(assignment.createdAtUtc)}
+        </MetaItem>
+      </MetaBar>
 
       <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
         <div className="space-y-6 lg:col-span-2">
@@ -313,24 +365,22 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
             )}
           </SectionPanel>
 
+        </div>
+
+        {/* The rail the facts used to fill, given to the one thing that keeps changing.
+            It stays in view while the brief and the material scroll, which is the way a
+            teacher reads this page: the class on one side, the work on the other. */}
+        <aside className="lg:sticky lg:top-20">
           <SectionPanel
             title="Submissions"
-            description={
-              handedIn.length > 0
-                ? `${handedIn.length} handed in · ${marked} marked · ${awaiting} awaiting`
-                : 'Nobody has handed in yet'
-            }
             icon={Inbox}
             action={
               handedIn.length > PREVIEW_COUNT && (
                 <Button asChild size="sm" variant="outline">
-                  <Link href={`/submissions?assignmentId=${assignment.id}`}>
-                    View all {handedIn.length}
-                  </Link>
+                  <Link href={`/submissions?assignmentId=${assignment.id}`}>All {handedIn.length}</Link>
                 </Button>
               )
             }
-            bodyClassName={handedIn.length > 0 ? 'divide-y' : undefined}
           >
             {submissions.isError ? (
               <ErrorState
@@ -352,65 +402,48 @@ function Detail({ assignment, readOnly }: { assignment: Assignment; readOnly: bo
                 }
               />
             ) : (
-              handedIn.slice(0, PREVIEW_COUNT).map((submission) => (
-                <Link
-                  key={submission.id}
-                  href={`/submissions/${submission.id}`}
-                  className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted/50"
-                >
-                  <Avatar className="size-7">
-                    <AvatarFallback className="text-[11px]">
-                      {initials(submission.studentName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{submission.studentName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {submission.submittedAtUtc
-                        ? `handed in ${formatRelative(submission.submittedAtUtc)}`
-                        : 'not submitted'}
-                    </p>
-                  </div>
-                  <SubmissionStatusBadge status={submission.status} />
-                  <span className="w-16 shrink-0 text-right text-sm tabular-nums">
-                    {formatMarks(submission.marks, submission.marksOutOf)}
-                  </span>
-                </Link>
-              ))
-            )}
-          </SectionPanel>
-        </div>
+              <>
+                {/* The split first, then the names: how much marking is left is the
+                    question, and a count of rows is not an answer to it. */}
+                <div className="grid grid-cols-3 divide-x border-b">
+                  <Tally label="In" value={handedIn.length} />
+                  <Tally label="Marked" value={marked} />
+                  <Tally label="To mark" value={awaiting} emphasis={awaiting > 0} />
+                </div>
 
-        <aside className="lg:sticky lg:top-20">
-          <SectionPanel title="At a glance" icon={Info} bodyClassName="divide-y">
-            <Fact label="Status">
-              <AssignmentStatusBadge status={assignment.status} />
-            </Fact>
-            <Fact label="Deadline">
-              <span className="block">{formatDateTime(assignment.deadlineUtc)}</span>
-              <span className="block text-xs font-normal text-muted-foreground">
-                {formatRelative(assignment.deadlineUtc)}
-              </span>
-            </Fact>
-            <Fact label="Out of">
-              <span className="tabular-nums">{assignment.maxMarks}</span>
-            </Fact>
-            <Fact label="Handed in">
-              <span className="tabular-nums">{assignment.submissionCount}</span>
-            </Fact>
-            <Fact label="Late changes">
-              {assignment.allowResubmission ? 'Allowed' : 'Not allowed'}
-            </Fact>
-            <Fact label="Course">
-              <span className="block">{assignment.courseName}</span>
-              <span className="block font-mono text-xs font-normal text-muted-foreground">
-                {assignment.courseCode}
-              </span>
-            </Fact>
-            <Fact label="Class">{gradeLabel(assignment.classLevel)}</Fact>
-            <Fact label="Section">{sectionLabel(assignment.classSection)}</Fact>
-            <Fact label="Teacher">{assignment.teacherName}</Fact>
-            <Fact label="Created">{formatDateTime(assignment.createdAtUtc)}</Fact>
+                <div className="divide-y">
+                  {handedIn.slice(0, PREVIEW_COUNT).map((submission) => (
+                    <Link
+                      key={submission.id}
+                      href={`/submissions/${submission.id}`}
+                      className="flex items-center gap-2.5 px-4 py-2.5 transition-colors hover:bg-muted/50"
+                    >
+                      <Avatar className="size-7">
+                        <AvatarFallback className="text-[11px]">
+                          {initials(submission.studentName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{submission.studentName}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {submission.submittedAtUtc
+                            ? `handed in ${formatRelative(submission.submittedAtUtc)}`
+                            : 'not submitted'}
+                        </p>
+                      </div>
+                      {/* Stacked rather than strung out: the rail is a third of the width
+                          the list had, and a badge beside a mark would crush the name. */}
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <SubmissionStatusBadge status={submission.status} />
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {formatMarks(submission.marks, submission.marksOutOf)}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </>
+            )}
           </SectionPanel>
         </aside>
       </div>

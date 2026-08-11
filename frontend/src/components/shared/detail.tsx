@@ -1,7 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Download, Eye, FileText, ImageIcon, Paperclip, Pencil, Trash2, X } from 'lucide-react';
+import {
+  Check,
+  Download,
+  Eye,
+  FileText,
+  ImageIcon,
+  type LucideIcon,
+  Paperclip,
+  Pencil,
+  Trash2,
+  X,
+} from 'lucide-react';
 import {
   Attachment,
   AttachmentAction,
@@ -31,6 +42,52 @@ export function Fact({ label, children }: { label: string; children: React.React
       <span className="min-w-0 text-right font-medium">{children}</span>
     </div>
   );
+}
+
+/**
+ * The same facts as a `Fact` rail, laid along one line under the title instead of stacked
+ * down the side: the record's state and figures first, then the actions that change them.
+ * A handful of short values reads faster across than down, and the width it gives back
+ * goes to the work itself.
+ */
+export function MetaBar({
+  children,
+  actions,
+}: {
+  children: React.ReactNode;
+  /** Pushed to the end of the same line, so state and the buttons acting on it sit together. */
+  actions?: React.ReactNode;
+}) {
+  return (
+    <div className="panel flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3">
+      {children}
+      {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+/** One label/value pair on a `MetaBar`, with an icon to find it by. */
+export function MetaItem({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: LucideIcon;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className="flex items-center gap-1.5 text-sm whitespace-nowrap">
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium">{children}</span>
+    </span>
+  );
+}
+
+/** A hairline between groups of items on a `MetaBar` — badges from figures, say. */
+export function MetaDivider() {
+  return <span aria-hidden className="hidden h-5 w-px bg-border sm:block" />;
 }
 
 /** The allowed upload types, as icons — an image is recognisable before its name is read. */
