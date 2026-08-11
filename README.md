@@ -26,6 +26,8 @@ The database is seeded with a plausible school — 14 classes, 36 courses, 78 us
 Docker is the only prerequisite — no .NET SDK, no Node, no Postgres, no mail account.
 
 ```bash
+git clone https://github.com/m-akash/assignment-submission-management-system.git
+cd assignment-submission-management-system
 cp .env.example .env      # every value has a working default
 docker compose up --build
 ```
@@ -37,6 +39,33 @@ docker compose up --build
 | Mailpit (catch-all inbox) | http://localhost:8025 |
 
 Migrations and seed data apply on boot — **no SQL runs by hand**. `docker compose down -v` resets. Backend tests: `cd backend && dotnet test` (integration project needs Docker).
+
+### Without Docker
+
+Needs **.NET 10 SDK**, **Node 20+** and **PostgreSQL 17** running on `localhost:5432` with database `assignment_system` and user/password `assignments`/`assignments` — or start just the backing services with `docker compose up -d postgres mailpit` and install nothing else.
+
+```bash
+cd backend   && dotnet run --project src/AssignmentSystem.Api   # → http://localhost:5269
+cd frontend  && npm install && npm run dev                      # → http://localhost:3000
+```
+
+Create `frontend/.env.local` with the API's **base origin** — no `/api/v1` suffix, the client appends that itself:
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:5269
+```
+
+The API still migrates and seeds itself on startup. Three differences from Compose:
+
+- **Port** is `5269` (`launchSettings.json`), not `5080`. Swagger is served in `Development`, which `dotnet run` sets.
+- **Mail** — `Email__Host` is blank by default, so notifications are queued and their full contents written to the log instead of being sent. To read them in Mailpit instead, set `Email__Host=localhost`, `Email__Port=1025`, `Email__UseSsl=false` (`mailpit` is a container hostname and will not resolve from the host).
+- **Uploads** land in a local `_uploads/` folder rather than the container's `/data/submissions`.
+
+To manage the schema explicitly instead of auto-migrating, from `backend/`:
+
+```bash
+dotnet ef database update --project src/AssignmentSystem.Infrastructure --startup-project src/AssignmentSystem.Api
+```
 
 ## Architecture
 
@@ -98,9 +127,11 @@ The **EC2 deployment sends through a real SMTP provider**, so account-setup link
 
 ## Deployment (AWS EC2)
 
-Single EC2 instance, four containers on one Docker network, one command to ship:
+Single EC2 instance, four containers on one Docker network. Clone on the host, fill in `.env` (`SITE_HOST`, `Jwt__Key`, DB password, SMTP credentials), and ship:
 
 ```bash
+git clone https://github.com/m-akash/assignment-submission-management-system.git
+cd assignment-submission-management-system && cp .env.example .env && nano .env
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
