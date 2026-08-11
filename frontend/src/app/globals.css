@@ -24,6 +24,9 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-chart-step-1: var(--chart-step-1);
+  --color-chart-step-2: var(--chart-step-2);
+  --color-chart-step-3: var(--chart-step-3);
   --color-brand: var(--brand);
   --color-brand-accent: var(--brand-accent);
   --color-success: var(--success);
@@ -114,11 +117,24 @@
   --danger-foreground: oklch(0.98 0.01 20);
   --danger-muted: oklch(0.955 0.035 20);
 
+  /* Chart series, for telling one series from another. The *order* is the
+     colour-blindness safety mechanism, not decoration: slots are handed out 1, 2, 3…
+     in sequence, so only neighbouring slots ever touch, and neighbours are a long way
+     apart in hue. Validated per mode against the surface a panel actually paints on
+     (white here, the dark card below) for lightness band, chroma floor, protan/deutan
+     separation and contrast — re-run those checks before changing a step. */
   --chart-1: oklch(0.52 0.21 278);
-  --chart-2: oklch(0.55 0.19 308);
+  --chart-2: oklch(0.66 0.15 62);
   --chart-3: oklch(0.6 0.14 200);
-  --chart-4: oklch(0.66 0.15 62);
-  --chart-5: oklch(0.56 0.18 12);
+  --chart-4: oklch(0.56 0.18 12);
+  --chart-5: oklch(0.55 0.19 308);
+
+  /* One hue in three steps, for a scale that has an order — done → waiting → missing,
+     on-time → late → never. A reader sees the progression in the colour itself, which
+     five separate hues cannot express. Strongest step is "most complete". */
+  --chart-step-1: oklch(0.45 0.19 278);
+  --chart-step-2: oklch(0.61 0.15 278);
+  --chart-step-3: oklch(0.77 0.09 278);
 
   --sidebar: oklch(0.976 0.006 285);
   --sidebar-foreground: oklch(0.21 0.02 282);
@@ -177,11 +193,20 @@
   --danger-foreground: oklch(0.16 0.03 20);
   --danger-muted: oklch(0.29 0.09 20);
 
+  /* Dark is a selected palette, not a flip of the light one: the steps are re-chosen
+     against the dark card so each stays inside the band that keeps a mark readable
+     there, and the same separation checks are re-run for this surface. */
   --chart-1: oklch(0.66 0.19 278);
-  --chart-2: oklch(0.68 0.17 308);
-  --chart-3: oklch(0.72 0.13 200);
-  --chart-4: oklch(0.79 0.15 76);
-  --chart-5: oklch(0.68 0.18 12);
+  --chart-2: oklch(0.665 0.15 76);
+  --chart-3: oklch(0.62 0.13 200);
+  --chart-4: oklch(0.6 0.18 12);
+  --chart-5: oklch(0.58 0.17 308);
+
+  /* The ordinal ramp inverts here: on a dark surface it is the brighter step that
+     reads as "more", so step 1 is the lightest rather than the darkest. */
+  --chart-step-1: oklch(0.74 0.15 278);
+  --chart-step-2: oklch(0.6 0.17 278);
+  --chart-step-3: oklch(0.46 0.14 278);
 
   --sidebar: oklch(0.183 0.016 285);
   --sidebar-foreground: oklch(0.97 0.006 285);
