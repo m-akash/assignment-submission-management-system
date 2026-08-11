@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  GraduationCap,
   KeyRound,
   Loader2,
   ShieldCheck,
@@ -20,6 +19,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { BrandWordmark } from '@/components/shared/brand-wordmark';
 import { ApiError, apiGet, apiPost, toQuery } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { setPasswordSchema, type SetPasswordValues } from '@/schemas';
@@ -105,14 +105,7 @@ function SetPasswordForm() {
 
       <div className="relative w-full max-w-[25rem]">
         <div className="rounded-2xl border bg-card/90 p-7 shadow-xl backdrop-blur sm:p-8">
-          <div className="flex items-center gap-2.5 pb-5">
-            <div className="brand-surface flex size-9 items-center justify-center rounded-xl text-white">
-              <GraduationCap className="size-5" />
-            </div>
-            <span className="text-base font-semibold tracking-tight">
-              Assignment Management System
-            </span>
-          </div>
+          <BrandWordmark className="pb-5" />
 
           {checking ? (
             <div className="flex items-center gap-2.5 py-6 text-sm text-muted-foreground">

@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BrandIllustration } from '@/components/shared/brand-illustration';
+import { BrandWordmark } from '@/components/shared/brand-wordmark';
 import { useAuth } from '@/context/AuthContext';
 import { loginSchema, type LoginValues } from '@/schemas';
 
@@ -95,14 +96,7 @@ function LoginForm() {
           className="pointer-events-none absolute -top-40 -right-32 size-144 rounded-full bg-white/15 blur-3xl"
         />
 
-        <div className="relative flex items-center gap-3">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/25 backdrop-blur">
-            <GraduationCap className="size-6" />
-          </div>
-          <span className="text-xl font-semibold tracking-tight text-white">
-            Assignment Management System
-          </span>
-        </div>
+        <BrandWordmark tone="onBrand" size="lg" className="relative" />
 
         {/* The illustration gets its own slot and shrinks before the copy does. */}
         <div className="relative flex min-h-0 flex-1 items-center justify-center py-8">
@@ -141,14 +135,7 @@ function LoginForm() {
         <div className="relative w-full max-w-[25rem] space-y-4">
           {/* The auth card lifts the form off the tinted background in both themes. */}
           <div className="rounded-2xl border bg-card/90 p-7 shadow-xl backdrop-blur sm:p-8">
-            <div className="flex items-center gap-2.5 pb-5 lg:hidden">
-              <div className="brand-surface flex size-11 items-center justify-center rounded-xl text-white">
-                <GraduationCap className="size-6" />
-              </div>
-              <span className="text-lg font-semibold tracking-tight">
-                Assignment Management System
-              </span>
-            </div>
+            <BrandWordmark className="pb-5 lg:hidden" />
 
             <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight">
               Welcome back
