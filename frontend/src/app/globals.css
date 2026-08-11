@@ -594,6 +594,8 @@
 .preview-frame[data-kind='docx']:fullscreen {
   background: var(--background);
   padding-block: 1.5rem;
+  /* On a phone the frame is the screen edge, and text set against it is unreadable. */
+  padding-inline: 1rem;
 }
 
 /* Text keeps a readable measure instead of running the width of the screen. */

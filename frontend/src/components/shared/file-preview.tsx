@@ -184,14 +184,29 @@ const DIALOG_WIDTH: Record<PreviewKind, string> = {
 
 /**
  * Frame height by kind. Fixed per kind so the dialog does not jump as the bytes arrive,
- * and never so tall that the header and footer are pushed off a laptop screen.
+ * and never so tall that the header and footer are pushed off the screen.
+ *
+ * A phone gets its own, shorter pair, in `dvh` rather than `vh`: `vh` on mobile is the
+ * viewport with the browser's address bar pretended away, so a frame sized in it sits
+ * partly underneath the bar until the user scrolls. `dvh` is the space actually visible.
  */
 const FRAME_HEIGHT: Record<PreviewKind, string> = {
-  image: 'h-[60vh]',
-  pdf: 'h-[70vh]',
-  text: 'h-[60vh]',
-  docx: 'h-[70vh]',
+  image: 'h-[46dvh] sm:h-[60vh]',
+  pdf: 'h-[56dvh] sm:h-[70vh]',
+  text: 'h-[46dvh] sm:h-[60vh]',
+  docx: 'h-[56dvh] sm:h-[70vh]',
 };
+
+/**
+ * What the dialog costs around the frame — title, description, both gaps, the padding and
+ * the footer — and so how much of the screen the frame may not take. Held as a ceiling on
+ * the frame rather than a `max-height` on the dialog, because a grid whose middle row is
+ * over-tall clips at both ends: the header goes off the top of the screen and the download
+ * button off the bottom. It only bites where the preferred height above will not fit — a
+ * phone held sideways, or a very short window — and the floor keeps the frame from
+ * collapsing to a sliver on the way.
+ */
+const FRAME_BOUNDS = 'max-h-[calc(100dvh-13rem)] min-h-32';
 
 export function FilePreviewDialog({
   file,
@@ -310,7 +325,12 @@ export function FilePreviewDialog({
       }}
     >
       <DialogContent
-        className={kind ? DIALOG_WIDTH[kind] : 'sm:max-w-md'}
+        // A phone gives the file the screen: a narrower gutter than the dialog's own, and
+        // the frame as the one row that gives way when there is not enough height.
+        className={cn(
+          'max-w-[calc(100%-1rem)] grid-rows-[auto_minmax(0,1fr)_auto]',
+          kind ? DIALOG_WIDTH[kind] : 'sm:max-w-md',
+        )}
         // While fullscreen, Escape belongs to the browser: it should bring the file
         // back into the dialog, not close the dialog underneath it.
         onEscapeKeyDown={(event) => {
@@ -318,11 +338,24 @@ export function FilePreviewDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle className="truncate pr-8">{file?.name}</DialogTitle>
+          {/* A phone is narrow enough that one line of a real file name is mostly
+              ellipsis, so it gets two; a wider dialog keeps the title to one. Either way
+              the full name is on the element itself, for a pointer to rest on. */}
+          {/* `leading-none` is a one-line title's setting; two lines of it collide. */}
+          <DialogTitle
+            className="pr-8 max-sm:line-clamp-2 max-sm:leading-snug sm:truncate"
+            title={file?.name}
+          >
+            {file?.name}
+          </DialogTitle>
           <DialogDescription>
             {file ? formatBytes(file.sizeBytes) : null}
             {kind === 'docx' && content && ' · converted for reading; layout is approximate'}
-            {kind === 'image' && content && ' · double-click the image for fullscreen'}
+            {/* Only where there is a mouse to double-click with. A touch screen has the
+                footer button, and a second tap there means zoom. */}
+            {kind === 'image' && content && (
+              <span className="max-sm:hidden"> · double-click the image for fullscreen</span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -336,6 +369,7 @@ export function FilePreviewDialog({
           data-kind={kind ?? undefined}
           className={cn(
             'preview-frame flex items-center justify-center overflow-auto rounded-lg border bg-muted/30',
+            FRAME_BOUNDS,
             kind ? FRAME_HEIGHT[kind] : 'h-40',
           )}
         >
@@ -370,12 +404,12 @@ export function FilePreviewDialog({
             // the footer button is the way in for a PDF.
             <iframe src={content.url} title={file?.name ?? 'PDF'} className="size-full border-0" />
           ) : content?.kind === 'text' ? (
-            <pre className="w-full self-start p-4 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap">
+            <pre className="w-full self-start p-3 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap sm:p-4">
               {content.text}
             </pre>
           ) : content?.kind === 'docx' ? (
             <div
-              className="rich-text document-preview w-full self-start p-5 sm:p-6"
+              className="rich-text document-preview w-full self-start p-4 sm:p-6"
               dangerouslySetInnerHTML={{ __html: content.html }}
             />
           ) : (
@@ -383,11 +417,15 @@ export function FilePreviewDialog({
           )}
         </div>
 
-        <DialogFooter showCloseButton>
+        {/* Kept on one line at every width. Stacked, three full-width buttons are a third
+            of a phone screen spent on the actions rather than on the file. */}
+        <DialogFooter showCloseButton className="flex-row justify-end">
           {content && !empty && (
             <Button variant="outline" onClick={toggleFullscreen}>
               <Maximize2 className="size-4" />
-              Fullscreen
+              {/* The icon says it on a narrow screen; the name is still there to be read
+                  aloud. */}
+              <span className="max-sm:sr-only">Fullscreen</span>
             </Button>
           )}
           {file && (

@@ -85,11 +85,17 @@ function DialogContent({
   )
 }
 
+// `min-w-0`: the header is a grid item, and a grid item's automatic minimum size is its
+// min-content width — for a title that does not wrap, the whole title. Without this, a
+// long one widens the column past the dialog's own `max-w-*` and the content spills out
+// of the rounded panel, taking the close button off the edge of the screen with it. The
+// title's `truncate` cannot save it, because it stretches to whatever width the header
+// won and so never has anything to truncate.
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn("flex min-w-0 flex-col gap-2", className)}
       {...props}
     />
   )
