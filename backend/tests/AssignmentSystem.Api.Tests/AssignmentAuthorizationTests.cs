@@ -333,6 +333,38 @@ public class AssignmentAuthorizationTests : IntegrationTestBase
         (await admin.GetAsync($"/api/v1/submissions/{submission.Id}")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    [Fact]
+    public async Task SubmissionList_FiltersByClassAndCourse()
+    {
+        var (owner, outsider) = await TwoWorldsAsync();
+        using var ownerTeacher = await SignInAsync(owner.TeacherEmail);
+        using var ownerStudent = await SignInAsync(owner.StudentEmail);
+        using var outsiderTeacher = await SignInAsync(outsider.TeacherEmail);
+        using var outsiderStudent = await SignInAsync(outsider.StudentEmail);
+        using var admin = await SignInAsAdminAsync();
+
+        var here = await SubmitAsync(ownerStudent,
+            (await CreatePublishedAssignmentAsync(ownerTeacher, owner.ClassCourseId)).Id);
+        var elsewhere = await SubmitAsync(outsiderStudent,
+            (await CreatePublishedAssignmentAsync(outsiderTeacher, outsider.ClassCourseId)).Id);
+
+        // A submission has no class or course of its own — both are the assignment's, reached
+        // through its offering, which is what these two filters have to resolve.
+        var byClass = await admin.GetAsync($"/api/v1/submissions?classId={owner.ClassId}&pageSize=100");
+        var byClassIds = (await ReadAsync<List<SubmissionDto>>(byClass)).Select(s => s.Id).ToList();
+        byClassIds.Should().Contain(here.Id).And.NotContain(elsewhere.Id);
+
+        var byCourse = await admin.GetAsync($"/api/v1/submissions?courseId={outsider.CourseId}&pageSize=100");
+        var byCourseIds = (await ReadAsync<List<SubmissionDto>>(byCourse)).Select(s => s.Id).ToList();
+        byCourseIds.Should().Contain(elsewhere.Id).And.NotContain(here.Id);
+
+        // The two narrow together, so a class from one world and a course from the other
+        // describe an offering nobody has set work for.
+        var crossed = await admin.GetAsync(
+            $"/api/v1/submissions?classId={owner.ClassId}&courseId={outsider.CourseId}&pageSize=100");
+        (await ReadAsync<List<SubmissionDto>>(crossed)).Should().BeEmpty();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task<(TestWorld Owner, TestWorld Outsider)> TwoWorldsAsync() =>

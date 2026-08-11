@@ -26,6 +26,10 @@ import type {
 export interface SubmissionFilters {
   search?: string;
   assignmentId?: string | string[];
+  /** The class the work was set for — resolved server-side through the assignment's offering. */
+  classId?: string | string[];
+  /** The course it was set for, resolved the same way. */
+  courseId?: string | string[];
   status?: SubmissionStatus | '' | SubmissionStatus[];
   page?: number;
   pageSize?: number;

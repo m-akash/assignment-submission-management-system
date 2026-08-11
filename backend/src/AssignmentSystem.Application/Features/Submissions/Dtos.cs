@@ -63,6 +63,10 @@ public sealed record GetStudentSubmissionQuery(Guid AssignmentId) : IQuery<Submi
 // (?status=Pending&status=Late); empty or absent means "not filtered".
 public sealed record GetSubmissionsQuery(
     IReadOnlyList<Guid>? AssignmentIds = null,
+    /// <summary>Classes the work was set for, reached through the assignment's offering.</summary>
+    IReadOnlyList<Guid>? ClassIds = null,
+    /// <summary>Courses the work was set for, reached the same way.</summary>
+    IReadOnlyList<Guid>? CourseIds = null,
     IReadOnlyList<Guid>? StudentIds = null,
     IReadOnlyList<SubmissionStatus>? Statuses = null,
     /// <summary>Free-text match on the student's name or the assignment title.</summary>

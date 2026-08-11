@@ -45,6 +45,8 @@ internal sealed class SubmissionsPagedSpecification : Specification<Submission>
     public SubmissionsPagedSpecification(
         IEnumerable<Guid>? assignmentIds,
         List<Guid>? authoredAssignmentIds,
+        IEnumerable<Guid>? classIds,
+        IEnumerable<Guid>? courseIds,
         IEnumerable<Guid>? studentIds,
         IEnumerable<SubmissionStatus>? statuses,
         string? search,
@@ -66,6 +68,10 @@ internal sealed class SubmissionsPagedSpecification : Specification<Submission>
 
         var searchTerm = string.IsNullOrWhiteSpace(search) ? null : search.Trim().ToLowerInvariant();
         var assignmentFilter = MultiValueFilter(assignmentIds);
+        // The class and course a submission belongs to are the assignment's, two hops away
+        // through its offering — a submission has no scope of its own.
+        var classFilter = MultiValueFilter(classIds);
+        var courseFilter = MultiValueFilter(courseIds);
         var studentFilter = MultiValueFilter(studentIds);
         var statusFilter = MultiValueFilter(statuses);
 
@@ -80,6 +86,8 @@ internal sealed class SubmissionsPagedSpecification : Specification<Submission>
         Criteria = s =>
             (assignmentFilter == null || assignmentFilter.Contains(s.AssignmentId)) &&
             (authoredAssignmentIds == null || authoredAssignmentIds.Contains(s.AssignmentId)) &&
+            (classFilter == null || classFilter.Contains(s.Assignment.ClassCourse.ClassId)) &&
+            (courseFilter == null || courseFilter.Contains(s.Assignment.ClassCourse.CourseId)) &&
             (studentFilter == null || studentFilter.Contains(s.StudentId)) &&
             (statusFilter == null || statusFilter.Contains(s.Status)) &&
             (searchTerm == null ||

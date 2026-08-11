@@ -153,13 +153,18 @@ export function useClasses(filters: ListFilters) {
   });
 }
 
-/** Every class, for populating pickers. Cached longer — reference data changes rarely. */
-export function useClassOptions() {
+/**
+ * Every class, for populating pickers. Cached longer — reference data changes rarely.
+ * `enabled` is for the screens that only need the whole catalogue for an admin: a teacher
+ * picks from their own mappings instead, so the request is not worth making for them.
+ */
+export function useClassOptions(enabled = true) {
   return useQuery({
     queryKey: queryKeys.classes.options,
     queryFn: () => apiGetPaged<ClassRoom>('/api/v1/classes?pageSize=100'),
     staleTime: 5 * 60 * 1000,
     select: (page: Paged<ClassRoom>) => page.items,
+    enabled,
   });
 }
 
@@ -185,12 +190,14 @@ export function useCourses(filters: ListFilters) {
   });
 }
 
-export function useCourseOptions() {
+/** Every course, for populating pickers. `enabled` as on {@link useClassOptions}. */
+export function useCourseOptions(enabled = true) {
   return useQuery({
     queryKey: queryKeys.courses.options,
     queryFn: () => apiGetPaged<Course>('/api/v1/courses?pageSize=100'),
     staleTime: 5 * 60 * 1000,
     select: (page: Paged<Course>) => page.items,
+    enabled,
   });
 }
 
